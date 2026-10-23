@@ -1,80 +1,40 @@
 // SPDX-FileCopyrightText: 2026 Rashik Adhikari
 // SPDX-License-Identifier: Apache-2.0
 
-// Package find looks for one thing across everything this store holds.
-//
-// # What was missing
-//
-// The published site has had search since there was a site: internal/search,
-// tf-idf over the pages, no engine. The interface that makes the site had none
-// at all. A hundred and thirteen routes, twenty-nine destinations, seventy
-// settings, and the only way to reach any of it was to remember which of five
-// groups it was in and scroll a list.
-//
-// So this is not a new capability. It is the index that already existed,
-// pointed at the things an author actually has to find.
+// Package find looks for one thing across the console: a screen, or a
+// setting, by the words somebody would use for it.
 //
 // # Why it is not a query language
 //
-// CONTRIBUTING.md refuses "features that add a query language over content.
-// The absence of one is what removes an entire vulnerability class", and
-// internal/listing says the same: "A query language is the thing that
-// eventually gets an injection."
-//
-// A free-text lookup is not one. There is no syntax here — no fields, no
-// operators, no negation, no comparison. The input is tokenised into words and
-// the words are looked up; a colon, a quote or a bracket is a character in a
-// word and means nothing. Anybody wanting a condition over content still has to
-// declare a listing, which is the mechanism that exists for it.
+// There is no syntax here — no fields, no operators, no negation, no
+// comparison. The input is tokenised into words and the words are looked
+// up; a colon, a quote or a bracket is a character in a word and means
+// nothing. A query language is the thing that eventually gets an injection.
 //
 // # Why the kinds are a closed set
 //
-// A finder that searches "everything" is a finder whose results depend on what
-// happened to be wired into it, and whose permission story is whatever each
-// source happens to do. Five kinds, each with a stated reason to be here, and
-// each supplied by the caller — which is what lets the caller apply its own
-// access rules before anything is searched rather than filtering afterwards.
-//
-// Forms are deliberately absent even though they are content: a form's
-// submissions are what somebody typed into a public page, and `quilzo form` is
-// gated separately for that reason. A search that reached them would be a way
-// past that gate with a text box in front of it.
+// Each kind is supplied by the caller, which is what lets the caller apply
+// its own access rules before anything is searched rather than filtering
+// afterwards.
 package find
 
 import (
 	"sort"
 	"strings"
 	"unicode"
-
-	"github.com/quilzo/quilzo/internal/search"
 )
 
-// Kind is what a hit is.
-//
-// A closed set, like every other vocabulary here: an open one is a string
-// somebody types, and a result whose kind the interface does not recognise is
-// a row it cannot render.
+// Kind is what a hit is. A closed set: a result whose kind the interface
+// does not recognise is a row it cannot render.
 type Kind string
 
 const (
-	// Page is content: a draft or published page, matched on its text.
-	Page Kind = "page"
-	// Screen is somewhere in the interface. The most common thing somebody is
-	// looking for is not a page at all, it is the screen that manages a kind
-	// of thing — and "where do I set the language" is a question the
-	// navigation answers only if you already know it is under Content.
+	// Screen is somewhere in the console. "Where do I set the feeds" is a
+	// question the navigation answers only if you already know the group.
 	Screen Kind = "screen"
-	// Setting is one of the configuration keys. Seventy of them, each with a
-	// summary written for somebody deciding whether to change it, and no way
-	// to search that text until now.
+	// Setting is one of the configuration keys, matched on its key and on
+	// the summary written for somebody deciding whether to change it.
 	Setting Kind = "setting"
-	// Media is a file in the library, matched on its description. Every file
-	// here has one, because the library refuses to store a picture without it
-	// — so alternative text is a search index that was already being filled
-	// in for another reason.
-	Media Kind = "media"
-	// Type is a content type, matched on its name and its fields.
-	Type Kind = "type"
 )
 
 // A Hit is one thing worth showing, and enough to show it.
@@ -82,13 +42,9 @@ type Hit struct {
 	Kind Kind `json:"kind"`
 	// Title is what to call it.
 	Title string `json:"title"`
-	// Path is where to go. A route for a screen, a page's own address, a media
-	// id. Empty means there is nowhere to go, which is true of nothing at
-	// present and is worth being able to represent rather than assuming.
+	// Path is where to go: the screen's route, or the settings screen.
 	Path string `json:"path,omitempty"`
-	// Why says what matched, so a result is never there by magic. internal/
-	// search already collects the field names for this reason and the same
-	// argument applies to every other kind.
+	// Why says what matched, so a result is never there by magic.
 	Why string `json:"why,omitempty"`
 	// Score orders within a kind. Not across them — see Search.
 	Score float64 `json:"score"`
@@ -96,23 +52,13 @@ type Hit struct {
 
 // Sources is what there is to look through.
 //
-// Supplied by the caller rather than opened here, so the caller applies its own
-// access rules first. A finder that opened the store itself would be a second
-// answer to "may this person see this", and the second answer is the one that
-// is wrong.
+// Supplied by the caller rather than opened here, so the caller applies its
+// own access rules first.
 type Sources struct {
-	// Pages is the page tree to index, in the same shape internal/search
-	// takes. Nil searches no pages.
-	Pages map[string]any
-	// Commit identifies the page set, so the index can be cached by the
-	// caller. Empty is fine; it only affects reuse.
-	Commit  string
 	Screens []Destination
 	// Settings are the configuration keys this person may see. The caller
-	// filters: a reader has no business finding the token lifetime.
+	// filters: a viewer has no business finding the token lifetime.
 	Settings []Option
-	Media    []File
-	Types    []ContentType
 }
 
 // Destination is a screen in the interface.
@@ -134,33 +80,12 @@ type Option struct {
 	Summary string
 }
 
-// File is something in the media library.
-type File struct {
-	ID  string
-	Alt string
-}
-
-// ContentType is a declared type and the fields it requires.
-type ContentType struct {
-	Name   string
-	Fields []string
-}
-
-// Search returns what matches, best first within each kind.
-//
-// # Why the ordering is within a kind and not across them
-//
-// The scores are not comparable. A page's score is tf-idf over a body of prose;
-// a screen's is how well a short title matched. Sorting them into one list
-// means inventing an exchange rate between the two, and the result is a list
-// where a page mentioning "media" in passing outranks the media screen.
-//
-// So kinds come in a fixed order and each is sorted on its own. Screens first,
-// because the most common thing somebody cannot find is a screen, and a screen
-// is also the cheapest kind of wrong answer — it costs a click and teaches
-// where something lives.
+// Search returns what matches, best first within each kind: screens, then
+// settings, because the most common thing somebody cannot find is a screen,
+// and a screen is also the cheapest kind of wrong answer — it costs a click
+// and teaches where something lives.
 func Search(query string, src Sources, limit int) []Hit {
-	terms := search.Tokenise(query)
+	terms := tokenise(query)
 	if len(terms) == 0 {
 		return nil
 	}
@@ -171,13 +96,38 @@ func Search(query string, src Sources, limit int) []Hit {
 	var out []Hit
 	out = append(out, matchScreens(terms, src.Screens)...)
 	out = append(out, matchSettings(terms, src.Settings)...)
-	out = append(out, matchTypes(terms, src.Types)...)
-	out = append(out, matchPages(query, src)...)
-	out = append(out, matchMedia(terms, src.Media)...)
 
 	if len(out) > limit {
 		out = out[:limit]
 	}
+	return out
+}
+
+// maxTerm is the longest word looked up.
+const maxTerm = 100
+
+// tokenise splits text into terms: lowercase, split on anything that is
+// not a letter or digit, and what is too short or too long dropped.
+func tokenise(text string) []string {
+	var out []string
+	var cur []rune
+	flush := func() {
+		if len(cur) > 1 && len(cur) <= maxTerm {
+			out = append(out, string(cur))
+		}
+		cur = cur[:0]
+	}
+	for _, r := range text {
+		switch {
+		case unicode.IsLetter(r) || unicode.IsDigit(r):
+			cur = append(cur, unicode.ToLower(r))
+		case r == '\'' && len(cur) > 0:
+			// An apostrophe inside a word is part of it.
+		default:
+			flush()
+		}
+	}
+	flush()
 	return out
 }
 
@@ -213,69 +163,6 @@ func matchSettings(terms []string, in []Option) []Hit {
 			Why: o.Summary, Score: float64(n)})
 	}
 	return ranked(hits)
-}
-
-func matchTypes(terms []string, in []ContentType) []Hit {
-	var hits []Hit
-	for _, t := range in {
-		n, _ := hitsIn(terms, append([]string{t.Name}, t.Fields...))
-		if n == 0 {
-			continue
-		}
-		why := "a content type"
-		if len(t.Fields) > 0 {
-			why += " with " + strings.Join(shorten(t.Fields, 4), ", ")
-		}
-		hits = append(hits, Hit{Kind: Type, Title: t.Name, Path: "/types",
-			Why: why, Score: float64(n)})
-	}
-	return ranked(hits)
-}
-
-func matchMedia(terms []string, in []File) []Hit {
-	var hits []Hit
-	for _, f := range in {
-		n, _ := hitsIn(terms, []string{f.ID, f.Alt})
-		if n == 0 {
-			continue
-		}
-		title := f.Alt
-		if strings.TrimSpace(title) == "" {
-			title = f.ID
-		}
-		hits = append(hits, Hit{Kind: Media, Title: title, Path: "/media",
-			Why: "in the library", Score: float64(n)})
-	}
-	return ranked(hits)
-}
-
-// matchPages uses the index the site already has.
-//
-// Built per call rather than cached, because the admin searches the draft and
-// the draft changes on every save — an index held across requests would report
-// yesterday's content, which is worse than taking a moment to build.
-func matchPages(query string, src Sources) []Hit {
-	if len(src.Pages) == 0 {
-		return nil
-	}
-	idx := search.Build(src.Commit, src.Pages)
-	if idx == nil {
-		return nil
-	}
-	var hits []Hit
-	for _, r := range idx.Search(query, 20) {
-		title := r.Title
-		if strings.TrimSpace(title) == "" {
-			title = r.Page
-		}
-		why := "a page"
-		if len(r.Fields) > 0 {
-			why = "matched in " + strings.Join(shorten(r.Fields, 3), ", ")
-		}
-		hits = append(hits, Hit{Kind: Page, Title: title,
-			Path: "/page/" + r.Page, Why: why, Score: r.Score})
-	}
-	return hits // already ordered by the index
 }
 
 // hitsIn counts how many terms match any of the haystacks, and returns the

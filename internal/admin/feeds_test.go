@@ -6,6 +6,8 @@ package admin
 import (
 	"strings"
 	"testing"
+
+	"github.com/quilzo/vaigil/internal/auth"
 )
 
 type feedsFake struct {
@@ -35,19 +37,19 @@ func wireFeeds(srv *Server) *feedsFake {
 
 // An analyst sees what is arriving and cannot add, switch off or remove a
 // feed: whoever adds one decides whose word reaches the automations.
-func TestAnAnalystReadsFeedsAndCannotChangeThem(t *testing.T) {
-	srv, token := asJob(t, "analyst")
+func TestAResponderReadsFeedsAndCannotChangeThem(t *testing.T) {
+	srv, token := asRole(t, auth.RoleResponder)
 	f := wireFeeds(srv)
 	page := getPage(t, srv, "/security/feeds", token)
 	if !strings.Contains(page, "ivo@acme.example") || strings.Contains(page, `value="add"`) {
-		t.Errorf("an analyst's page: signals shown %v, add form shown %v",
+		t.Errorf("a responder's page: signals shown %v, add form shown %v",
 			strings.Contains(page, "ivo@acme.example"), strings.Contains(page, `value="add"`))
 	}
 	postForm(t, srv, "/security/feeds/act", token, "do=add&kind=okta&name=mine")
 	postForm(t, srv, "/security/feeds/act", token, "do=off&name=okta")
 	postForm(t, srv, "/security/feeds/act", token, "do=remove&name=okta")
 	if len(f.added) != 0 || len(f.removed) != 0 || len(f.off) != 0 {
-		t.Errorf("an analyst changed feeds: %+v", f)
+		t.Errorf("a responder changed feeds: %+v", f)
 	}
 }
 

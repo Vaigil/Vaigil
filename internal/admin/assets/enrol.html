@@ -11,7 +11,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <meta name="referrer" content="no-referrer">
-<title>Add a passkey — Quilzo</title>
+<title>Add a passkey — Vaigil</title>
 <link rel="stylesheet" href="/style.css">
 </head>
 <body class="signin-page">
@@ -82,7 +82,7 @@
       return navigator.credentials.create({
         publicKey: {
           challenge: toBytes(start.challenge),
-          rp: { id: start.rp.id, name: start.rp.name || "Quilzo" },
+          rp: { id: start.rp.id, name: start.rp.name || "Vaigil" },
           user: { id: toBytes(start.user.id), name: start.user.name, displayName: start.user.displayName },
           pubKeyCredParams: [
             { type: "public-key", alg: -7 },

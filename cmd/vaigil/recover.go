@@ -9,9 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/shield"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
 )
 
 // "Forgot password" for a system with no passwords.
@@ -68,25 +67,15 @@ func cmdRecover(root string, args []string) error {
 		return err
 	}
 
-	// Usable means: not revoked, not expired, carrying admin, and not
-	// refused by a lockdown in force, which would refuse it at the admin
-	// however alive it is here.
+	// Usable means: not revoked, not expired, and carrying admin.
 	usable := 0
 	now := time.Now()
-	lock, locked := shield.Find(root, shield.Lockdown, "", now)
 	for i := range toks.Tokens {
 		t := &toks.Tokens[i]
 		if ok, _ := t.Usable(now); !ok || t.Role != auth.RoleAdmin {
 			continue
 		}
-		if locked && shield.LockedOut(lock, t.CreatedAt, t.Session) {
-			continue
-		}
 		usable++
-	}
-	if locked && usable == 0 {
-		fmt.Fprintf(os.Stderr, "the admin is locked down until about %s; lifting it is quicker than this:\n"+
-			"    quilzo shield lift %s\n", lock.Until.UTC().Format("15:04 UTC"), lock.ID)
 	}
 
 	if usable > 0 {
@@ -99,8 +88,8 @@ func cmdRecover(root string, args []string) error {
 		return fmt.Errorf(
 			"%d admin token(s) are still usable, so this is not needed.\n"+
 				"  Ask whoever holds one to issue you another:\n"+
-				"    quilzo auth grant you admin\n"+
-				"    quilzo token issue you --principal you --role admin\n"+
+				"    vaigil auth grant you admin\n"+
+				"    vaigil token issue you --principal you --role admin\n"+
 				"  This command exists only for a store nobody can administer "+
 				"at all", usable)
 	}
@@ -115,7 +104,7 @@ func cmdRecover(root string, args []string) error {
 				"everything about whether\n  it is recorded: a hand edit " +
 				"leaves no trace, this leaves one in a log\n  written by a " +
 				"different account.\n\n" +
-				"    quilzo auth recover --principal WHO --reason \"why\" " +
+				"    vaigil auth recover --principal WHO --reason \"why\" " +
 				"--i-have-filesystem-access\n")}
 	}
 

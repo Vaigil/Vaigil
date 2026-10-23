@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/scim"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/scim"
 )
 
 type scimCalls struct {
@@ -24,7 +24,7 @@ func wireSCIM(t *testing.T, srv *Server) (*scimCalls, *scim.Store) {
 	calls := &scimCalls{}
 	st := &scim.Store{Path: filepath.Join(t.TempDir(), "scim.json")}
 	srv.SCIM = &SCIMAdmin{
-		Handler: &scim.Handler{Store: st, Authenticate: func(tok string) bool { return tok == "qzscim_right" }},
+		Handler: &scim.Handler{Store: st, Authenticate: func(tok string) bool { return tok == "vgscim_right" }},
 		Status: func() (bool, *scim.State, error) {
 			s, err := st.Load()
 			return calls.tokens > calls.revoked, s, err
@@ -34,7 +34,7 @@ func wireSCIM(t *testing.T, srv *Server) (*scimCalls, *scim.Store) {
 			return st.Update(func(s *scim.State) error { s.Mapping[group] = to; return nil })
 		},
 		Unmap:       func(group, by string) error { calls.unmapped, calls.by = group, by; return nil },
-		NewToken:    func(by string) (string, error) { calls.tokens++; return "qzscim_shown-once", nil },
+		NewToken:    func(by string) (string, error) { calls.tokens++; return "vgscim_shown-once", nil },
 		RevokeToken: func(by string) error { calls.revoked++; return nil },
 	}
 	return calls, st
@@ -55,10 +55,10 @@ func TestTheProvisioningScreenMapsGroupsAndShowsTheTokenOnce(t *testing.T) {
 	}
 
 	w := postForm(t, srv, "/provisioning/act", token, "do=token")
-	if !strings.Contains(w.Body.String(), "qzscim_shown-once") {
+	if !strings.Contains(w.Body.String(), "vgscim_shown-once") {
 		t.Fatal("a new token is not shown")
 	}
-	if strings.Contains(get(t, srv, "/provisioning", token).Body.String(), "qzscim_shown-once") {
+	if strings.Contains(get(t, srv, "/provisioning", token).Body.String(), "vgscim_shown-once") {
 		t.Error("the token is shown again")
 	}
 
@@ -78,7 +78,7 @@ func TestTheProvisioningScreenMapsGroupsAndShowsTheTokenOnce(t *testing.T) {
 
 // Deciding what a group means is deciding who is an administrator.
 func TestOnlyAnAdministratorProvisions(t *testing.T) {
-	for _, role := range []auth.Role{auth.RoleReader, auth.RoleAuthor, auth.RolePublisher} {
+	for _, role := range []auth.Role{auth.RoleViewer, auth.RoleAnalyst, auth.RoleResponder} {
 		srv, token := asRole(t, role)
 		calls, _ := wireSCIM(t, srv)
 		if code := get(t, srv, "/provisioning", token).Code; code != http.StatusForbidden {
@@ -107,7 +107,7 @@ func TestTheIdentityProviderReachesTheEndpointThroughTheAdmin(t *testing.T) {
 		srv.Handler().ServeHTTP(w, req)
 		return w.Code
 	}
-	if code := call("qzscim_right", http.MethodPost, `{"userName":"ada@example.com"}`); code != http.StatusCreated {
+	if code := call("vgscim_right", http.MethodPost, `{"userName":"ada@example.com"}`); code != http.StatusCreated {
 		t.Errorf("the provider could not create a user: %d", code)
 	}
 	if code := call(token, http.MethodGet, ""); code != http.StatusUnauthorized {

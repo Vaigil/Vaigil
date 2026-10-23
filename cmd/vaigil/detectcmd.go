@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/quilzo/quilzo/internal/detect"
+	"github.com/quilzo/vaigil/internal/detect"
 )
 
 // Detections, as files somebody reviews rather than queries somebody typed.
@@ -224,7 +224,7 @@ func detectFields(args []string) error {
 		w.Human("  %s\n", o)
 	}
 	w.Human("\n  %sfields come from the events themselves: "+
-		"quilzo telemetry fields FILE%s\n", dim, reset)
+		"vaigil telemetry fields FILE%s\n", dim, reset)
 	w.Human("  %sa rule naming anything else is refused at load, because it "+
 		"would otherwise run and match nothing forever%s\n", dim, reset)
 	return nil

@@ -1,89 +1,27 @@
 {{template "head" .}}
 <h1>Today</h1>
-{{if .Message}}<p class="notice" role="status">{{.Message}}</p>{{end}}
-<p class="lead">{{.Date}}. What is waiting for you, then what is happening in the parts of the store you work in.</p>
+{{if .Message}}<p class="notice ok" role="status">{{.Message}}</p>{{end}}
+{{if .Error}}<p class="notice bad" role="alert">{{.Error}}</p>{{end}}
+<p class="lead">{{.Date}}. What is waiting for you, then what is wrong in the parts of the estate you work in.</p>
 
 <section aria-labelledby="waiting">
 <h2 id="waiting">Waiting for you{{if .WaitingTotal}} <span class="count">{{.WaitingTotal}}</span>{{end}}</h2>
 {{if .Waiting}}<div class="table-wrap"><table class="approvals-table">
   <thead><tr><th scope="col">Waiting on</th><th scope="col">From</th><th scope="col">Commits to</th><th scope="col">Since</th></tr></thead>
   <tbody>{{range .Waiting}}<tr>
-    <th scope="row"><a href="{{.Href}}">{{.Title}}</a>{{if .Expired}}<div class="hint">asked too long ago to agree to</div>{{end}}</th>
-    <td>{{.Agent}}</td>
-    <td><span class="wf-word {{if or (eq .Commits "pays") (eq .Commits "deletes") (eq .Commits "publishes")}}critical{{else if or (eq .Commits "sends") (eq .Commits "writes") (eq .Commits "answers")}}warning{{else}}info{{end}}">{{.Commits}}</span></td>
+    <th scope="row"><a href="{{.Href}}">{{.Title}}</a></th>
+    <td>{{.From}}</td>
+    <td><span class="wf-word {{if eq .Commits "acts"}}critical{{else}}warning{{end}}">{{.Commits}}</span></td>
     <td class="when">{{.When}}</td>
   </tr>{{end}}</tbody></table></div>
-{{if .MoreWaiting}}<p><a href="/approvals">{{.MoreWaiting}} more on Approvals</a></p>{{else}}<p class="hint">Questions first, then what cannot be taken back, then the oldest. <a href="/approvals">Approvals</a> groups them by agent.</p>{{end}}
+{{if .MoreWaiting}}<p><a href="/approvals">{{.MoreWaiting}} more on Approvals</a></p>{{else}}<p class="hint">Acts on other platforms first, then the oldest. <a href="/approvals">Approvals</a> groups them by where they came from.</p>{{end}}
 {{else}}<p>Nothing is waiting for you.</p>{{end}}
 </section>
 
-{{with .Brief}}<section aria-labelledby="brief">
-<h2 id="brief">In brief</h2>
-{{if .Parts}}<p>{{range .Parts}}{{if .Fact}}<a href="{{.Fact.Href}}">{{.Fact.N}}</a>{{else}}{{.Text}}{{end}}{{end}}</p>{{end}}
-<p class="hint">{{if .Parts}}Written by {{.Model}} at {{.At}}{{if .Stale}} from the figures as they were then{{else}} from the figures on this page{{end}}{{if .Writing}}; a new one is being written{{end}}. Every figure in it is a link to its records, and none was written by the model.{{else}}Being written by {{.Model}}; <a href="/today">show it</a> in a moment.{{end}}</p>
-</section>{{end}}
-
 <section aria-labelledby="happening">
-<h2 id="happening">In your parts of the store</h2>
+<h2 id="happening">In your parts of the estate</h2>
 {{if .Lines}}<dl class="stats-row">{{range .Lines}}<div{{if .Warn}} class="serious"{{end}}><dt>{{.Text}}</dt><dd><a href="{{.Href}}">{{.N}}</a></dd></div>{{end}}</dl>
 <p class="hint">Counted now, from the records each figure links to.</p>
 {{else}}<p>Nothing to report in what you can open.</p>{{end}}
 </section>
-
-{{if .CanAsk}}<section aria-labelledby="ask">
-<h2 id="ask">Ask</h2>
-<form method="post" action="/today/ask" class="param-form">
-  <div class="field"><label for="question">Ask about what you can open, in your own words</label>
-    <input id="question" name="question" maxlength="300" autocomplete="off" aria-describedby="ask-help"
-      placeholder="Which samples are checked out, by who has them?"></div>
-  <p id="ask-help" class="hint">The answer is cards Quilzo draws. The model chooses the cards and what each counts; it never sees your records, and every figure is read from what you may open.</p>
-  <button type="submit">Ask</button>
-</form>
-</section>{{end}}
-
-{{with .Answer}}<section aria-labelledby="answer">
-<h2 id="answer">{{.Title}}</h2>
-<p class="hint">You asked: &ldquo;{{.Question}}&rdquo;</p>
-{{if .Problem}}<p class="notice">{{.Problem}}</p>{{end}}
-{{template "viewcards" .}}
-{{if .Notes}}<div class="notice"><p>Left out of the answer:</p><ul>{{range .Notes}}<li>{{.}}</li>{{end}}</ul></div>{{end}}
-{{if and .Cards $.CanKeep}}<form method="post" action="/today/pin" class="inline">
-  <input type="hidden" name="do" value="pin"><button type="submit">Keep on Today</button>
-</form>{{end}}
-</section>{{end}}
-
-{{if .Views}}<section aria-labelledby="views">
-<h2 id="views">Your views</h2>
-{{range .Views}}<article class="view-kept" aria-labelledby="view-{{.ID}}">
-  <h3 id="view-{{.ID}}">{{.Title}}</h3>
-  {{template "viewcards" .}}
-  <form method="post" action="/today/pin" class="inline">
-    <input type="hidden" name="do" value="unpin"><input type="hidden" name="id" value="{{.ID}}">
-    <button type="submit" class="quiet">Take off Today<span class="visually-hidden">: {{.Title}}</span></button>
-  </form>
-</article>{{end}}
-<p class="hint">Drawn again on every visit, from what you may open now.</p>
-</section>{{end}}
-
-<form method="post" action="/today/start" class="inline">
-  {{if .StartsHere}}<input type="hidden" name="to" value="pages">
-  <button type="submit" class="quiet">Start on Pages after signing in instead</button>
-  {{else}}<input type="hidden" name="to" value="today">
-  <button type="submit" class="quiet">Start here after signing in</button>{{end}}
-</form>
 {{template "foot" .}}
-{{define "viewcards"}}<div class="view-cards">{{range .Cards}}<div class="view-card">
-  <p class="hint">{{.Says}}</p>
-  {{if .Problem}}<p class="notice bad">{{.Problem}}</p>
-  {{else if eq .Kind "figure"}}<p class="view-figure"><a href="{{.Href}}">{{.Figure}}</a></p>
-  {{else if eq .Kind "bars"}}<div class="table-wrap"><table>
-    <thead><tr><th scope="col">Value</th><th scope="col">Records</th><th scope="col"><span class="visually-hidden">Bar</span></th></tr></thead>
-    <tbody>{{range .Bars}}<tr><th scope="row">{{.Label}}</th><td>{{.N}}</td><td><svg class="view-bar" viewBox="0 0 200 12" aria-hidden="true" focusable="false"><rect x="0" y="0" width="{{.W}}" height="12"></rect></svg></td></tr>{{end}}</tbody>
-  </table></div>{{if .More}}<p class="hint">{{.More}} other values not shown.</p>{{end}}<p class="hint"><a href="{{.Href}}">{{.Figure}} records</a> in all.</p>
-  {{else if eq .Kind "waiting"}}{{if .Waiting}}<ul>{{range .Waiting}}<li><a href="{{.Href}}">{{.Title}}</a> <span class="hint">{{.Commits}}, {{.When}}</span></li>{{end}}</ul>{{else}}<p>Nothing.</p>{{end}}
-  {{else}}{{if .Cells}}<div class="table-wrap"><table>
-    <thead><tr>{{range .Cols}}<th scope="col">{{.}}</th>{{end}}</tr></thead>
-    <tbody>{{$links := .Links}}{{range $i, $row := .Cells}}<tr>{{range $j, $cell := $row}}{{if and (eq $j 0) $links}}<th scope="row"><a href="{{index $links $i}}">{{$cell}}</a></th>{{else}}<td>{{$cell}}</td>{{end}}{{end}}</tr>{{end}}</tbody>
-  </table></div>{{else}}<p>Nothing matches.</p>{{end}}{{if .More}}<p class="hint"><a href="{{.Href}}">{{.More}} more</a> of {{.Figure}}.</p>{{end}}
-  {{end}}
-</div>{{end}}</div>{{end}}

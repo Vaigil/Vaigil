@@ -4,9 +4,7 @@
 // Package appsec takes what a code scanner found and does the four things the
 // scanner did not.
 //
-// Distinct from internal/codescan, which is this project's own linter for its
-// own templates. This one reads the output of whatever the organisation
-// already runs — Semgrep, CodeQL, a secret scanner, a dependency scanner —
+// It reads the output of whatever the organisation already runs — Semgrep, CodeQL, a secret scanner, a dependency scanner —
 // and is about the queue rather than about the analysis.
 //
 // # The arithmetic
@@ -70,8 +68,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Kind is what a scanner found.

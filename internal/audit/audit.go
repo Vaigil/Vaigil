@@ -69,7 +69,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/atomicfile"
 )
 
 // Kind distinguishes the three sorts of actor. AU-3(f).
@@ -138,7 +138,7 @@ type Event struct {
 	// and substantively false. The chain proves nobody edited a record after it
 	// was written. It says nothing about whether the record was true when
 	// written — and an identity taken from $USER is true only if nobody minds
-	// lying, since `USER=ceo quilzo publish` costs nothing.
+	// lying, since `USER=ceo vaigil publish` costs nothing.
 	//
 	// So an unproven identity is recorded as unproven rather than dressed up as
 	// a name. An auditor can then filter for what was actually established,
@@ -201,15 +201,13 @@ type Options struct {
 // The file mode depends on the deployment, and picking one for both is wrong
 // in whichever direction it is picked.
 //
-// Single account: the log lives in the store and the CMS owns it, so 0600 —
+// Single account: the log lives in the store and Vaigil owns it, so 0600 —
 // group-readable would hand the audit record to anybody else on the machine
-// for no benefit, and the posture inspector says so.
+// for no benefit.
 //
-// Separated: the writer owns the log and the CMS is in its group, because the
-// CMS is not trusted to *write* the log, which is a different claim from not
-// being trusted to read it. Every reader — auditlog, siem, the posture
-// inspector itself — needs it, and at 0600 the correct configuration was the
-// one that broke the tooling.
+// Separated: the writer owns the log and Vaigil is in its group, because
+// Vaigil is not trusted to *write* the log, which is a different claim from
+// not being trusted to read it: auditlog and siem need to read it.
 //
 // Hard-coding 0640 fixed that and made the inspector flag its own default as a
 // high-severity exposure with "fix: chmod 600" — the program telling an
@@ -380,7 +378,7 @@ var IdentityKeys = map[string]bool{
 	// question the entry exists for, which is who looked at whose profile.
 	"subject": true,
 	// Who asked for a change a second administrator decided, and who
-	// approved it (internal/dual, the shield and the policy).
+	// approved it (internal/dual and the policy).
 	"proposed_by": true, "approved_by": true,
 }
 
@@ -413,7 +411,7 @@ func (l *Log) pseudonym(id string) string {
 
 // Pseudonym is the handle an identifier has in a log kept with this key:
 // the one derivation, for anything that must match the log without holding
-// identities itself (internal/shield blocks a source by its handle).
+// identities itself.
 func Pseudonym(key []byte, id string) string {
 	m := hmac.New(sha256.New, key)
 	m.Write([]byte(id))

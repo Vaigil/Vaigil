@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-// Responses recorded from a running Keycloak 26.8: Quilzo's own request
+// Responses recorded from a running Keycloak 26.8: Vaigil's own request
 // went out, a person signed in in Chromium, and the POST back was kept
 // (testdata/keycloak). One client per way Keycloak can sign: the response,
 // the assertion, both, and RSA-SHA512. The realm's metadata is the file

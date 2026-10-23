@@ -56,7 +56,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Op is how a field is compared. A closed set, because a predicate is data

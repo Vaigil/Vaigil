@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/quilzo/quilzo/internal/config"
+	"github.com/quilzo/vaigil/internal/config"
 )
 
 // Every group on Settings is named in words. A group whose heading is its

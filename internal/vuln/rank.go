@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/finding"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/finding"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // The order, and the one number that makes a probability useful.

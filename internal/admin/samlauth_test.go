@@ -25,9 +25,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/saml"
-	"github.com/quilzo/quilzo/internal/xmldsig"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/saml"
+	"github.com/quilzo/vaigil/internal/xmldsig"
 )
 
 // The whole sign-in, through the admin's own handlers: start, a response
@@ -107,7 +107,7 @@ func samlServer(t *testing.T, edit func(*saml.Config)) (*Server, string) {
 			return fmt.Errorf("no %s", name)
 		},
 	}
-	if err := srv.Policy.Grant(auth.Binding{Principal: "dana.reyes@northwind.example", Role: auth.RoleAuthor, Resource: "/"}); err != nil {
+	if err := srv.Policy.Grant(auth.Binding{Principal: "dana.reyes@northwind.example", Role: auth.RoleAnalyst, Resource: "/"}); err != nil {
 		t.Fatal(err)
 	}
 	return srv, token
@@ -129,7 +129,7 @@ func start(t *testing.T, srv *Server) (requestID, relay string, cookie *http.Coo
 	}
 	relay = loc.Query().Get("RelayState")
 	for _, c := range w.Result().Cookies() {
-		if strings.Contains(c.Name, "quilzo_saml") {
+		if strings.Contains(c.Name, "vaigil_saml") {
 			cookie = c
 		}
 	}
@@ -241,7 +241,7 @@ func postACS(t *testing.T, srv *Server, relay, samlResponse string, cookie *http
 
 func sessionOf(w *httptest.ResponseRecorder) *http.Cookie {
 	for _, c := range w.Result().Cookies() {
-		if c.Name == "quilzo_token" && c.MaxAge > 0 {
+		if c.Name == "vaigil_token" && c.MaxAge > 0 {
 			return c
 		}
 	}
@@ -260,7 +260,7 @@ func TestASAMLSignInMakesASession(t *testing.T) {
 	if c == nil || !c.HttpOnly || c.SameSite != http.SameSiteLaxMode {
 		t.Fatalf("session cookie %+v", c)
 	}
-	page := get(t, srv, "/", c.Value)
+	page := get(t, srv, "/today", c.Value)
 	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), "dana.reyes@northwind.example") {
 		t.Errorf("the session does not reach the pages: %d", page.Code)
 	}
@@ -302,7 +302,7 @@ func TestSAMLRefusals(t *testing.T) {
 			return postACS(t, srv, relay, response(t, resp{who: "dana@evil.example", inResponseTo: id}), c)
 		}, "is not in northwind.example"},
 		{"suspended by provisioning", nil, func(t *testing.T, srv *Server) *httptest.ResponseRecorder {
-			_ = srv.Policy.Grant(auth.Binding{Principal: "dana.reyes@northwind.example", Role: auth.RoleReader, Resource: "/", Deny: true})
+			_ = srv.Policy.Grant(auth.Binding{Principal: "dana.reyes@northwind.example", Role: auth.RoleViewer, Resource: "/", Deny: true})
 			id, relay, c := start(t, srv)
 			return postACS(t, srv, relay, response(t, resp{who: "dana.reyes@northwind.example", inResponseTo: id}), c)
 		}, "suspended"},
@@ -435,7 +435,7 @@ func TestOnlyTheACSTakesACrossSitePost(t *testing.T) {
 		req := httptest.NewRequest("POST", p, strings.NewReader("do=remove&name=corp"))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Header.Set("Sec-Fetch-Site", "cross-site")
-		req.AddCookie(&http.Cookie{Name: "quilzo_token", Value: token})
+		req.AddCookie(&http.Cookie{Name: "vaigil_token", Value: token})
 		w := httptest.NewRecorder()
 		srv.Handler().ServeHTTP(w, req)
 		if w.Code != http.StatusForbidden {
@@ -469,7 +469,7 @@ func TestAWorkAddressFindsItsProvider(t *testing.T) {
 func TestRequiredSSOClosesTheTokenFrontDoor(t *testing.T) {
 	srv, token := samlServer(t, func(c *saml.Config) { c.Required = true })
 	_ = srv.Policy.Grant(auth.Binding{Principal: "dana.reyes@northwind.example", Role: auth.RoleAdmin, Resource: "/"})
-	secret, _, err := srv.Tokens.IssueSession("dana-cli", "dana.reyes@northwind.example", auth.RoleAuthor, "/", time.Hour, auth.RoleAdmin, auth.MethodPasskey)
+	secret, _, err := srv.Tokens.IssueSession("dana-cli", "dana.reyes@northwind.example", auth.RoleAnalyst, "/", time.Hour, auth.RoleAdmin, auth.MethodPasskey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -493,7 +493,7 @@ func TestRequiredSSOClosesTheTokenFrontDoor(t *testing.T) {
 	srv2, _ := samlServer(t, func(c *saml.Config) {
 		c.Required, c.BreakGlass = true, []string{"dana.reyes@northwind.example"}
 	})
-	secret2, _, _ := srv2.Tokens.IssueSession("dana-cli", "dana.reyes@northwind.example", auth.RoleAuthor, "/", time.Hour, auth.RoleAdmin, auth.MethodPasskey)
+	secret2, _, _ := srv2.Tokens.IssueSession("dana-cli", "dana.reyes@northwind.example", auth.RoleAnalyst, "/", time.Hour, auth.RoleAdmin, auth.MethodPasskey)
 	req := httptest.NewRequest("POST", "/signin", strings.NewReader(url.Values{"token": {secret2}}.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
@@ -515,7 +515,7 @@ func TestTheSSOScreenAddsOnlyAConfirmedKey(t *testing.T) {
 	act := func(v url.Values) *httptest.ResponseRecorder {
 		req := httptest.NewRequest("POST", "/sso/act", strings.NewReader(v.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		req.AddCookie(&http.Cookie{Name: "quilzo_token", Value: token})
+		req.AddCookie(&http.Cookie{Name: "vaigil_token", Value: token})
 		w := httptest.NewRecorder()
 		srv.Handler().ServeHTTP(w, req)
 		return w

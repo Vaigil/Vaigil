@@ -15,7 +15,7 @@ import (
 // for eight hours. IssueSession marks them.
 func TestASignInSessionIsASession(t *testing.T) {
 	ts := &TokenStore{}
-	_, tok, err := ts.IssueSession("oidc:dana", "dana", RoleAuthor, "/",
+	_, tok, err := ts.IssueSession("oidc:dana", "dana", RoleAnalyst, "/",
 		8*time.Hour, RoleAdmin)
 	if err != nil {
 		t.Fatal(err)
@@ -24,7 +24,7 @@ func TestASignInSessionIsASession(t *testing.T) {
 		t.Fatal("a sign-in session does not report itself as one")
 	}
 	// And an ordinary token still is not.
-	_, own, err := ts.Issue("laptop", "dana", RoleAuthor, "/", 30*24*time.Hour,
+	_, own, err := ts.Issue("laptop", "dana", RoleAnalyst, "/", 30*24*time.Hour,
 		RoleAdmin)
 	if err != nil {
 		t.Fatal(err)
@@ -33,7 +33,7 @@ func TestASignInSessionIsASession(t *testing.T) {
 		t.Fatal("somebody's own long-lived token reports as a session")
 	}
 	// A session cannot be exchanged for another, whichever way it was made.
-	secret, _, err := ts.IssueSession("passkey:dana", "dana", RoleAuthor, "/",
+	secret, _, err := ts.IssueSession("passkey:dana", "dana", RoleAnalyst, "/",
 		time.Hour, RoleAdmin)
 	if err != nil {
 		t.Fatal(err)
@@ -47,7 +47,7 @@ func TestASignInSessionIsASession(t *testing.T) {
 // TestASessionCannotBeAskedToLastADay.
 func TestASessionCannotBeAskedToLastADay(t *testing.T) {
 	ts := &TokenStore{}
-	_, tok, err := ts.IssueSession("oidc:dana", "dana", RoleAuthor, "/",
+	_, tok, err := ts.IssueSession("oidc:dana", "dana", RoleAnalyst, "/",
 		72*time.Hour, RoleAdmin)
 	if err != nil {
 		t.Fatal(err)
@@ -68,18 +68,18 @@ func TestOldSessionsAreClearedAndTokensAreNot(t *testing.T) {
 	now := time.Now()
 	long := now.Add(-30 * 24 * time.Hour).Unix()
 	ts.Tokens = []Token{
-		{ID: "own-expired", Principal: "dana", Role: RoleAuthor,
+		{ID: "own-expired", Principal: "dana", Role: RoleAnalyst,
 			ExpiresAt: long},
-		{ID: "old-session", Principal: "dana", Role: RoleAuthor,
+		{ID: "old-session", Principal: "dana", Role: RoleAnalyst,
 			Session: true, ExpiresAt: long},
-		{ID: "old-exchanged", Principal: "dana", Role: RoleAuthor,
+		{ID: "old-exchanged", Principal: "dana", Role: RoleAnalyst,
 			Parent: "own-expired", ExpiresAt: long},
-		{ID: "recent-session", Principal: "dana", Role: RoleAuthor,
+		{ID: "recent-session", Principal: "dana", Role: RoleAnalyst,
 			Session: true, ExpiresAt: now.Add(-time.Hour).Unix()},
-		{ID: "live-session", Principal: "dana", Role: RoleAuthor,
+		{ID: "live-session", Principal: "dana", Role: RoleAnalyst,
 			Session: true, ExpiresAt: now.Add(time.Hour).Unix()},
 	}
-	if _, _, err := ts.IssueSession("oidc:dana", "dana", RoleAuthor, "/",
+	if _, _, err := ts.IssueSession("oidc:dana", "dana", RoleAnalyst, "/",
 		time.Hour, RoleAdmin); err != nil {
 		t.Fatal(err)
 	}

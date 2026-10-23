@@ -51,8 +51,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/connector"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/connector"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Source is how one platform's records become events.

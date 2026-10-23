@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // adminFails fires on a failed sign-in by an account whose name starts

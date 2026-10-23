@@ -10,13 +10,13 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/dual"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/dual"
 )
 
 // Privileged changes that wait for a second administrator (internal/dual):
-// where they are proposed from the command line, and `quilzo pending`,
+// where they are proposed from the command line, and `vaigil pending`,
 // where they are decided.
 
 func dualStore(root string) *dual.Store {
@@ -50,12 +50,12 @@ func proposeSecond(root string, c *Caller, kind, what string, payload any, why s
 		return false, nil
 	}
 	w.Human("%swaiting for a second administrator%s: %s (request %s)\n", yellow, reset, what, r.ID)
-	w.Human("  %sanother administrator approves it with quilzo pending approve %s%s\n", dim, r.ID, reset)
+	w.Human("  %sanother administrator approves it with vaigil pending approve %s%s\n", dim, r.ID, reset)
 	return false, nil
 }
 
 // applyDual makes an approved change, as by. A token is not made here: the
-// person who asked for it receives it (quilzo pending redeem).
+// person who asked for it receives it (vaigil pending redeem).
 func applyDual(root string, r dual.Request, by string) error {
 	switch r.Kind {
 	case dual.Grant:
@@ -101,7 +101,7 @@ func applyDual(root string, r dual.Request, by string) error {
 	return fmt.Errorf("request %s is a %q, which this version does not know how to apply", r.ID, r.Kind)
 }
 
-// cmdPending is `quilzo pending [list] | approve ID | decline ID |
+// cmdPending is `vaigil pending [list] | approve ID | decline ID |
 // withdraw ID | redeem ID`.
 func cmdPending(root string, args []string) error {
 	if len(args) == 0 {
@@ -132,7 +132,7 @@ func cmdPending(root string, args []string) error {
 		return nil
 	}
 	if len(args) != 2 {
-		return errors.New("usage: quilzo pending [list] | approve ID | decline ID | withdraw ID | redeem ID")
+		return errors.New("usage: vaigil pending [list] | approve ID | decline ID | withdraw ID | redeem ID")
 	}
 	id := args[1]
 	switch args[0] {
@@ -163,7 +163,7 @@ func cmdPending(root string, args []string) error {
 		}
 		w.Human("%s: %s\n", dual.StateWords(r, now), r.What)
 		if approve && r.Kind == dual.Token {
-			w.Human("  %s%s receives it with quilzo pending redeem %s, within a day%s\n", dim, r.By, r.ID, reset)
+			w.Human("  %s%s receives it with vaigil pending redeem %s, within a day%s\n", dim, r.By, r.ID, reset)
 		}
 		return nil
 	case "withdraw":
@@ -195,5 +195,5 @@ func cmdPending(root string, args []string) error {
 		}
 		return tokenIssueAs(root, ch.Args, true)
 	}
-	return errors.New("usage: quilzo pending [list] | approve ID | decline ID | withdraw ID | redeem ID")
+	return errors.New("usage: vaigil pending [list] | approve ID | decline ID | withdraw ID | redeem ID")
 }

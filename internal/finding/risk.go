@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Risk by entity: what several small findings about one person add up to.

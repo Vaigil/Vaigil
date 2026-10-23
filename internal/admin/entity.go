@@ -12,9 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/finding"
-	"github.com/quilzo/quilzo/internal/telemetry"
-	"github.com/quilzo/quilzo/internal/vuln"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/finding"
+	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/vuln"
 )
 
 // One account or one machine, and everything held about it.
@@ -101,7 +102,7 @@ func (x who) did(e telemetry.Event) string {
 }
 
 func (s *Server) handleEntity(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActTriage)
 	if !ok {
 		return
 	}

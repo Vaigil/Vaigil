@@ -56,7 +56,7 @@ func TestTheHelpTextAndTheProgramAgree(t *testing.T) {
 	}
 	sort.Strings(ghosts)
 	for _, c := range ghosts {
-		t.Errorf("the help names `quilzo %s` and nothing dispatches it", c)
+		t.Errorf("the help names `vaigil %s` and nothing dispatches it", c)
 	}
 
 	// Every subcommand the help names must exist.
@@ -68,7 +68,7 @@ func TestTheHelpTextAndTheProgramAgree(t *testing.T) {
 		}
 		for _, s := range subs {
 			if !inAnyGroup(groups, s) {
-				wrong = append(wrong, "quilzo "+cmd+" "+s)
+				wrong = append(wrong, "vaigil "+cmd+" "+s)
 			}
 		}
 	}
@@ -111,7 +111,7 @@ func TestTheHelpTextAndTheProgramAgree(t *testing.T) {
 	}
 	sort.Strings(missing)
 	for _, m := range missing {
-		t.Errorf("`quilzo %s` works and the help does not mention it under "+
+		t.Errorf("`vaigil %s` works and the help does not mention it under "+
 			"any of its names. Half a help page is a schema with holes in "+
 			"it", m)
 	}
@@ -144,14 +144,14 @@ func TestEveryCommandIsInTheHelp(t *testing.T) {
 		if notInHelp[c] {
 			continue
 		}
-		if !regexp.MustCompile(`(?m)^\s+quilzo ` + regexp.QuoteMeta(c) + `\b`).
+		if !regexp.MustCompile(`(?m)^\s+vaigil ` + regexp.QuoteMeta(c) + `\b`).
 			MatchString(help) {
 			missing = append(missing, c)
 		}
 	}
 	sort.Strings(missing)
 	for _, c := range missing {
-		t.Errorf("`quilzo %s` is dispatched and the help never names it", c)
+		t.Errorf("`vaigil %s` is dispatched and the help never names it", c)
 	}
 }
 
@@ -191,7 +191,7 @@ func helpText(t *testing.T) string {
 //
 // A line looks like
 //
-//	quilzo anchor status | submit | upgrade    one hash over a publication
+//	vaigil anchor status | submit | upgrade    one hash over a publication
 //
 // and the alternatives before the description are the subcommands it claims.
 //
@@ -199,8 +199,8 @@ func helpText(t *testing.T) string {
 //
 // The help uses a pipe for two different things:
 //
-//	quilzo siem ocsf|cef|jsonl --envelope F    three subcommands
-//	quilzo section move PAGE N up|down         one subcommand, two argument values
+//	vaigil siem ocsf|cef|jsonl --envelope F    three subcommands
+//	vaigil section move PAGE N up|down         one subcommand, two argument values
 //
 // What separates them is position, not spacing. A spaced pipe separates whole
 // alternatives; an unspaced run of pipes is a set of values, and it names
@@ -219,7 +219,7 @@ func helpText(t *testing.T) string {
 func helpClaims(t *testing.T) map[string][]string {
 	t.Helper()
 	out := map[string][]string{}
-	line := regexp.MustCompile(`(?m)^\s+quilzo (\S+)([^\n]*)$`)
+	line := regexp.MustCompile(`(?m)^\s+vaigil (\S+)([^\n]*)$`)
 	bracketed := regexp.MustCompile(`\[[^\]]*\]`)
 	description := regexp.MustCompile(`\s{2,}`)
 	word := regexp.MustCompile(`^[a-z][a-z0-9-]*$`)

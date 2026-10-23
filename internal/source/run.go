@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Batch is what happened when a page of records was mapped.

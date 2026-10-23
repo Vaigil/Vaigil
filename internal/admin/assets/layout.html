@@ -5,13 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 {{with .Refresh}}<meta http-equiv="refresh" content="{{.}}">{{end}}
-{{with .IdleSeconds}}<meta name="quilzo-idle" content="{{.}}">{{end}}
-{{if .IdleSeconds}}<meta name="quilzo-who" content="{{.Principal.Name}}">{{end}}
+{{with .IdleSeconds}}<meta name="vaigil-idle" content="{{.}}">{{end}}
+{{if .IdleSeconds}}<meta name="vaigil-who" content="{{.Principal.Name}}">{{end}}
 <title>{{.Title}} — {{.Brand}}</title>
 <link rel="stylesheet" href="/style.css">
-{{if .BrandStyle}}<link rel="stylesheet" href="/brand.css">{{end}}
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
-<link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#f8fafd" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#131314" media="(prefers-color-scheme: dark)">
 {{if .Nonce}}<script src="/admin.js" nonce="{{.Nonce}}" defer></script>{{end}}
@@ -34,7 +32,7 @@
       {{template "menuicon"}}
     </button>
     {{template "navtoggle" .}}
-    <a class="brand" href="/" title="{{.Brand}}">{{if .BrandMark}}<span class="mark mark-initial" aria-hidden="true">{{.BrandMark}}</span><span class="brand-name">{{.Brand}}</span>{{else if eq .Brand "Quilzo"}}{{template "lockup" .}}{{else}}<svg class="mark" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path class="mark-loop" d="{{.MarkLoop}}"/><path class="mark-tail" d="{{.MarkTail}}"/></svg><span class="brand-name">{{.Brand}}</span>{{end}}</a>
+    <a class="brand" href="/" title="{{.Brand}}">{{if .BrandMark}}<span class="mark mark-initial" aria-hidden="true">{{.BrandMark}}</span><span class="brand-name">{{.Brand}}</span>{{else if eq .Brand "Vaigil"}}{{template "lockup" .}}{{else}}<svg class="mark" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path class="mark-loop" d="{{.MarkLoop}}"/><path class="mark-tail" d="{{.MarkTail}}"/></svg><span class="brand-name">{{.Brand}}</span>{{end}}</a>
     </div>
 
     {{/*
@@ -54,7 +52,7 @@
         <span class="visually-hidden">Find</span>
         {{icon "search"}}
       </button>
-      <input type="search" id="findq" name="q" placeholder="Search Quilzo"
+      <input type="search" id="findq" name="q" placeholder="Search Vaigil"
              value="{{if eq .Nav "find"}}{{.Query}}{{end}}">
       <button type="button" class="palette-open" data-palette hidden
               title="Go to any screen"><kbd>Ctrl K</kbd><span class="visually-hidden">Go to any screen</span></button>
@@ -176,7 +174,7 @@
 */}}
 {{/* The logotype: the mark is the Q of the name, so the word is not
      spelled with two of them. Read out as the whole word. */}}
-{{define "lockup"}}<span class="lockup" role="img" aria-label="Quilzo"><svg class="mark lockup-q" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path class="mark-loop" d="{{.MarkLoop}}"/><path class="mark-tail" d="{{.MarkTail}}"/></svg><span aria-hidden="true">uilzo</span></span>{{end}}
+{{define "lockup"}}<span class="lockup" role="img" aria-label="Vaigil"><svg class="mark lockup-q" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path class="mark-loop" d="{{.MarkLoop}}"/><path class="mark-tail" d="{{.MarkTail}}"/></svg><span aria-hidden="true">uilzo</span></span>{{end}}
 {{define "req"}}<span class="req" aria-hidden="true">*</span><span class="visually-hidden"> (required)</span>{{end}}
 
 {{/*

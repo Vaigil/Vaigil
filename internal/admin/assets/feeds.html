@@ -12,7 +12,7 @@
     {{range .Shown}}<dt>{{.Label}}</dt><dd><code>{{.Value}}</code></dd>{{end}}
   </dl>
   {{if eq .AddedKind "okta"}}<p>In Okta: Workflow, Event Hooks, Create. Paste the address, put the secret in the Authorization header, choose the events, and verify: this answers Okta's check.</p>{{end}}
-  {{if eq .AddedKind "ssf"}}<p>Ask the transmitter for the stream with <code>quilzo inbound connect {{.Added}} --client-id ID</code>, with the client's secret in <code>QUILZO_CONNECT_SECRET</code>. Or make the stream in the transmitter's own console with the address and this Authorization header.</p>{{end}}
+  {{if eq .AddedKind "ssf"}}<p>Ask the transmitter for the stream with <code>vaigil inbound connect {{.Added}} --client-id ID</code>, with the client's secret in <code>VAIGIL_CONNECT_SECRET</code>. Or make the stream in the transmitter's own console with the address and this Authorization header.</p>{{end}}
   <p><a href="/security/feeds">Back to feeds</a></p>
 </div>
 {{else}}
@@ -42,7 +42,7 @@
   {{if $.SiteAdmin}}<div class="auto-controls"><form method="post" action="/security/feeds/act"><input type="hidden" name="name" value="{{.Name}}">
     {{if .Off}}<button type="submit" name="do" value="on" class="btn-text">Turn on<span class="visually-hidden"> {{.Name}}</span></button>{{else}}<button type="submit" name="do" value="off" class="btn-text">Turn off<span class="visually-hidden"> {{.Name}}</span></button>{{end}}
     <button type="submit" name="do" value="remove" class="btn-text">Remove<span class="visually-hidden"> {{.Name}}</span></button></form></div>{{end}}
-</li>{{end}}</ul>{{else}}<p>No feeds yet. Until there is one, what other systems know reaches this site only when it is collected on the schedule.</p>{{end}}
+</li>{{end}}</ul>{{else}}<p>No feeds yet. Until there is one, what other systems know reaches Vaigil only when it is collected on the schedule.</p>{{end}}
 
 {{if .SiteAdmin}}
 <h2>Add a feed</h2>

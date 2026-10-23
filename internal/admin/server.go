@@ -12,22 +12,20 @@
 // app reimplements each one and usually gets at least one wrong — focus after
 // navigation, the back button, find-in-page across virtualised lists.
 //
-// The other reasons point the same way. quilzo is one static binary in a
+// The other reasons point the same way. vaigil is one static binary in a
 // scratch image with no dependencies; adding a JavaScript build would bring a
 // node toolchain, several hundred transitive packages, and a bundle larger than
-// the entire program. For a CMS whose argument is that nothing in it executes,
-// shipping a framework to render a form would be an odd thing to do.
+// the entire program. For a security console, shipping a framework to render
+// a form would be an odd thing to do.
 //
 // So: HTML over HTTP, forms that work with scripting disabled, and no build
 // step. Progressive enhancement, not degradation.
 //
 // # Accessibility is structural here
 //
-// ATAG has two halves and both apply. Part B — does the tool help you produce
-// accessible content — is `internal/a11y`, wired into publish. Part A is this
-// package: the editing interface must itself be usable by a disabled author,
-// which is the half that gets skipped because the people who build CMS admin
-// panels are rarely the people locked out of them.
+// The console must be usable by a disabled analyst, which is the half that
+// gets skipped because the people who build admin panels are rarely the
+// people locked out of them.
 //
 // Concretely, and each of these is a thing that is normally wrong:
 //
@@ -56,45 +54,25 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/clientip"
-	"github.com/quilzo/quilzo/internal/dpop"
-	"github.com/quilzo/quilzo/internal/enrol"
-	"github.com/quilzo/quilzo/internal/federate"
-	"github.com/quilzo/quilzo/internal/fedramp"
-	"github.com/quilzo/quilzo/internal/icons"
-	"github.com/quilzo/quilzo/internal/lockout"
-	"github.com/quilzo/quilzo/internal/throttle"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/clientip"
+	"github.com/quilzo/vaigil/internal/dpop"
+	"github.com/quilzo/vaigil/internal/enrol"
+	"github.com/quilzo/vaigil/internal/icons"
+	"github.com/quilzo/vaigil/internal/lockout"
+	"github.com/quilzo/vaigil/internal/throttle"
 	"html/template"
-	"io"
 	"math"
 	"net/http"
 	"net/url"
-	stdpath "path"
 	"reflect"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/quilzo/quilzo/internal/a11y"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/collab"
-	"github.com/quilzo/quilzo/internal/collection"
-	publishgate "github.com/quilzo/quilzo/internal/gate"
-	"github.com/quilzo/quilzo/internal/listing"
-	"github.com/quilzo/quilzo/internal/posture"
-	"github.com/quilzo/quilzo/internal/provenance"
-	"github.com/quilzo/quilzo/internal/public"
-	"github.com/quilzo/quilzo/internal/render"
-	"github.com/quilzo/quilzo/internal/research"
-	"github.com/quilzo/quilzo/internal/schema"
-	"github.com/quilzo/quilzo/internal/site"
-	"github.com/quilzo/quilzo/internal/store"
-	"github.com/quilzo/quilzo/internal/theme"
-	"github.com/quilzo/quilzo/internal/tmpl"
+	"github.com/quilzo/vaigil/internal/auth"
 )
 
 //go:embed assets/*
@@ -106,7 +84,6 @@ type Server struct {
 	// from anywhere else cannot make a screen say something. See flash.go.
 	flashKey []byte
 
-	Store  *store.Store
 	Policy *auth.Policy
 	Tokens *auth.TokenStore
 	// LoadAudit reads the audit log. Nil means the log page says it has no
@@ -128,8 +105,6 @@ type Server struct {
 
 	// Settings gives the admin the store's configuration.
 	Settings *Settings
-	// Parameters is the organisation's policy (parameters.go).
-	Parameters *Parameters
 	// Version is the build's version, for documents the admin exports.
 	Version string
 	// Told tells the webhooks what happened to the live site — published,
@@ -137,44 +112,8 @@ type Server struct {
 	// events the command line sends, so a receiver does not depend on
 	// which interface somebody used.
 	Told func(event, commit string, pages []string)
-	// DraftSSP drafts the system security plan at an impact level, from
-	// the same code as quilzo compliance ssp.
-	DraftSSP func(impact string) ([]byte, error)
-	// KSI is Quilzo's evidence against FedRAMP 20x's Key Security
-	// Indicators, as from quilzo compliance ksi.
-	KSI func() (fedramp.Source, []fedramp.Result, error)
 	// idle is when each browser session was last used (idle.go).
 	idle idleClock
-	// Types gives the admin the site's content types, so what an application
-	// stores can be declared from the interface rather than only from a
-	// terminal. Nil means the screen says so rather than showing none.
-	// SiteName is what the public server calls this site, so anything rendered
-	// here renders the same page readers get rather than one where the name is
-	// blank. Empty behaves as it always did and matters only to a template that
-	// prints it — which is exactly the template that failed the accessibility
-	// gate when it wrapped the name in a link.
-	SiteName string
-	// Brand is what an operator may change about this interface's appearance:
-	// its name, its accent and its mark. The zero value is Quilzo's own.
-	Brand Brand
-	Types *Types
-	// Agents are the declared agent manifests: what a model in this store is
-	// permitted to do. Nil means the screen says so rather than showing none,
-	// because an empty list and no access look identical and mean opposite
-	// things.
-	Agents *Agents
-	// Fleet is every agent, Quilzo's and other vendors', and who called
-	// what; nil shows nothing.
-	Fleet *Fleet
-	// AIEvidence is the evidence for AI: deployer duties, ISO/IEC 42001
-	// and the AI bill of materials; nil shows none.
-	AIEvidence *AIEvidence
-	// Inbox is the conversations the site's assistants handed to a person.
-	Inbox *Inbox
-	// Members is the published site's accounts. See members.go.
-	Members *MembersAdmin
-	// Boards is what the site's members write. See boards.go.
-	Boards *BoardsAdmin
 	// SCIM is provisioning from an identity provider. See scimadmin.go.
 	SCIM *SCIMAdmin
 	// Inbound answers /feeds/NAME: events other systems push here, each
@@ -189,10 +128,8 @@ type Server struct {
 	SignInRisk  func(SignInFacts) SignInVerdict
 	Automations *AutomationsAdmin
 	// Enrol holds the one-time links that add a person's passkey
-	// (enrolment.go); EnrolBlocked says why links may not be used now,
-	// such as a lockdown in force, or nothing.
-	Enrol        *enrol.Store
-	EnrolBlocked func(now time.Time) string
+	// (enrolment.go).
+	Enrol *enrol.Store
 	// Lockout is smart lockout for the failures that belong to an account
 	// (lockout.go).
 	Lockout *lockout.Store
@@ -211,44 +148,6 @@ type Server struct {
 	SessionMovedTo func(SessionMove) SignInVerdict
 	Reported       func(principal, session string)
 	SignInSignal   func(principal, kind, detail string)
-	// Publishing is the deployment pipeline: environments, promotion and work
-	// queued for later.
-	Publishing *Publishing
-	// Media is the asset store.
-	Media *Media
-	// Languages is the locale set and how much of the site each one has.
-	Languages *Languages
-	// Integrations is everything this store talks to: webhooks, log
-	// forwarding, the identity provider and extensions.
-	Integrations *Integrations
-	// Assurance is the evidence: the code scanner, the generated policy, the
-	// inventory, the store's own integrity, the vault and the anchors.
-	Assurance *Assurance
-
-	// Running is the operational side of the same question: whether the
-	// things that should be happening are happening. Separate from
-	// Assurance because they are read by different people at different
-	// times — evidence answers an auditor once a year, and this answers
-	// whoever is on duty today.
-	Running *Running
-
-	// Experiments are the site's A/B tests.
-	Experiments *Experiments
-	// Personalise is the site's personalisation rules.
-	Personalise *Personalise
-
-	// Analytics is the site's traffic, counted without a script or cookie.
-	Analytics *Analytics
-
-	// Deciders answer typed questions with a confidence gate.
-	Deciders *Deciders
-
-	// Models is the model gateway: routes, budgets, today's spending.
-	Models *Models
-
-	// Assistants are the site's chatbots: declared here, served by the
-	// public site at /ask/NAME.
-	Assistants *Assistants
 
 	// Findings is the finding register: what the producers recorded, with
 	// the audit log's decisions applied.
@@ -274,73 +173,13 @@ type Server struct {
 	// one person across platforms. Nil means nobody is joined.
 	People func() map[string]string
 
-	// Events is the telemetry store. Separate from Running because one is
-	// about whether collection is working and the other is what was
-	// collected, and a person opens them at different moments.
+	// Events is the telemetry store.
 	Events *Events
-	// Transfer moves whole sites in and out, and applies starters.
-	Transfer *Transfer
-	// Decentralised renders the published site so its IPFS identifier can be
-	// computed here rather than taken from whoever stores it.
-	Decentralised *Decentralised
-	// Forms is what visitors sent, and the declarations that shaped it.
-	Forms *Forms
-	// Approvals is dual authorisation: how many people must agree before
-	// anything is published, and who has.
-	Approvals *Approvals
-	// Features reach the feature packages (internal/feature).
-	Features *FeatureHooks
-	// Brief writes the few sentences at the top of Today (brief.go), and
-	// briefs keeps each person's for the day.
-	Brief  *Brief
-	briefs *briefCache
-	// Ask answers a question on Today with a view, and keeps the views
-	// people pin (ask.go); asks holds each person's latest answer.
-	Ask  *Ask
-	asks *askCache
-	// Federation admits the jobs other issuers vouch for at the token
-	// exchange (tokenexchange.go); proofs and admitted remember the DPoP
-	// proofs and identity tokens already used.
-	Federation *Federation
-	// FeatureProgram checks and installs packages for a program's token,
-	// such as a CI job's (featureapi.go).
-	FeatureProgram *FeatureProgram
-	proofs         *dpop.Replays
-	admitted       *federate.Replays
-	// AppRoles are the roles the installed features declare for the people
-	// who work in them, which People and Provisioning can grant.
-	AppRoles func() ([]auth.AppRole, error)
-	// Listings are the declared queries a page can embed.
-	Listings *Listings
-	// Notes are the remarks people leave on a draft.
-	Notes *Notes
-	// Checked is the record of which pages somebody has confirmed are still
-	// right, and when.
-	Checked *Checked
-	// Structure is classification and navigation: the vocabularies terms come
-	// from, and the menus that point at pages.
-	Structure *Structure
-	// Assist proposes a site from a description. Nil means no model is
-	// configured, which is a complete configuration and the screen says so.
-	Assist *Assist
+	proofs *dpop.Replays
 	// Profile holds what people say about themselves — a display name and a
 	// way to reach them, and nothing else. Nil means the screen shows their
 	// permissions and sessions and offers no details to edit.
 	Profile *Profile
-	// Records is the decoded-collection cache, shared across requests.
-	//
-	// Keyed by tree, so it can never be stale: a different content is a
-	// different tree identifier. Nil is safe and means every query pays the
-	// full scan, which is correct for a test and wrong for a server.
-	Records *collection.Cache
-	// Data gives the admin access to records. Nil means the screen says it has
-	// no access rather than showing an empty list, because empty and absent
-	// look identical and mean opposite things.
-	Data *Data
-	// API is the content API, served under /api/ so the playground can call
-	// it same-origin. Nil means the routes 404, which is what a server built
-	// without one should do.
-	API http.Handler
 	// ReloadTokens re-reads the credential store when it has changed on disk.
 	// Nil means never, which is only right for a test.
 	ReloadTokens func()
@@ -355,54 +194,7 @@ type Server struct {
 	// audit log itself: it does not know where it lives, and after the
 	// separated-writer work it deliberately must not.
 	OnAuthFailure func(source string, failures int)
-	// Layouts is every template the site renders through, for the preview and
-	// the accessibility check. Resolution is internal/render's, so the page
-	// this shows and the page the gate judges are the page readers get.
-	Layouts render.Layouts
-	// DesignSet is how the design screen reads and writes the theme and the
-	// layouts. Nil means the screen says so rather than half working.
-	DesignSet *Design
-	// SiteCSS is the site's own stylesheet, served at /site.css for the
-	// preview alone.
-	//
-	// The preview renders the real page, and the real page links /site.css —
-	// which the public server serves and this one did not, so every preview
-	// since the feature shipped has been the right markup with none of the
-	// design. That is precisely the "second renderer that can disagree" the
-	// preview exists to avoid, arrived at from the other direction: not an
-	// approximation of the page, but the page with its appearance missing.
-	//
-	// Empty means the preview is unstyled and says so, rather than 404ing a
-	// stylesheet and leaving somebody to work out why.
-	SiteCSS string
-	tpl     *template.Template
-
-	// Provenance is loaded and saved by the host, so the admin does not need to
-	// know where the store keeps it.
-	LoadProvenance func() (*provenance.Index, error)
-	SaveProvenance func(*provenance.Index) error
-
-	// CheckTypes validates a page set against the site's content types, and is
-	// wired to the same schema.Store the CLI uses. Nil means no types are
-	// configured, which is different from types that pass: a site with no types
-	// is unconstrained, and saying so plainly is better than a silent success.
-	CheckTypes func(map[string]any) []schema.Failure
-	// CheckReferences reports reference fields naming a page that is not in
-	// the set. Separate from CheckTypes because it is asked at a different
-	// moment: CheckTypes runs on every save, and a draft that links to a page
-	// nobody has written yet is ordinary work in progress. This runs only at
-	// publish, which is when a reference stops being a note to yourself and
-	// becomes a promise to a reader.
-	//
-	// Nil means the check does not run, which is the same shape as every other
-	// optional field here and is what a build without types wants.
-	CheckReferences func(map[string]any) []schema.Failure
-	// TypeFor names the type a page must satisfy, so the editor can render the
-	// declared fields rather than whatever keys the page happens to have.
-	TypeFor func(page string) (schema.Type, bool)
-
-	// Evals is agents' test sets and evaluations; see evals.go.
-	Evals *Evals
+	tpl           *template.Template
 
 	// SAML is single sign-on through SAML identity providers; nil when the
 	// build was started without it. See samlauth.go.
@@ -433,69 +225,6 @@ type Server struct {
 	// OnSignIn records an authentication. Separate from the handler so the
 	// audit log stays the host's concern.
 	OnSignIn func(principal, tokenID string)
-	// OnBadToken is told every credential a request presented that did not
-	// authenticate, and why: the shield checks it against its decoys and
-	// counts a secret never issued here as a guess (internal/shield). Nil
-	// tells nobody.
-	OnBadToken func(r *http.Request, presented string, err error)
-	// OnStrongSignIn is told of a sign-in by passkey or single sign-on that
-	// nothing held back, so the shield never blocks its source from the
-	// admin. Nil tells nobody.
-	OnStrongSignIn func(r *http.Request, principal string)
-	// Shield reports whether the shield has turned one of the admin's
-	// features off: "uploads", "import", "feeds", "scim". Nil means never.
-	Shield func(target string) (until time.Time, on bool)
-	// Frozen says why publishing is refused for now, if it is: the shield
-	// froze it. Rolling back is never refused. Nil means never.
-	Frozen func() error
-	// ShieldAdmin is what the Shield screen needs. Nil shows it as not
-	// available in this build.
-	ShieldAdmin *ShieldAdmin
-	// Interface is the agent interface at /mcp, with the OAuth server apps
-	// connect through. Nil serves neither. See agentinterface.go.
-	Interface *AgentInterface
-	// Research is research projects. Nil says so on the screen. See
-	// research.go.
-	Research *Research
-	// ModelDoor is the model gateway at /v1, for agents built anywhere.
-	// See modeldoor.go.
-	ModelDoor *ModelDoor
-	// Memory is what agents remember, for the people it is about.
-	Memory *MemoryAdmin
-	// Reports receives the admin pages' policy violations, which browsers
-	// post to public.ReportsPath; nil names no endpoint. On this origin a
-	// violation is a script the admin does not run: an extension reading
-	// it, or something injected.
-	Reports http.Handler
-
-	// ContentGates is every check about the content being published, run
-	// before the ones that can be waived.
-	//
-	// Imported under a name because this package already has a `gate` type,
-	// for the screen that says up front what will refuse a publish. Two things
-	// with one name and different jobs is how somebody reads the wrong one.
-	//
-	// Wired from cmd/quilzo rather than built here, because the checks need
-	// the media library, the type registry, the claim rules and the menus, and
-	// that package is the one that has them all. See internal/gate: this screen
-	// ran four fewer gates than `quilzo publish` and published a draft the
-	// command line refuses.
-	//
-	// Nil means unwired, which a build without them is. It is not a pass: the
-	// handler says the checks could not run, for the same reason the command
-	// line refuses when one errors.
-	ContentGates func(ref string) (*publishgate.Report, []publishgate.Finding, error)
-
-	// Locks are advisory claims on pages, so two people do not each spend an
-	// afternoon on the same one. They never prevent a write — compare-and-swap
-	// does that — and they expire on their own.
-	Locks     func() (*collab.Locks, error)
-	SaveLocks func(*collab.Locks) error
-
-	// Posture runs the continuous misconfiguration scan. Nil means the host did
-	// not wire it, and the dashboard says so rather than rendering an empty
-	// page that reads as "nothing is wrong".
-	Posture func() posture.Report
 
 	// Reload re-reads credentials and access rules from disk.
 	//
@@ -511,8 +240,8 @@ type Server struct {
 // refresh pulls current credentials and rules before a decision.
 //
 // Called on every request that authenticates or authorises. Re-reading two small
-// JSON files per request is not the bottleneck in a CMS, and the alternative is
-// a cache whose staleness is a security property.
+// JSON files per request is not the bottleneck here, and the alternative is a
+// cache whose staleness is a security property.
 func (s *Server) refresh() {
 	if s.Reload == nil {
 		return
@@ -529,12 +258,12 @@ func (s *Server) refresh() {
 
 // New builds the server and parses the admin templates once.
 //
-// html/template rather than quilzo's own engine, and the distinction matters.
-// quilzo's language is deliberately powerless because *users* write in it and
+// html/template rather than vaigil's own engine, and the distinction matters.
+// vaigil's language is deliberately powerless because *users* write in it and
 // user templates are an injection surface. These templates are ours, shipped in
 // the binary, and never author-supplied — so the stdlib's contextual escaping is
 // exactly right and there is no surface to remove.
-func New(s *store.Store, p *auth.Policy, ts *auth.TokenStore, layouts render.Layouts) (*Server, error) {
+func New(p *auth.Policy, ts *auth.TokenStore) (*Server, error) {
 	t, err := template.New("").Funcs(template.FuncMap{
 		"icon":      uiIcon,
 		"toneicon":  toneIcon,
@@ -547,8 +276,6 @@ func New(s *store.Store, p *auth.Policy, ts *auth.TokenStore, layouts render.Lay
 			return template.URL("data:image/svg+xml," + url.PathEscape(MarkSVG("#0842a0")))
 		},
 		"pct": func(f float64) float64 { return f * 100 },
-		// measure is a research value as a report states it.
-		"measure": research.Format,
 		// sentence capitalises the first letter, for a word stored in
 		// lower case and shown on its own: a severity, a state.
 		"sentence": func(v any) string {
@@ -600,9 +327,7 @@ func New(s *store.Store, p *auth.Policy, ts *auth.TokenStore, layouts render.Lay
 	if err != nil {
 		return nil, fmt.Errorf("admin templates: %w", err)
 	}
-	return &Server{Store: s, Policy: p, Tokens: ts, Layouts: layouts, briefs: &briefCache{}, asks: &askCache{},
-		proofs: &dpop.Replays{}, admitted: &federate.Replays{},
-		Records: collection.NewCache(), tpl: t, flashKey: newFlashKey()}, nil
+	return &Server{Policy: p, Tokens: ts, proofs: &dpop.Replays{}, tpl: t, flashKey: newFlashKey()}, nil
 }
 
 // fixPart is a run of a fix's note: words, or a command it names.
@@ -617,7 +342,7 @@ type fixWords struct {
 	Note []fixPart
 }
 
-// fixParts splits "quilzo auditlog anchor  # or `auditlog head --save`"
+// fixParts splits "vaigil auditlog anchor  # or `auditlog head --save`"
 // into the command and a note of words and commands, the backticks gone.
 func fixParts(fix string) fixWords {
 	cmd, note, ok := strings.Cut(fix, " # ")
@@ -732,7 +457,7 @@ func (s *Server) authenticate(r *http.Request) (principal, error) {
 	raw := strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
 	bearer := raw != ""
 	if raw == "" {
-		if c, err := r.Cookie("quilzo_token"); err == nil {
+		if c, err := r.Cookie("vaigil_token"); err == nil {
 			raw = c.Value
 		}
 	}
@@ -743,9 +468,6 @@ func (s *Server) authenticate(r *http.Request) (principal, error) {
 	// A session waiting to prove its person is let this far, carrying why,
 	// and requireAuth sends it nowhere but "Confirm it's you".
 	if err != nil && !(errors.Is(err, auth.ErrStepUp) && tok != nil) {
-		if s.OnBadToken != nil {
-			s.OnBadToken(r, raw, err)
-		}
 		return principal{}, err
 	}
 	p := principal{
@@ -770,26 +492,6 @@ func (s *Server) authenticate(r *http.Request) (principal, error) {
 		}
 	}
 	return p, nil
-}
-
-// linksTo is the references pointing at a page, in the current draft.
-//
-// Empty when there is no type store, which is honest: without one nothing
-// knows which fields are references, so "nothing points here" would be a
-// claim rather than an answer.
-func (s *Server) linksTo(name string) []schema.Link {
-	if s.Types == nil || s.Types.Load == nil {
-		return nil
-	}
-	st, err := s.Types.Load()
-	if err != nil || st == nil {
-		return nil
-	}
-	pages, err := site.PagesAt(s.Store, site.RefDraft)
-	if err != nil {
-		return nil
-	}
-	return st.LinksTo(pages, name)
 }
 
 // can checks a permission and writes the refusal itself if there is one.
@@ -872,7 +574,7 @@ func (s *Server) allows(p principal, act auth.Action, resource string) bool {
 // "/". A principal holding admin on "/" and denied author on /about was
 // refused by the command line and permitted here:
 //
-//	quilzo note add about "…"                  denied author on /about
+//	vaigil note add about "…"                  denied author on /about
 //	POST /notes/add page=about text=…          200, and the note was written
 //
 // The browser is the surface where the deny is *displayed*, which makes this
@@ -885,13 +587,6 @@ func (s *Server) allows(p principal, act auth.Action, resource string) bool {
 // is about to list things and does not know a name yet. A test walks this
 // package's source and fails when a handler reads a page name and authorises
 // "/", because this is a convention and the convention is what did not hold.
-
-// canPage is can() for a handler that knows which page it is about.
-func (s *Server) canPage(w http.ResponseWriter, r *http.Request, p principal,
-	act auth.Action, page string) bool {
-
-	return s.can(w, r, p, act, pageResource(page))
-}
 
 // canAnywhere is the gate for a screen that lists things it has not named yet.
 //
@@ -919,59 +614,6 @@ func (s *Server) canAnywhere(w http.ResponseWriter, r *http.Request,
 		return true
 	}
 	return s.can(w, r, p, act, "/")
-}
-
-// pageResource is the resource path for a page name.
-//
-// Refused rather than repaired, the same rule the command line's gate follows
-// and for the same reason: a name that does not survive path.Clean is not a
-// page this store holds, and cleaning it quietly would authorise one path and
-// act on another. "/" is the strict answer, since only a binding on the whole
-// site covers it.
-func pageResource(page string) string {
-	page = strings.TrimSpace(page)
-	if page == "" || strings.HasPrefix(page, "-") {
-		return "/"
-	}
-	res := "/" + strings.TrimPrefix(page, "/")
-	if stdpath.Clean(res) != res {
-		return "/"
-	}
-	return res
-}
-
-// renderTypeFailures explains a refused save.
-//
-// The status is 422 rather than 400: the request was well formed and the person
-// is allowed to make it, but the content does not satisfy the shape the site
-// declared. A 400 would suggest they had done something wrong mechanically, and
-// they have not.
-func (s *Server) renderTypeFailures(w http.ResponseWriter, r *http.Request,
-	p principal, page string, failures []schema.Failure) {
-
-	s.render(w, r, "message.html", map[string]any{"Status": http.StatusUnprocessableEntity,
-		"Title": "Not saved", "Principal": p,
-		"Heading":  "This does not match its content type",
-		"Page":     page,
-		"Failures": failures,
-	})
-}
-
-// renderConflict explains a refused save.
-//
-// 409 rather than 500: nothing failed. Somebody else got there first, which is
-// a normal outcome of two people working, and a 500 would send an operator
-// looking at logs for a problem that is not there.
-func (s *Server) renderConflict(w http.ResponseWriter, r *http.Request, p principal, page string,
-	c *site.Conflict) {
-
-	s.render(w, r, "conflict.html", map[string]any{"Status": http.StatusConflict,
-		"Nav": "pages", "Title": "Not saved", "Principal": p,
-		"Page": page, "Conflict": c,
-		// Whether the other change touched this page decides whether the
-		// person has to merge anything or can simply save again.
-		"Collides": len(c.Touches([]string{page})) > 0,
-	})
 }
 
 func (s *Server) render(w http.ResponseWriter, r *http.Request, name string,
@@ -1046,9 +688,8 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name string,
 	// "/docs#{{.Doc}}" against an external site would have to know the host —
 	// which is how a relative link to a page that no longer exists survives a
 	// move and 404s quietly on every screen.
-	data["Brand"] = s.Brand.Label()
-	data["BrandMark"] = s.Brand.Initial()
-	data["BrandStyle"] = s.Brand.Style()
+	data["Brand"] = brandName
+	data["BrandMark"] = brandName[:1]
 	data["DocURL"] = DocURL(docFor(navKey))
 	data["DocsBase"] = DocsBase
 	// The mark, from the one place it is defined.
@@ -1157,54 +798,7 @@ func limitBody(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		// A file upload is exempt here and limited by its own handler, which
-		// applies MaxUpload. Wrapping it twice would leave the tighter limit
-		// in place: MaxBytesReader wraps the body it is given, so the 2 MiB
-		// intended for a form would still be the effective cap and every
-		// photograph larger than a paragraph of text would be refused with an
-		// error about the request body. The limit is not removed, it is moved
-		// to the handler that knows what is being sent.
-		if r.URL.Path == uploadPath {
-			next.ServeHTTP(w, r)
-			return
-		}
 		r.Body = http.MaxBytesReader(w, r.Body, MaxRequestBody)
-		next.ServeHTTP(w, r)
-	})
-}
-
-// uploadPath is the one route that carries a file rather than a form.
-//
-// Named here rather than written twice, so the exemption in limitBody and the
-// registration in Handler cannot drift apart — a mismatch would silently
-// restore the 2 MiB cap on uploads, which is exactly the bug this constant
-// exists to prevent.
-const uploadPath = "/media/upload"
-
-// sameSiteOnly refuses cross-origin state changes.
-//
-// The admin authenticates with a cookie, and a cookie is sent by the browser on
-// any request to this origin — including a form on somebody else's page posting
-// to /publish. That is CSRF, and it needs no vulnerability in this code beyond
-// accepting the request.
-//
-// SameSite=Strict on the cookie is the primary defence and stops the browser
-// sending it at all. This is the second line, because a defence that depends on
-// one attribute being set correctly forever is one line too few: `Sec-Fetch-Site`
-// is sent by current browsers and states the relationship directly, and `Origin`
-// covers the rest. A request that says it came from elsewhere is refused for any
-// method that changes something.
-// reporting names where the browser reports what the policy refused.
-func (s *Server) reporting(next http.Handler) http.Handler {
-	if s.Reports == nil {
-		return next
-	}
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h := w.Header()
-		if csp := h.Get("Content-Security-Policy"); csp != "" {
-			h.Set("Content-Security-Policy", public.WithReporting(csp))
-			h.Set("Reporting-Endpoints", `csp="`+public.ReportsPath+`"`)
-		}
 		next.ServeHTTP(w, r)
 	})
 }
@@ -1213,13 +807,6 @@ func sameSiteOnly(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost && r.Method != http.MethodPut &&
 			r.Method != http.MethodDelete {
-			next.ServeHTTP(w, r)
-			return
-		}
-		// A browser's violation report changes nothing and is read without
-		// a cookie; reports are often sent without Sec-Fetch-Site the way a
-		// page's own requests are.
-		if r.URL.Path == public.ReportsPath {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -1302,13 +889,9 @@ func (s *Server) readOnlyTokens(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		// The agent interface, the OAuth endpoints and the model door read
-		// their own bearer tokens and refuse a read-only one's writes
-		// themselves; reading through the interface is a POST, and refusing
-		// every POST would refuse a read-only token's reads.
-		switch r.URL.Path {
-		case "/mcp", "/oauth/token", "/oauth/revoke", "/token/exchange", "/features/check", "/features/install",
-			"/v1/chat/completions", "/v1/responses", "/v1/messages":
+		// The token exchange reads its own bearer token and refuses what a
+		// read-only one may not have itself.
+		if r.URL.Path == "/token/exchange" {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -1330,199 +913,80 @@ func (s *Server) readOnlyTokens(next http.Handler) http.Handler {
 	})
 }
 
+// Handler is the console: the screens, the sign-in that guards them, and
+// the endpoints identity providers and collectors call.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", s.handlePages)
-	mux.HandleFunc("/page/", s.handlePage)
-	mux.HandleFunc("/save", s.handleSave)
-	mux.HandleFunc("/page/delete", s.handlePageDelete)
-	mux.HandleFunc("/security", s.handleSecurity)
-	mux.HandleFunc("/security/frameworks", s.handleFrameworks)
-	mux.HandleFunc("/security/ai-evidence", s.handleAIEvidence)
-	mux.HandleFunc("/security/ai-evidence/aibom.json", s.handleAIEvidence)
-	mux.HandleFunc("/security/frameworks/", s.handleFramework)
-	mux.HandleFunc("/security/rules", s.handleRules)
-	mux.HandleFunc("/security/rule/", s.handleRule)
-	mux.HandleFunc("/security/scan", s.handleScanScreen)
-	mux.HandleFunc("/security/policy", s.handleCSPScreen)
-	mux.HandleFunc("/security/inventory", s.handleComplianceScreen)
-	mux.HandleFunc("/security/site", s.handleSiteReport)
+	mux.HandleFunc("/", s.handleHome)
+
+	// Signing in, and the person's own account.
+	mux.HandleFunc("/signin", s.handleSignIn)
+	mux.HandleFunc("/signout", s.handleSignOut)
+	mux.HandleFunc("/signin/verify", s.handleStepUp)
+	mux.HandleFunc("/signin/verify/report", s.handleStepUpReport)
+	mux.HandleFunc("/signin/passkey", s.handlePasskeySignIn)
+	mux.HandleFunc("/signin/passkey/challenge", s.handlePasskeySignInChallenge)
+	mux.HandleFunc("/signin/passkey/verify", s.handlePasskeyVerify)
+	mux.HandleFunc("/signin/oidc", s.handleOIDCStart)
+	mux.HandleFunc("/signin/saml/", s.handleSAMLStart)
+	mux.HandleFunc("/signin/sso", s.handleSSODiscover)
+	mux.HandleFunc("/auth/callback", s.handleOIDCCallback)
+	mux.HandleFunc("/saml/", s.handleSAML)
+	mux.HandleFunc("/enrol/", s.handleEnrol)
+	mux.HandleFunc("/passkeys", s.handlePasskeys)
+	mux.HandleFunc("/passkeys/challenge", s.handlePasskeyChallenge)
+	mux.HandleFunc("/passkeys/register", s.handlePasskeyRegister)
+	mux.HandleFunc("/passkeys/remove", s.handlePasskeyRemove)
+	mux.HandleFunc("/profile", s.handleProfile)
+	mux.HandleFunc("/profile/session/end", s.handleSessionEnd)
 	mux.HandleFunc("/session/alive", s.handleAlive)
-	mux.HandleFunc("/security/parameters", s.handleParameters)
-	mux.HandleFunc("/security/parameters/act", s.handleParametersAct)
-	mux.HandleFunc("/security/parameters/export", s.handleParametersExport)
-	mux.HandleFunc("/security/controls", s.handleControls)
-	mux.HandleFunc("/security/controls/component", s.handleControlsComponent)
-	mux.HandleFunc("/security/controls/ssp", s.handleControlsSSP)
-	mux.HandleFunc("/security/controls/ksi", s.handleControlsKSI)
-	mux.HandleFunc("/security/integrity", s.handleIntegrityScreen)
-	mux.HandleFunc("/security/verify", s.handleVerify)
-	mux.HandleFunc("/security/agents", s.handleAgentsScreen)
-	mux.HandleFunc("/security/running", s.handleRunningScreen)
+	mux.HandleFunc("/token/exchange", s.handleTokenExchange)
+
+	// The first screen, and what waits for a decision.
+	mux.HandleFunc("/today", s.handleToday)
+	mux.HandleFunc("/start", s.handleStart)
+	mux.HandleFunc("/start/done", s.handleStartDone)
+	mux.HandleFunc("/approvals", s.handleApprovals)
+	mux.HandleFunc("/find", s.handleFind)
+
+	// Collection and what was collected.
 	mux.HandleFunc("/security/events", s.handleEventsScreen)
-	mux.HandleFunc("/findings", s.handleFindings)
 	mux.HandleFunc("/security/hunt", s.handleHunt)
+	mux.HandleFunc("/security/feeds", s.handleFeeds)
+	mux.HandleFunc("/security/feeds/act", s.handleFeedsAct)
 	mux.HandleFunc("/security/entity/", s.handleEntity)
+
+	// Detection, findings and response.
+	mux.HandleFunc("/security/detections", s.handleDetections)
+	mux.HandleFunc("/security/detections/act", s.handleDetectionsAct)
+	mux.HandleFunc("/findings", s.handleFindings)
+	mux.HandleFunc("/findings/", s.handleFinding)
+	mux.HandleFunc("/findings/decide", s.handleFindingDecide)
 	mux.HandleFunc("/security/risk", s.handleRisk)
 	mux.HandleFunc("/security/indicators", s.handleIndicators)
 	mux.HandleFunc("/security/indicators/act", s.handleIndicatorsAct)
 	mux.HandleFunc("/security/cases", s.handleCases)
 	mux.HandleFunc("/security/cases/act", s.handleCasesAct)
 	mux.HandleFunc("/security/case/", s.handleCase)
+	mux.HandleFunc("/security/automations", s.handleAutomations)
+	mux.HandleFunc("/security/automations/rule", s.handleAutomationRule)
+	mux.HandleFunc("/security/automations/act", s.handleAutomationsAct)
+	mux.HandleFunc("/security/signins", s.handleSignIns)
+	mux.HandleFunc("/security/signins/act", s.handleSignInsAct)
+	mux.HandleFunc("/security/signins/unlock", s.handleSignInsUnlock)
+
+	// Vulnerabilities, and the estate's people and machines.
 	mux.HandleFunc("/security/vulns", s.handleVulns)
 	mux.HandleFunc("/security/vulns/act", s.handleVulnsAct)
 	mux.HandleFunc("/security/vuln/", s.handleVuln)
-	mux.HandleFunc("/security/detections", s.handleDetections)
-	mux.HandleFunc("/security/detections/act", s.handleDetectionsAct)
 	mux.HandleFunc("/workforce", s.handleWorkforce)
 	mux.HandleFunc("/workforce/person/", s.handleWorkforcePerson)
 	mux.HandleFunc("/workforce/devices", s.handleWorkforceDevices)
 	mux.HandleFunc("/workforce/sync", s.handleWorkforceSync)
 	mux.HandleFunc("/workforce/reminders", s.handleReminders)
 	mux.HandleFunc("/workforce/reminders/act", s.handleRemindersAct)
-	mux.HandleFunc("/models", s.handleModels)
-	mux.HandleFunc("/analytics", s.handleAnalytics)
-	mux.HandleFunc("/experiments", s.handleExperiments)
-	mux.HandleFunc("/personalise", s.handlePersonalise)
-	mux.HandleFunc("/personalise/change", s.handlePersonaliseChange)
-	mux.HandleFunc("/experiments/change", s.handleExperimentChange)
-	mux.HandleFunc("/today", s.handleToday)
-	mux.HandleFunc("/today/start", s.handleTodayStart)
-	mux.HandleFunc("/today/ask", s.handleTodayAsk)
-	mux.HandleFunc("/today/pin", s.handleTodayPin)
-	mux.HandleFunc("/approvals", s.handleApprovals)
-	mux.HandleFunc("/approvals/act", s.handleApprovalsAct)
-	mux.HandleFunc("/research", s.handleResearch)
-	mux.HandleFunc("/research/", s.handleResearch)
-	mux.HandleFunc("/make", s.handleMake)
-	mux.HandleFunc("/make/check", s.handleMakeCheck)
-	mux.HandleFunc("/make/draft", s.handleMakeDraft)
-	mux.HandleFunc("/make/from", s.handleMakeFrom)
-	mux.HandleFunc("/make/act", s.handleMakeAct)
-	mux.HandleFunc("/decisions", s.handleDeciders)
-	mux.HandleFunc("/decisions/", s.handleDecider)
-	mux.HandleFunc("/decisions/save", s.handleDeciderSave)
-	mux.HandleFunc("/decisions/remove", s.handleDeciderRemove)
-	mux.HandleFunc("/models/change", s.handleModelsChange)
-	mux.HandleFunc("/inbox", s.handleInbox)
-	mux.HandleFunc("/members", s.handleMembers)
-	mux.HandleFunc("/signin/verify", s.handleStepUp)
-	mux.HandleFunc("/signin/verify/report", s.handleStepUpReport)
-	mux.HandleFunc("/security/signins", s.handleSignIns)
-	mux.HandleFunc("/security/signins/act", s.handleSignInsAct)
-	mux.HandleFunc("/security/signins/unlock", s.handleSignInsUnlock)
-	mux.HandleFunc("/security/automations", s.handleAutomations)
-	mux.HandleFunc("/security/shield", s.handleShield)
-	mux.HandleFunc("/security/shield/act", s.handleShieldAct)
-	mux.HandleFunc("/security/automations/rule", s.handleAutomationRule)
-	mux.HandleFunc("/security/feeds", s.handleFeeds)
-	mux.HandleFunc("/security/feeds/act", s.handleFeedsAct)
-	mux.HandleFunc("/security/automations/act", s.handleAutomationsAct)
-	mux.HandleFunc("/provisioning", s.handleProvisioning)
-	mux.HandleFunc("/provisioning/act", s.handleProvisioningAct)
-	mux.HandleFunc("/boards", s.handleBoards)
-	mux.HandleFunc("/boards/act", s.handleBoardsAct)
-	mux.HandleFunc("/members/act", s.handleMembersAct)
-	mux.HandleFunc("/inbox/act", s.handleInboxAct)
-	mux.HandleFunc("/inbox/", s.handleConversation)
-	mux.HandleFunc("/assistants", s.handleAssistants)
-	mux.HandleFunc("/assistants/", s.handleAssistant)
-	mux.HandleFunc("/assistants/save", s.handleAssistantSave)
-	mux.HandleFunc("/assistants/action", s.handleAssistantAction)
-	mux.HandleFunc("/assistants/remove", s.handleAssistantRemove)
-	mux.HandleFunc("/findings/", s.handleFinding)
-	mux.HandleFunc("/findings/decide", s.handleFindingDecide)
-	mux.HandleFunc("/languages", s.handleLanguages)
-	mux.HandleFunc("/languages/add", s.handleLanguageAdd)
-	mux.HandleFunc("/languages/translated", s.handleLanguageTranslated)
-	mux.HandleFunc("/integrations", s.handleIntegrations)
-	mux.HandleFunc("/integrations/webhook", s.handleWebhookSave)
-	mux.HandleFunc("/integrations/webhook/remove", s.handleWebhookRemove)
-	mux.HandleFunc("/integrations/extension", s.handleExtensionSave)
-	mux.HandleFunc("/integrations/extension/remove", s.handleExtensionRemove)
-	mux.HandleFunc("/integrations/siem", s.handleSIEMExport)
-	mux.HandleFunc("/integrations/held", s.handleGatewayHeld)
-	mux.HandleFunc("/forms", s.handleForms)
-	mux.HandleFunc("/forms/save", s.handleFormSave)
-	mux.HandleFunc("/forms/close", s.handleFormClose)
-	mux.HandleFunc("/forms/export", s.handleFormExport)
-	mux.HandleFunc("/forms/expire", s.handleFormExpire)
-	mux.HandleFunc("/forms/purge", s.handleFormPurge)
-	mux.HandleFunc("/forms/submission/delete", s.handleSubmissionDelete)
-	mux.HandleFunc("/listings", s.handleListings)
-	mux.HandleFunc("/listings/save", s.handleListingSave)
-	mux.HandleFunc("/listings/remove", s.handleListingRemove)
-	mux.HandleFunc("/structure", s.handleStructure)
-	mux.HandleFunc("/structure/vocabulary", s.handleVocabularySave)
-	mux.HandleFunc("/structure/term/remove", s.handleTermRemove)
-	mux.HandleFunc("/structure/menu", s.handleMenuSave)
-	mux.HandleFunc("/structure/menu/item/remove", s.handleMenuItemRemove)
-	mux.HandleFunc("/decentralised", s.handleDecentralised)
-	mux.HandleFunc("/decentralised/bundle", s.handleBundleDownload)
-	mux.HandleFunc("/decentralised/verify", s.handleVerifyCID)
-	mux.HandleFunc("/design", s.handleDesign)
-	mux.HandleFunc("/sections", s.handleSections)
-	mux.HandleFunc("/sections/edit", s.handleSectionEdit)
-	mux.HandleFunc("/sections/fields", s.handleSectionFields)
-	mux.HandleFunc("/design/save", s.handleDesignSave)
-	mux.HandleFunc("/design/generate", s.handleDesignGenerate)
-	mux.HandleFunc("/design/install", s.handleDesignInstall)
-	mux.HandleFunc("/transfer", s.handleTransfer)
-	mux.HandleFunc("/transfer/export", s.handleExport)
-	mux.HandleFunc("/transfer/import", s.handleImport)
-	mux.HandleFunc("/transfer/starter", s.handleStarter)
-	mux.HandleFunc("/assist", s.handleAssist)
-	mux.HandleFunc("/assist/accept", s.handleAssistAccept)
-	mux.HandleFunc("/review", s.handleReview)
-	mux.HandleFunc("/publish", s.handlePublish)
-	mux.HandleFunc("/review/propose", s.handlePropose)
-	mux.HandleFunc("/review/approve", s.handleApprove)
-	mux.HandleFunc("/access", s.handleAccess)
-	mux.HandleFunc("/theme", s.handleTheme)
-	mux.HandleFunc("/find", s.handleFind)
-	mux.HandleFunc("/checked/set", s.handleCheckedSet)
-	mux.HandleFunc("/checked/own", s.handleCheckedOwn)
-	mux.HandleFunc("/pages/bulk", s.handleBulk)
-	mux.HandleFunc("/notes", s.handleNotes)
-	mux.HandleFunc("/notes/add", s.handleNoteAdd)
-	mux.HandleFunc("/notes/resolve", s.handleNoteResolve)
-	mux.HandleFunc("/preview.css", s.previewCSS)
-	mux.HandleFunc("/sidebar", s.handleSidebar)
-	mux.HandleFunc("/nav/order", s.handleNavOrder)
-	mux.HandleFunc("/profile", s.handleProfile)
-	mux.HandleFunc("/profile/session/end", s.handleSessionEnd)
-	mux.HandleFunc("/settings", s.handleSettings)
-	mux.HandleFunc("/settings/save", s.handleSettingSave)
-	mux.HandleFunc("/media", s.handleMedia)
-	mux.HandleFunc(uploadPath, s.handleMediaUpload)
-	mux.HandleFunc("/media/delete", s.handleMediaDelete)
-	mux.HandleFunc("/media/replace", s.handleMediaReplace)
-	// What permits publishing a picture. See rights.go: the publish gate has
-	// always refused an expired licence and this interface had no field to
-	// record one in.
-	mux.HandleFunc("/media/rights", s.handleMediaRights)
-	mux.HandleFunc("/media/focus", s.handleMediaFocus)
-	mux.HandleFunc("/media/pick", s.handleMediaPick)
-	mux.HandleFunc("/media/edit", s.handleMediaEdit)
-	mux.HandleFunc("/media/edit/preview", s.handleMediaEditPreview)
-	mux.HandleFunc("/media/file/", s.handleMediaFile)
-	mux.HandleFunc("/media/", s.handleMediaByHash)
-	mux.HandleFunc("/publishing", s.handlePublishing)
-	mux.HandleFunc("/publishing/promote", s.handlePromote)
-	mux.HandleFunc("/publishing/environment", s.handleEnvSave)
-	mux.HandleFunc("/publishing/environment/remove", s.handleEnvRemove)
-	mux.HandleFunc("/publishing/schedule", s.handleScheduleAdd)
-	mux.HandleFunc("/publishing/schedule/cancel", s.handleScheduleCancel)
-	mux.HandleFunc("/publishing/lock/release", s.handleLockRelease)
-	mux.HandleFunc("/types", s.handleTypes)
-	mux.HandleFunc("/types/save", s.handleTypeSave)
-	mux.HandleFunc("/types/field/remove", s.handleTypeFieldRemove)
-	mux.HandleFunc("/types/delete", s.handleTypeDelete)
-	mux.HandleFunc("/types/bind", s.handleTypeBind)
-	mux.HandleFunc("/records", s.handleRecords)
-	mux.HandleFunc("/records/save", s.handleRecordSave)
-	mux.HandleFunc("/records/delete", s.handleRecordDelete)
-	mux.HandleFunc("/logs", s.handleLogs)
+
+	// Administration: people, sign-in providers, settings, the audit log.
 	mux.HandleFunc("/people", s.handlePeople)
 	mux.HandleFunc("/people/grant", s.handlePeopleGrant)
 	mux.HandleFunc("/people/revoke", s.handlePeopleRevoke)
@@ -1530,113 +994,51 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/people/enrol/revoke", s.handlePeopleEnrolRevoke)
 	mux.HandleFunc("/people/pending", s.handlePeoplePending)
 	mux.HandleFunc("/sessions/revoke", s.handleSessionRevoke)
-	mux.HandleFunc("/provenance", s.handleProvenance)
-	mux.HandleFunc("/provenance/set", s.handleProvenanceSet)
-	mux.HandleFunc("/history", s.handleHistory)
-	mux.HandleFunc("/rollback", s.handleRollback)
-	mux.HandleFunc("/preview/", s.handlePreview)
-	// The site's stylesheet, for the framed preview and nothing else. Not the
-	// interface's own — that is /style.css, and the two must not be confused.
-	mux.HandleFunc("/site.css", s.siteCSS)
-	mux.HandleFunc("/signin", s.handleSignIn)
-	// Passkeys. The two GET routes here are the only pages in this program
-	// whose policy permits a script, and they permit exactly one, by nonce.
-	mux.HandleFunc("/passkeys", s.handlePasskeys)
-	mux.HandleFunc("/passkeys/challenge", s.handlePasskeyChallenge)
-	mux.HandleFunc("/passkeys/register", s.handlePasskeyRegister)
-	mux.HandleFunc("/passkeys/remove", s.handlePasskeyRemove)
-	mux.HandleFunc("/enrol/", s.handleEnrol)
-	mux.HandleFunc("/signin/passkey", s.handlePasskeySignIn)
-	mux.HandleFunc("/signin/passkey/challenge", s.handlePasskeySignInChallenge)
-	mux.HandleFunc("/signin/passkey/verify", s.handlePasskeyVerify)
-	mux.HandleFunc("/signin/oidc", s.handleOIDCStart)
-	mux.HandleFunc("/signin/saml/", s.handleSAMLStart)
-	mux.HandleFunc("/signin/sso", s.handleSSODiscover)
-	mux.HandleFunc("/saml/", s.handleSAML)
 	mux.HandleFunc("/sso", s.handleSSO)
 	mux.HandleFunc("/sso/act", s.handleSSOAct)
-	mux.HandleFunc("/auth/callback", s.handleOIDCCallback)
-	mux.HandleFunc("/signout", s.handleSignOut)
-	mux.HandleFunc("/agents", s.handleAgents)
-	mux.HandleFunc("/agents/new", s.handleAgentEdit)
-	mux.HandleFunc("/agents/edit/", s.handleAgentEdit)
-	mux.HandleFunc("/agents/act", s.handleAgentsAct)
-	mux.HandleFunc("/agents/runs", s.handleAgentRuns)
-	mux.HandleFunc("/agents/cost", s.handleAgentCost)
-	mux.HandleFunc("/agents/learning", s.handleAgentLearning)
-	mux.HandleFunc("/agents/learning/act", s.handleAgentLearningAct)
-	mux.HandleFunc("/.well-known/agent-credentials.json", s.handleCredentialKeys)
-	mux.HandleFunc("/agents/bundle/", s.handleAgentBundle)
-	mux.HandleFunc("/agents/run/", s.handleAgentRun)
-	mux.HandleFunc("/agents/frame/", s.handleAgentFrame)
-	mux.HandleFunc("/agents/output/", s.handleAgentOutput)
-	mux.HandleFunc("/agents/evals", s.handleEvals)
-	mux.HandleFunc("/agents/evals/", s.handleEvals)
-	mux.HandleFunc("/agents/evals/act", s.handleEvalsAct)
-	// The agent interface, and how apps connect to it. See agentinterface.go.
-	mux.HandleFunc("/mcp", s.handleMCP)
-	mux.HandleFunc("/mcp/gateway/", s.handleGateway)
-	mux.HandleFunc("/mcp/browser/", s.handleBrowserMCP)
-	mux.HandleFunc("/a2a", s.handleA2A)
-	// The model gateway, for agents built anywhere. See modeldoor.go.
-	mux.HandleFunc("/v1/chat/completions", s.handleModelDoor)
-	mux.HandleFunc("/v1/responses", s.handleModelDoor)
-	mux.HandleFunc("/v1/messages", s.handleModelDoor)
-	mux.HandleFunc("/v1/models", s.handleModelDoor)
-	mux.HandleFunc("/.well-known/oauth-protected-resource", s.handleResourceMetadata)
-	mux.HandleFunc("/.well-known/oauth-protected-resource/mcp", s.handleResourceMetadata)
-	mux.HandleFunc("/.well-known/oauth-authorization-server", s.handleServerMetadata)
-	mux.HandleFunc("/oauth/authorize", s.handleAuthorize)
-	mux.HandleFunc("/oauth/token", s.handleOAuthToken)
-	mux.HandleFunc("/token/exchange", s.handleTokenExchange)
-	mux.HandleFunc("/features/check", s.handleFeatureProgram)
-	mux.HandleFunc("/features/install", s.handleFeatureProgram)
-	mux.HandleFunc("/oauth/revoke", s.handleOAuthRevoke)
-	mux.HandleFunc("/apps", s.handleApps)
-	mux.HandleFunc("/apps/act", s.handleAppsAct)
-	mux.HandleFunc("/apps/receipt", s.handleAppsReceipt)
-	mux.HandleFunc("/memory", s.handleMemory)
-	mux.HandleFunc("/fleet", s.handleFleet)
-	mux.HandleFunc("/fleet/act", s.handleFleetAct)
-	mux.HandleFunc("/memory/act", s.handleMemoryAct)
-	mux.HandleFunc("/memory/receipt", s.handleMemoryReceipt)
-	mux.HandleFunc("/manifest.webmanifest", s.installManifest)
-	mux.HandleFunc("/icon.svg", s.icon)
-	mux.HandleFunc("/start", s.handleStart)
-	mux.HandleFunc("/start/done", s.handleStartDone)
-	mux.HandleFunc("/playground", s.playground)
-	// The content API, mounted here so the playground can reach it.
-	//
-	// Its relative URLs resolve against this origin, and there is deliberately
-	// no CORS, so an API on another port is an API the console cannot call —
-	// which is what it did before this. Read-only unless the operator asked
-	// otherwise: the playground exists to show people the API, and showing
-	// them is a read.
-	if s.API != nil {
-		mux.Handle("/api/", s.API)
-	}
-	// The identity provider's provisioning endpoint. It authenticates with
-	// its own token, not a person's session; see internal/scim.
+	mux.HandleFunc("/provisioning", s.handleProvisioning)
+	mux.HandleFunc("/provisioning/act", s.handleProvisioningAct)
+	mux.HandleFunc("/settings", s.handleSettings)
+	mux.HandleFunc("/settings/save", s.handleSettingSave)
+	mux.HandleFunc("/logs", s.handleLogs)
+
+	// The interface's own furniture.
+	mux.HandleFunc("/theme", s.handleTheme)
+	mux.HandleFunc("/sidebar", s.handleSidebar)
+	mux.HandleFunc("/nav/order", s.handleNavOrder)
+	mux.HandleFunc("/style.css", s.handleCSS)
+	mux.HandleFunc("/admin.js", s.handleJS)
+	mux.HandleFunc("/fonts/vaigil-ui.woff2", s.handleFont)
+	mux.HandleFunc("/icon.svg", s.handleIcon)
+
+	// Endpoints other systems call, each with its own authentication: the
+	// identity provider's provisioning, and events pushed here.
 	if s.SCIM != nil && s.SCIM.Handler != nil {
-		mux.Handle("/scim/v2/", s.shieldable("scim", s.SCIM.Handler))
+		mux.Handle("/scim/v2/", s.SCIM.Handler)
 	}
 	if s.Inbound != nil {
-		mux.Handle("/feeds/", s.shieldable("feeds", s.Inbound))
+		mux.Handle("/feeds/", s.Inbound)
 	}
-	// /docs and /docs/img/ used to be served from here. The manual is now
-	// published at DocsBase and the footer links straight to it — deliberately
-	// not redirected from this origin, because a redirect would keep the admin
-	// answering for documentation it no longer has and make a dead external
-	// site look like a broken admin.
-	mux.HandleFunc("/style.css", s.handleCSS)
-	mux.HandleFunc("/brand.css", s.handleBrandCSS)
-	mux.HandleFunc("/admin.js", s.handleJS)
-	mux.HandleFunc("/fonts/quilzo-ui.woff2", s.handleFont)
-	mux.HandleFunc("/fonts/", s.handleSiteFont)
-	if s.Reports != nil {
-		mux.Handle(public.ReportsPath, s.Reports)
+	return securityHeaders(s.signedFlash(sameSiteOnly(limitBody(s.readOnlyTokens(mux)))))
+}
+
+// handleHome sends a signed-in person to their first screen.
+func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
 	}
-	return securityHeaders(s.reporting(s.signedFlash(sameSiteOnly(limitBody(s.readOnlyTokens(mux))))))
+	if _, ok := s.requireAuth(w, r); !ok {
+		return
+	}
+	http.Redirect(w, r, "/today", http.StatusSeeOther)
+}
+
+// handleIcon is the mark, for the browser's tab.
+func (s *Server) handleIcon(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "image/svg+xml")
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write([]byte(MarkSVG("#0842a0")))
 }
 
 // handleSignIn exchanges a pasted token for a session cookie.
@@ -1688,16 +1090,6 @@ func (s *Server) handleSignIn(w http.ResponseWriter, r *http.Request) {
 	raw := strings.TrimSpace(r.FormValue("token"))
 	tok, err := s.Tokens.Authenticate(raw, time.Now())
 	if err != nil {
-		if s.OnBadToken != nil && raw != "" {
-			s.OnBadToken(r, raw, err)
-		}
-		// A real credential refused because the admin is locked down is not
-		// a failed guess, and counting it would throttle an office of people
-		// holding tokens made the day before.
-		if errors.Is(err, auth.ErrLockedDown) {
-			signInAgain(w, r, "lockdown")
-			return
-		}
 		if s.Throttle != nil {
 			d, alert := s.Throttle.Fail(sub)
 			if alert && s.OnAuthFailure != nil {
@@ -1715,7 +1107,7 @@ func (s *Server) handleSignIn(w http.ResponseWriter, r *http.Request) {
 	// Somebody signed in, and the log says so.
 	//
 	// It did not. OnSignIn exists and is assigned only inside the OIDC block
-	// in cmd/quilzo, so on the ordinary deployment — a token, or a passkey,
+	// in cmd/vaigil, so on the ordinary deployment — a token, or a passkey,
 	// and no identity provider — the log held content changes with no record
 	// of anybody ever signing in at all. AU-2 asks for the session, not only
 	// for what was done inside it.
@@ -1748,10 +1140,6 @@ func (s *Server) handleSignIn(w http.ResponseWriter, r *http.Request) {
 		secret, sess, xerr := s.Tokens.Exchange(raw, auth.RoleNone, "",
 			s.sessionMax(), time.Now())
 		if xerr != nil {
-			if errors.Is(xerr, auth.ErrLockedDown) {
-				signInAgain(w, r, "lockdown")
-				return
-			}
 			signInAgain(w, r, "refused")
 			return
 		}
@@ -1793,7 +1181,7 @@ func (s *Server) handleSignIn(w http.ResponseWriter, r *http.Request) {
 	// secureCookie, and admin.behind_tls_proxy, which is how a deployment says
 	// which it is.
 	http.SetCookie(w, &http.Cookie{
-		Name: "quilzo_token", Value: cookie, Path: "/",
+		Name: "vaigil_token", Value: cookie, Path: "/",
 		HttpOnly: true,                    // unreadable by script; there is none, but the header outlives that
 		SameSite: http.SameSiteStrictMode, // the primary CSRF defence
 		Secure:   r.TLS != nil || s.behindTLSProxy(),
@@ -1830,7 +1218,7 @@ func (s *Server) handleSignIn(w http.ResponseWriter, r *http.Request) {
 // revoked, deliberately: the API answers both the same way, because telling
 // them apart is how an enumeration oracle gets built by accident.
 var signInReasons = map[string]string{
-	"format": "That is not a Quilzo token. They start with " +
+	"format": "That is not a Vaigil token. They start with " +
 		auth.TokenPrefix + " — check the whole of it was pasted.",
 	"reported": "Thank you. That session is ended, and your security team " +
 		"will look at it. If your token or passkey may have been taken, tell " +
@@ -1839,19 +1227,15 @@ var signInReasons = map[string]string{
 		"recorded, so it was refused. Try again; if it keeps happening, an " +
 		"administrator can look at the audit log for session.stepup-unrecorded.",
 	"refused": "That token was not accepted. It may be mistyped, expired " +
-		"or revoked; an administrator can issue a new one with quilzo " +
+		"or revoked; an administrator can issue a new one with vaigil " +
 		"token issue.",
 	"sso": "Your organisation requires signing in through its identity " +
 		"provider, so a token or a passkey is not accepted here for your " +
 		"account. Use your organisation's button above.",
 	"nosso": "No organisation sign-in is set up for that address. Sign in " +
 		"with a token or a passkey instead, or ask an administrator.",
-	"idle": "You were signed out because nobody had used the admin for a " +
+	"idle": "You were signed out because nobody had used the console for a " +
 		"while, as your organisation requires. Sign in again to carry on.",
-	"lockdown": "For a while the admin accepts only passkeys and your " +
-		"organisation's sign-in, and tokens made before that are refused. " +
-		"Sign in with a passkey or your organisation's button, or ask an " +
-		"administrator.",
 }
 
 // signInAgain sends the browser back to the form with a reason code.
@@ -1911,7 +1295,7 @@ func (s *Server) handleSignOut(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	http.SetCookie(w, &http.Cookie{
-		Name: "quilzo_token", Value: "", Path: "/", MaxAge: -1,
+		Name: "vaigil_token", Value: "", Path: "/", MaxAge: -1,
 		HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: r.TLS != nil || s.behindTLSProxy(),
 	})
 	http.Redirect(w, r, "/signin", http.StatusSeeOther)
@@ -1928,24 +1312,10 @@ func (s *Server) handleCSS(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(b)
 }
 
-// handleBrandCSS serves the operator's accent as a stylesheet.
-//
-// It used to travel in a style attribute on the root element, which the
-// admin's own policy (style-src 'self', no 'unsafe-inline') refuses: the
-// colour was validated, stored and never shown. A stylesheet from this
-// origin is what the policy allows, and Style still re-checks the value.
-func (s *Server) handleBrandCSS(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/css; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-cache")
-	if css := s.Brand.Style(); css != "" {
-		_, _ = io.WriteString(w, ":root { "+string(css)+"; }\n")
-	}
-}
-
 // handleFont serves the interface's typeface. See assets/fonts/README.md.
 // Immutable: a new version of the font is a new file name.
 func (s *Server) handleFont(w http.ResponseWriter, r *http.Request) {
-	b, err := assets.ReadFile("assets/fonts/quilzo-ui.woff2")
+	b, err := assets.ReadFile("assets/fonts/vaigil-ui.woff2")
 	if err != nil {
 		http.Error(w, "missing font", http.StatusInternalServerError)
 		return
@@ -1971,21 +1341,15 @@ func (s *Server) requireAuth(w http.ResponseWriter, r *http.Request) (principal,
 	// Throttled before the credential is looked at, so that a refused attempt
 	// costs nothing to check and, more importantly, so the time taken to
 	// answer does not depend on whether the presented token exists.
-	// The throttle blocks failures, not successes. See the note in the API
-	// middleware: only the source is known before authentication, so refusing
-	// on its history alone locks out everyone behind one address. A throttled
-	// request is still authenticated and a valid credential is let through.
-	// Re-read the credentials before deciding anything.
+	// The throttle blocks failures, not successes: only the source is known
+	// before authentication, so refusing on its history alone locks out
+	// everyone behind one address. A throttled request is still
+	// authenticated and a valid credential is let through.
 	//
-	// The store is shared between processes — the admin, the public site and
-	// the CLI all hold the same file — and each loaded it once at startup.
-	// So a credential revoked through the admin kept working on the site
-	// until that container restarted, which makes "revoked" a claim about a
-	// file rather than a fact about a credential. Found by revoking a token
-	// in one container and watching another keep accepting it.
-	//
-	// The hook stats the file and reloads only when it has changed, so this
-	// is one stat per request rather than a parse.
+	// The credentials are re-read before deciding anything: the console and
+	// the command line hold the same file, and a credential revoked by one
+	// has to stop working in the other without a restart. The hook stats the
+	// file and reloads only when it has changed.
 	if s.ReloadTokens != nil {
 		s.ReloadTokens()
 	}
@@ -2010,7 +1374,7 @@ func (s *Server) requireAuth(w http.ResponseWriter, r *http.Request) (principal,
 		// on the sign-in page, asking for /favicon.ico, which lands here.
 		// Counted, five colleagues signing in behind one office address
 		// were enough to throttle everybody there.
-		if s.Throttle != nil && !errors.Is(err, errNoCredential) && !errors.Is(err, auth.ErrLockedDown) {
+		if s.Throttle != nil && !errors.Is(err, errNoCredential) {
 			d, alert := s.Throttle.Fail(sub)
 			if alert && s.OnAuthFailure != nil {
 				s.OnAuthFailure(sub.Source, d.Failures)
@@ -2048,7 +1412,7 @@ func (s *Server) requireAuth(w http.ResponseWriter, r *http.Request) (principal,
 	// person who can confirm anything: refused here outright rather than
 	// sent to a page it cannot use.
 	if p.Bearer && p.Level < 2 && s.mfaEnforced(time.Now()) {
-		http.Error(w, "the admin is for people signed in with two factors, and a token is one. "+
+		http.Error(w, "the console is for people signed in with two factors, and a token is one. "+
 			"Programs use the command line on this machine, the API or the agent interface",
 			http.StatusUnauthorized)
 		return principal{}, false
@@ -2060,7 +1424,7 @@ func (s *Server) requireAuth(w http.ResponseWriter, r *http.Request) (principal,
 		!hasMethod(p.Methods, auth.MethodSSOOneFactor) {
 		s.audit("session.refused", "/", map[string]string{"by": p.Name, "session": p.TokenID,
 			"why": "single sign-on is required"})
-		s.clearCookie(w, r, "quilzo_token")
+		s.clearCookie(w, r, "vaigil_token")
 		w.WriteHeader(http.StatusUnauthorized)
 		s.render(w, r, "signin.html", map[string]any{"Title": "Sign in", "OIDC": s.OIDC != nil,
 			"OIDCLabel": s.oidcLabel(), "SSO": s.ssoChoices(),
@@ -2075,15 +1439,6 @@ func (s *Server) requireAuth(w http.ResponseWriter, r *http.Request) (principal,
 			http.Error(w, "confirm it is you first: /signin/verify", http.StatusForbidden)
 		}
 		return principal{}, false
-	}
-	// Signed in on the way to agreeing to an app: the first page they are
-	// shown afterwards, whichever it is, sends them back to that request,
-	// which asks them again. See agentinterface.go.
-	if r.Method == http.MethodGet && r.URL.Path != "/oauth/authorize" {
-		if next := s.takeNext(w, r); next != "" {
-			http.Redirect(w, r, authorizeAgain(next), http.StatusSeeOther)
-			return principal{}, false
-		}
 	}
 	return p, true
 }
@@ -2120,1827 +1475,6 @@ func (s *Server) tooManyAttempts(w http.ResponseWriter, r *http.Request, d throt
 // switches off by varying it. An operator running behind a proxy wants the
 // proxy to do this — it is the thing that can see the real address.
 func sourceOf(r *http.Request) string { return clientip.SourceFrom(r) }
-
-func (s *Server) handlePages(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		s.followPreviewLink(w, r)
-		return
-	}
-	p, ok := s.requireAuth(w, r)
-	if !ok {
-		return
-	}
-	// Somebody whose work is one area — an analyst, a support person — has
-	// no pages to read, and the front door is their first screen, not a
-	// refusal.
-	if s.Policy != nil && !s.Policy.Anywhere(p.Name, auth.ActView) {
-		if to := landing(visibleTo(s, p)); to != "" {
-			http.Redirect(w, r, to, http.StatusSeeOther)
-			return
-		}
-	}
-	// Whether they may read anything, not whether they may read everything.
-	// This screen asked the second question, so an author granted author on
-	// /blog was refused the front door of the interface.
-	if !s.canAnywhere(w, r, p, auth.ActView) {
-		return
-	}
-
-	draft := s.Store.GetRef(site.RefDraft)
-	live := s.Store.GetRef(site.RefLive)
-	pages, _ := site.PagesAt(s.Store, site.RefDraft)
-
-	// And then the listing is what they may read, page by page. A list that
-	// names pages somebody cannot open is a worse answer than a refusal: it
-	// tells them the pages exist and what they are called, which is most of
-	// what a scope was drawn to withhold.
-	names := make([]string, 0, len(pages))
-	for n := range pages {
-		if !s.mayUse(p, auth.ActView, pageResource(n)) {
-			continue
-		}
-		names = append(names, n)
-	}
-	// In tree order, so a child follows its parent and a name that merely
-	// looks like one does not land in the middle of the branch.
-	//
-	// A plain sort put blog-drafts between blog and blog/first, because "/" is
-	// 0x2f and "-" is 0x2d — which reads as the list being wrong rather than
-	// as the sort being naive, and that is worse, because somebody trusts it.
-	// site.Tree compares segment by segment for the same reason auth.covers
-	// does.
-	depth := map[string]int{}
-	{
-		visible := make(map[string]any, len(names))
-		for _, n := range names {
-			visible[n] = pages[n]
-		}
-		names = names[:0]
-		for _, node := range site.Tree(visible) {
-			if !node.Exists {
-				// A branch nobody wrote a page at. It belongs in a tree and
-				// not in a list of pages to edit: there is nothing to open.
-				continue
-			}
-			names = append(names, node.Name)
-			depth[node.Name] = node.Depth
-		}
-	}
-
-	changed := map[string]bool{}
-	if draft != "" && live != "" && draft != live {
-		if diffs, err := site.Diff(s.Store, live, draft); err == nil {
-			for _, c := range diffs {
-				changed[c.Path] = true
-			}
-		}
-	}
-
-	// When each page is public, so an embargo or an expiry is visible in the
-	// listing rather than only on the page itself.
-	windows := map[string]string{}
-	for _, h := range site.Windows(pages, time.Now()) {
-		windows[h.Page] = h.State
-	}
-
-	// When each page was last confirmed to be right. A column here rather
-	// than a screen of its own: the question is asked while looking at the
-	// list of pages.
-	cells, due := s.checkedFor(names)
-
-	// Bounded. Every page was built into one response, which is slow at a few
-	// hundred and unusable at ten thousand — and the browser is not the place
-	// to find that out. The checked column is computed over the whole list
-	// first, because "how many need attention" is a fact about the site rather
-	// than about this page of it.
-	pg := paginate(r, len(names), PageSize)
-	from, to := pg.slice(len(names))
-	shown := names[from:to]
-
-	s.render(w, r, "pages.html", map[string]any{
-		"Paging":    pg,
-		"PagePath":  "/",
-		"Shown":     shown,
-		"CheckedOn": s.Checked != nil && s.Checked.Store != nil,
-		"Checked":   cells,
-		"DueCount":  due,
-		"Windows":   windows,
-		"Nav":       "pages",
-		"Message":   r.URL.Query().Get("m"),
-		"Error":     r.URL.Query().Get("e"),
-		"Title":     "Pages", "Principal": p, "Names": names,
-		"Depth":   depth,
-		"Changed": changed, "Draft": draft, "Live": live,
-		"Unpublished": draft != "" && draft != live,
-		"CanEdit":     s.Policy.Evaluate(p.Name, auth.ActEditDraft, "/").Allowed,
-		"CanPublish":  s.Policy.Evaluate(p.Name, auth.ActPublish, "/").Allowed,
-	})
-}
-
-func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.requireAuth(w, r)
-	if !ok {
-		return
-	}
-	name := strings.TrimPrefix(r.URL.Path, "/page/")
-	if name == "" {
-		http.NotFound(w, r)
-		return
-	}
-	if !s.can(w, r, p, auth.ActView, "/"+name) {
-		return
-	}
-
-	// The commit this form was rendered from. It travels back with the save so
-	// a change made in another tab, by another person, in the meantime is
-	// refused rather than silently overwritten.
-	base := s.Store.GetRef(site.RefDraft)
-
-	pages, _ := site.PagesAt(s.Store, site.RefDraft)
-	body, exists := pages[name]
-
-	// Claim the page, advisorily. Somebody else holding it does not stop this
-	// edit; it is shown so the two of them can talk before one loses work.
-	var heldBy *collab.Lock
-	if s.Locks != nil && s.SaveLocks != nil {
-		if locks, err := s.Locks(); err == nil {
-			_, existing := locks.Claim(name, p.Name, "", time.Now())
-			heldBy = existing
-			_ = s.SaveLocks(locks)
-		}
-	}
-
-	// A page with a type gets an editor built from the declaration: the right
-	// control for each field, the author's own labels, and the fields that are
-	// missing shown as empty rather than absent. Without one, fall back to
-	// whatever keys the page happens to have — which is all the old editor
-	// could ever do, and the reason it could not offer a date picker or say
-	// what a field was for.
-	var (
-		fields   []field
-		typeName string
-	)
-	if s.TypeFor != nil {
-		if t, ok := s.TypeFor(name); ok {
-			fields, typeName = typedFields(t, body, s.pageNames()), t.Name
-		}
-	}
-	if fields == nil {
-		fields = flatten(body)
-	}
-
-	// The remarks about this page, beside the fields they are about. NotesOn
-	// distinguishes "nobody has said anything" from "this build cannot tell
-	// you", which look identical and mean opposite things.
-	notes := s.noteRows(name, false)
-	cells, _ := s.checkedFor([]string{name})
-
-	// What points at this page, beside the thing somebody is about to change.
-	//
-	// The same walk that refuses a publish over a dangling reference, kept
-	// rather than thrown away. Somebody rewriting a page had no way to find
-	// out that two others name it until the publish said so, naming pages
-	// they had changed for unrelated reasons.
-	incoming := s.linksTo(name)
-
-	// The page as its readers know it, for the heading; the name is shown
-	// beside it.
-	pageTitle := ""
-	if m, ok := body.(map[string]any); ok {
-		if t, ok := m["title"].(string); ok {
-			pageTitle = strings.TrimSpace(t)
-		}
-	}
-
-	s.render(w, r, "edit.html", map[string]any{
-		"PageTitle":  pageTitle,
-		"Nav":        "pages",
-		"CheckedOn":  s.Checked != nil && s.Checked.Store != nil,
-		"CheckedNow": cells[name],
-		"NotesOn":    s.Notes != nil && s.Notes.Store != nil,
-		"Notes":      notes,
-		"Title":      "Edit " + name, "Principal": p, "Name": name,
-		"Fields": fields, "Exists": exists, "Type": typeName,
-		"Incoming": incoming,
-		"Base":     base, "HeldBy": heldBy,
-		"CanEdit": s.Policy.Evaluate(p.Name, auth.ActEditDraft, "/"+name).Allowed,
-	})
-}
-
-// field is one editable value.
-type field struct {
-	Key   string
-	Value string
-	Long  bool
-
-	// The rest is filled in only when the page has a content type. A field
-	// carrying its own label, help text and constraints is the difference
-	// between an editor and a JSON form with nicer margins.
-	Label    string
-	Help     string
-	Required bool
-	Choices  []string
-	Selected map[string]bool
-	// Input is the HTML input type. It is chosen from the field kind rather
-	// than guessed from the value, so an empty date field is still a date
-	// picker and an empty number field still refuses letters.
-	Input    string
-	MaxLen   int
-	Min      string
-	Max      string
-	Checkbox bool
-	Checked  bool
-	// AltFor names the field this one describes. Surfacing it in the editor is
-	// ATAG 2.0 Part B: the tool helps the author produce accessible content
-	// instead of checking afterwards whether they did.
-	AltFor string
-	// Suggest is the list a reference field offers, rendered as a <datalist>.
-	//
-	// Not a <select>, deliberately. A reference may name a page that does not
-	// exist yet — the gate is where that is refused, not the editor — and a
-	// select cannot express a value outside its options. A datalist is the
-	// browser's own completion over a text input: it suggests without
-	// constraining, and it needs no script, which is the only kind of widget
-	// available here.
-	Suggest []string
-	// SuggestID ties the input to its list. Per field, because two inputs
-	// sharing one id is markup a browser resolves by picking the first.
-	SuggestID string
-}
-
-// pageNames is the draft's pages, for a reference field to suggest.
-//
-// Sorted, because the order a map yields is random and a list that reorders
-// between two visits to the same form looks like the store changed.
-func (s *Server) pageNames() []string {
-	pages, err := site.PagesAt(s.Store, site.RefDraft)
-	if err != nil {
-		return nil
-	}
-	out := make([]string, 0, len(pages))
-	for name := range pages {
-		out = append(out, name)
-	}
-	sort.Strings(out)
-	return out
-}
-
-// typedFields builds the editor from a content type.
-//
-// Fields appear in the order the type declares, not alphabetically and not in
-// whatever order the JSON happened to be written. The declaration is the
-// author's sequence of thought, and reordering it makes the form read as a list
-// of unrelated boxes.
-func typedFields(t schema.Type, body any, pages []string) []field {
-	m, _ := body.(map[string]any)
-
-	out := make([]field, 0, len(t.Fields)+4)
-	declared := map[string]bool{}
-	for _, f := range t.Fields {
-		declared[f.Name] = true
-
-		label := f.Label
-		if label == "" {
-			label = f.Name
-		}
-		e := field{
-			Key: f.Name, Label: label, Help: f.Help, Required: f.Required,
-			MaxLen: f.MaxLen, AltFor: f.AltFor, Input: "text",
-		}
-		switch f.Kind {
-		case schema.LongText:
-			e.Long = true
-		case schema.Number:
-			e.Input = "number"
-			if f.Min != nil {
-				e.Min = fmt.Sprintf("%g", *f.Min)
-			}
-			if f.Max != nil {
-				e.Max = fmt.Sprintf("%g", *f.Max)
-			}
-		case schema.Date:
-			e.Input = "date"
-		case schema.URL:
-			e.Input = "url"
-		case schema.Email:
-			e.Input = "email"
-		case schema.Boolean:
-			e.Checkbox = true
-		case schema.Choice:
-			e.Choices = f.Choices
-		case schema.Reference:
-			e.Suggest = pages
-			e.SuggestID = "pages-" + f.Name
-			e.Help = strings.TrimSpace(e.Help +
-				" The name of another page. Publishing refuses a name that " +
-				"is not there.")
-		}
-
-		switch v := m[f.Name].(type) {
-		case string:
-			e.Value = v
-		case float64:
-			e.Value = fmt.Sprintf("%v", v)
-		case bool:
-			e.Checked = v
-			e.Value = fmt.Sprintf("%v", v)
-		case []any:
-			// Lists are edited as one value per line. A repeated-input widget
-			// needs script to add and remove rows, and the admin has none: the
-			// CSP forbids it and the absence is the security argument.
-			parts := make([]string, 0, len(v))
-			for _, item := range v {
-				if str, ok := item.(string); ok {
-					parts = append(parts, str)
-				}
-			}
-			e.Value, e.Long = strings.Join(parts, "\n"), true
-			e.Help = strings.TrimSpace(e.Help + " One per line.")
-		}
-		if len(e.Choices) > 0 {
-			e.Selected = map[string]bool{e.Value: true}
-		}
-		out = append(out, e)
-	}
-
-	// Anything the page carries that the type does not declare is shown last
-	// and marked. Hiding it would let a value the type rejects sit in the page
-	// invisibly, blocking every save with an error about a field the editor
-	// never displayed.
-	extra := make([]string, 0)
-	for k := range m {
-		if !declared[k] {
-			extra = append(extra, k)
-		}
-	}
-	sort.Strings(extra)
-	for _, k := range extra {
-		v, _ := m[k].(string)
-		out = append(out, field{
-			Key: k, Label: k, Value: v, Input: "text",
-			Help: "Not declared by " + t.Name + ". Clear this field to remove it.",
-		})
-	}
-	return out
-}
-
-// flatten turns a page into a flat list of editable fields.
-//
-// Only the top level, and only scalars. A generic tree editor for arbitrary JSON
-// is where CMS admin panels become unusable — and unusable-with-a-screen-reader
-// long before that. Structured content is edited through the CLI or the API
-// until there is a design worth defending.
-func flatten(body any) []field {
-	m, ok := body.(map[string]any)
-	if !ok {
-		return nil
-	}
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	// The fields a reader meets first come first; the rest stay in name order.
-	lead := map[string]int{"title": 1, "heading": 2, "intro": 3, "summary": 4}
-	rank := func(k string) int {
-		if n, ok := lead[k]; ok {
-			return n
-		}
-		return len(lead) + 1
-	}
-	sort.SliceStable(keys, func(i, j int) bool { return rank(keys[i]) < rank(keys[j]) })
-
-	out := make([]field, 0, len(keys))
-	for _, k := range keys {
-		switch v := m[k].(type) {
-		case string:
-			out = append(out, field{Key: k, Label: keyLabel(k), Value: v, Long: len(v) > 80,
-				Input: "text"})
-		case float64:
-			out = append(out, field{Key: k, Label: keyLabel(k), Value: fmt.Sprintf("%v", v),
-				Input: "text"})
-		case bool:
-			out = append(out, field{Key: k, Label: keyLabel(k), Value: fmt.Sprintf("%v", v),
-				Input: "text"})
-		}
-	}
-	return out
-}
-
-// keyLabel is a field's key written as a label: "hero_alt" becomes
-// "Hero alt". For a page with no type, which has no labels of its own.
-func keyLabel(k string) string {
-	s := strings.NewReplacer("_", " ", "-", " ").Replace(k)
-	if s == "" {
-		return s
-	}
-	r, n := utf8.DecodeRuneInString(s)
-	return string(unicode.ToUpper(r)) + s[n:]
-}
-
-// coerceForm turns submitted strings into the shapes the type declares.
-//
-// An unparseable number is left as the string the person typed rather than
-// silently dropped or zeroed. Validation then reports "must be a number", which
-// is what happened, instead of the field quietly becoming 0 or vanishing — both
-// of which lose work without saying so.
-func coerceForm(t schema.Type, form url.Values, body map[string]any) {
-	declared := map[string]bool{}
-
-	for _, f := range t.Fields {
-		declared[f.Name] = true
-		values, present := form[f.Name]
-
-		if f.Kind == schema.Boolean {
-			// An unchecked box submits nothing at all, so absence is false
-			// here — the one place where a missing key is a real value rather
-			// than an omission.
-			body[f.Name] = present && len(values) > 0 && values[0] == "true"
-			continue
-		}
-		if !present || len(values) == 0 {
-			continue
-		}
-		raw := values[0]
-
-		switch f.Kind {
-		case schema.Number:
-			if n, err := strconv.ParseFloat(strings.TrimSpace(raw), 64); err == nil {
-				body[f.Name] = n
-			} else if strings.TrimSpace(raw) == "" {
-				delete(body, f.Name)
-			} else {
-				body[f.Name] = raw
-			}
-		case schema.List:
-			items := []any{}
-			for _, line := range strings.Split(raw, "\n") {
-				if line = strings.TrimSpace(line); line != "" {
-					items = append(items, line)
-				}
-			}
-			body[f.Name] = items
-		default:
-			// An optional field left blank is removed rather than stored as an
-			// empty string. "" is a value, and a URL field holding it would be
-			// a page with a link to nowhere.
-			if raw == "" && !f.Required {
-				delete(body, f.Name)
-			} else {
-				body[f.Name] = raw
-			}
-		}
-	}
-
-	// Undeclared keys the editor showed: an empty one is a deletion, which is
-	// the only way to remove a field the type does not know about.
-	for key, values := range form {
-		if strings.HasPrefix(key, "__") || declared[key] {
-			continue
-		}
-		if len(values) == 0 || strings.TrimSpace(values[0]) == "" {
-			delete(body, key)
-			continue
-		}
-		body[key] = values[0]
-	}
-}
-
-// handleSecurity is the posture dashboard.
-//
-// Server-rendered, with no script at all: the CSP on every admin response
-// forbids it, and a security dashboard that needs a client-side framework to
-// tell you a token is world-readable has the dependency the wrong way round.
-func (s *Server) handleSecurity(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.requireAuth(w, r)
-	if !ok {
-		return
-	}
-	// Reading the posture means reading the access policy, the token store and
-	// the audit log: a list of exactly where the defences are thin is a
-	// target list. It is a guarded area, so only an administrator over the
-	// site, or somebody granted the area itself, reaches it.
-	if !s.can(w, r, p, auth.ActView, auth.AreaCompliance) {
-		return
-	}
-	if s.Posture == nil {
-		// Nav even here. Somebody who clicked Security and landed on "not
-		// wired up" is still on Security, and the footer's Help link is
-		// derived from this key too — without it they get the introduction
-		// instead of the section about the screen they are looking at.
-		s.render(w, r, "message.html", map[string]any{
-			"Nav":   "security",
-			"Title": "Security", "Principal": p,
-			"Heading": "The posture scanner is not wired up",
-			"Body": "This build serves the admin without a posture scanner, so " +
-				"nothing has been checked. An empty dashboard would read as a " +
-				"clean one, which is why this says so instead.",
-		})
-		return
-	}
-
-	rep := s.Posture()
-	var controls []string
-	for c := range rep.Controls {
-		controls = append(controls, c)
-	}
-	sort.Strings(controls)
-	// Low and informational findings wait behind one line, so the serious
-	// ones are what the screen opens on.
-	low := 0
-	for _, f := range rep.Findings {
-		if sv := fmt.Sprint(f.Severity); sv == "low" || sv == "info" {
-			low++
-		}
-	}
-
-	s.render(w, r, "security.html", map[string]any{
-		"Nav":   "security",
-		"Title": "Security", "Principal": p, "Low": low,
-		"Report": rep, "Controls": controls, "Band": band(rep.Score),
-		"Throttled": s.throttled(), "Ran": ranAgo(rep.At),
-	})
-}
-
-// throttled is who is currently being slowed down, or nothing.
-//
-// # Why this screen and not a command
-//
-// throttle.Snapshot and Limiter.State were written "for `quilzo auth
-// throttled`", which does not exist — and could not, as written. The limiter's
-// counters live in the memory of the process holding them, and the command
-// line is a different process: a CLI subcommand would report an empty limiter
-// it had just constructed, every time, and look like nothing was happening.
-//
-// This is the process that has one. So the state goes on the posture screen,
-// which is where somebody asking "is something happening" already looks.
-//
-// Without it, the throttle's consequences were unobservable on every surface:
-// no way to see that an address had reached the ceiling, or that the alert
-// threshold had been crossed, short of reading the audit log for
-// auth.failures and counting.
-//
-// The subjects are opaque by construction — the limiter holds HMACs — so this
-// reports counts and timings and cannot say who. That is the package's own
-// decision and the right one: the list of principals currently being attacked
-// is itself worth protecting, and the audit log has the pseudonymised
-// identifiers for the case where somebody does need them.
-func (s *Server) throttled() []throttle.Snapshot {
-	if s.Throttle == nil {
-		return nil
-	}
-	return s.Throttle.State()
-}
-
-// band turns the score into a class name, so the colour is decided once.
-func band(score int) string {
-	switch {
-	case score >= 90:
-		return "ok"
-	case score >= 60:
-		return "warn"
-	default:
-		return "bad"
-	}
-}
-
-func (s *Server) handleRules(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.requireAuth(w, r)
-	if !ok {
-		return
-	}
-	if !s.can(w, r, p, auth.ActView, auth.AreaCompliance) {
-		return
-	}
-	s.render(w, r, "rules.html", map[string]any{
-		"Nav":   "security",
-		"Title": "What is checked", "Principal": p, "Rules": posture.Rules(),
-	})
-}
-
-// handleRule answers "why does this matter" for one rule.
-//
-// The reasoning is a first-class page rather than a tooltip because a finding
-// somebody does not understand is a finding they argue with, and the argument
-// costs more than the fix.
-func (s *Server) handleRule(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.requireAuth(w, r)
-	if !ok {
-		return
-	}
-	if !s.can(w, r, p, auth.ActView, auth.AreaCompliance) {
-		return
-	}
-	id := strings.TrimPrefix(r.URL.Path, "/security/rule/")
-	rule, found := posture.Explain(id)
-	if !found {
-		http.NotFound(w, r)
-		return
-	}
-	data := map[string]any{
-		"Nav":   "security",
-		"Title": rule.Title, "Principal": p, "Rules": []posture.Rule{rule},
-		"One": true,
-	}
-	// Where it stands now: a rule's page says whether it is failing here,
-	// and what to run, before why it matters.
-	if s.Posture != nil {
-		rep := s.Posture()
-		var now []posture.Finding
-		for _, f := range rep.Findings {
-			if f.Rule == rule.ID {
-				now = append(now, f)
-			}
-		}
-		data["Checked"], data["Failing"] = true, now
-	}
-	s.render(w, r, "rules.html", data)
-}
-
-func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "POST only", http.StatusMethodNotAllowed)
-		return
-	}
-	p, ok := s.requireAuth(w, r)
-	if !ok {
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad form", http.StatusBadRequest)
-		return
-	}
-	name := r.FormValue("__name")
-	if name == "" {
-		http.Error(w, "no page name", http.StatusBadRequest)
-		return
-	}
-	if !s.can(w, r, p, auth.ActEditDraft, "/"+name) {
-		return
-	}
-
-	// Two different situations arrive here as the same error, and only one of
-	// them may be turned into an empty page set.
-	//
-	// A store where nobody has saved anything has no draft ref, and that is
-	// exactly the state the first save runs in — the page being written is the
-	// first page. Starting from empty is correct.
-	//
-	// A store whose draft ref is set and whose objects will not load is corrupt,
-	// and starting from empty there would commit a one-page draft over the top
-	// of whatever could not be read. That is the failure worth being careful
-	// about: it turns a recoverable read error into silent data loss.
-	//
-	// The ref itself is what separates them, so it is what gets asked.
-	pages, err := site.PagesAt(s.Store, site.RefDraft)
-	if err != nil {
-		if s.Store.GetRef(site.RefDraft) != "" {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		pages = map[string]any{}
-	}
-	body := map[string]any{}
-	if existing, ok := pages[name].(map[string]any); ok {
-		for k, v := range existing {
-			body[k] = v
-		}
-	}
-	// A form submits strings and nothing else. A number field arrives as "4"
-	// and a checkbox arrives as "true" or not at all, so the type is what says
-	// which of those is a number, a boolean or a list. Without this step every
-	// typed page would fail its own validation on the first save from the
-	// browser, and the fix people would reach for is turning validation off.
-	var typ schema.Type
-	typed := false
-	if s.TypeFor != nil {
-		typ, typed = s.TypeFor(name)
-	}
-	if typed {
-		coerceForm(typ, r.Form, body)
-	} else {
-		for key, values := range r.Form {
-			if strings.HasPrefix(key, "__") || len(values) == 0 {
-				continue
-			}
-			body[key] = values[0]
-		}
-	}
-	pages[name] = body
-
-	msg := r.FormValue("__message")
-	if strings.TrimSpace(msg) == "" {
-		msg = "edit " + name
-	}
-	// Content types are enforced here as well as in the CLI. This project has
-	// twice shipped a rule the terminal honoured and the browser did not, and
-	// the browser is where most editing happens.
-	//
-	// The page being written, and not the whole draft. Checking everything on
-	// every save sounds stricter and is worse in the one way that matters: any
-	// page can be made invalid without being written to — give an existing page
-	// a type it does not satisfy — and from that moment nobody can save
-	// anything. The error names a page the author was not touching and may not
-	// have permission to fix, so an author scoped to their own posts is simply
-	// stuck until somebody else notices.
-	//
-	// Nothing is lost by narrowing it, because the whole-draft check now runs
-	// at publish, which is where it belongs and where it was missing: types
-	// were checked on every save and not at all on the way out, so binding a
-	// type after saving was enough to put content on the live site that
-	// violated its own type.
-	if s.CheckTypes != nil {
-		if failures := s.CheckTypes(map[string]any{name: body}); len(failures) > 0 {
-			s.renderTypeFailures(w, r, p, name, failures)
-			return
-		}
-	}
-
-	commit, err := site.SaveDraftFrom(s.Store, pages, msg, p.Name,
-		r.FormValue("__base"))
-	if err != nil {
-		var c *site.Conflict
-		if errors.As(err, &c) {
-			s.renderConflict(w, r, p, name, c)
-			return
-		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// AU-3, and it was missing from the most common write in the product.
-	//
-	// Every other surface records a page write: `quilzo add` does, the agent
-	// interface does, and the content API does through OnWrite. This interface recorded deleting a page, editing its sections and
-	// removing a selection of them — and not the ordinary save. So somebody
-	// editing the text of a live legal page left an entry saying it was
-	// published and nothing saying who changed what, while the same edit from
-	// a script was recorded in full.
-	s.audit("content.save", pageResource(name), map[string]string{
-		"by": p.Name, "commit": shortHash(commit), "message": msg,
-	})
-
-	// The claim is released on save. Holding it after the work is done is how
-	// a lock outlives its purpose.
-	if s.Locks != nil && s.SaveLocks != nil {
-		if locks, err := s.Locks(); err == nil {
-			locks.Release(name, p.Name, time.Now())
-			_ = s.SaveLocks(locks)
-		}
-	}
-	// Redirect after post so a refresh does not re-submit, and so the browser's
-	// back button behaves the way the person expects.
-	http.Redirect(w, r, "/review?saved="+name, http.StatusSeeOther)
-}
-
-func (s *Server) handleReview(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.requireAuth(w, r)
-	if !ok {
-		return
-	}
-	if !s.canAnywhere(w, r, p, auth.ActView) {
-		return
-	}
-
-	draft := s.Store.GetRef(site.RefDraft)
-	live := s.Store.GetRef(site.RefLive)
-	var changes []site.Change
-	if draft != "" {
-		changes, _ = site.Diff(s.Store, live, draft)
-	}
-
-	reports, a11yErr := s.checkAll(draft)
-	a11yUnavailable := ""
-	if a11yErr != nil {
-		// Said on the screen rather than left as an empty list, which is what
-		// "no blocking failures" would have been reporting.
-		a11yUnavailable = a11yErr.Error()
-	}
-	s.render(w, r, "review.html", map[string]any{
-		"AccessibilityUnavailable": a11yUnavailable,
-		"Approval":                 s.approvalFor(p, draft),
-		"Message":                  r.URL.Query().Get("m"),
-		"Nav":                      "review",
-		"Title":                    "Review", "Principal": p, "Changes": changes,
-		"Reports": reports, "Blocking": a11y.BlockingCount(reports),
-		"Saved":      r.URL.Query().Get("saved"),
-		"CanPublish": s.Policy.Evaluate(p.Name, auth.ActPublish, "/").Allowed,
-		"Nothing":    draft == "" || draft == live,
-	})
-}
-
-// checkAll renders every page and runs the accessibility checks.
-//
-// The error is the difference between "nothing is wrong" and "nothing was
-// looked at", and this used to return only the first. Every failure on the way
-// to a rendered page — the draft unreadable, a page that would not assemble, a
-// template that would not render — came back as an empty slice, which reads to
-// every caller as a clean check, and the publish handler then reported zero
-// blocking failures over pages it had never rendered.
-//
-// The command line has refused on a gate error for as long as somebody has
-// been looking, and says why at length: a gate that cannot run must not exit
-// like a gate that passed.
-func (s *Server) checkAll(commitID string) ([]*a11y.Report, error) {
-	if commitID == "" {
-		return nil, nil // no draft is nothing to check, not a failure
-	}
-	if s.Layouts.Len() == 0 {
-		// Not a failure. A server started without a template directory is a
-		// store that renders somewhere else, which the command line treats as
-		// the one legitimate reason to turn this gate off — it has
-		// --no-a11y-check for exactly this and nothing here would have an
-		// escape hatch. The review screen already says "no template
-		// configured, so nothing was rendered to check", which is the honest
-		// version of the same answer.
-		//
-		// The silent skips this function used to make were a different thing:
-		// those were layouts that exist, pages that should have rendered, and
-		// errors on the way.
-		return nil, nil
-	}
-	pages, err := site.PagesAt(s.Store, commitID)
-	if err != nil {
-		return nil, err
-	}
-	// Rendered the way the public server renders them, which is not what this
-	// did before: it passed the page and nothing else, so every check ran
-	// against a document with no navigation and no listings in it.
-	//
-	// That is wrong in both directions and both directions happened. A site
-	// whose header wrapped its name in a link failed thirteen times over,
-	// because in this version of the page the link had nothing inside it — and
-	// the only way past was the override, which is meant for judgement calls
-	// and not for the gate being wrong. The quieter direction is worse: a real
-	// failure inside a menu or a listing is invisible to a check that renders
-	// neither.
-	src := s.sources(commitID, pages)
-	rendered := map[string]string{}
-
-	// A page asking for a layout this site does not have is a blocking failure
-	// of its own, named before anything is published. The comment here used to
-	// say it was "reported as its own blocking finding below rather than
-	// skipped" and the code skipped it, with nothing below — so a page with a
-	// typo in its layout name rendered to nothing for readers, contributed
-	// zero to the blocking count, and published cleanly from the browser while
-	// the command line refused it.
-	var extra []*a11y.Report
-	for page, layout := range s.Layouts.Missing(pages) {
-		extra = append(extra, a11y.Blocker(page, "layout-not-found", "",
-			fmt.Sprintf("this page asks for the %q layout, which this site "+
-				"does not have. It would not render for a reader at all. "+
-				"Layouts available: %s", layout,
-				strings.Join(s.Layouts.Names(), ", "))))
-	}
-	// The theme's contrast, as `quilzo publish` checks it. This path did
-	// not: a palette saved below 4.5:1 with `quilzo theme set --force`,
-	// which says the publish gate will refuse it, went live from the
-	// browser.
-	extra = append(extra, s.themeBlockers()...)
-
-	for name, body := range pages {
-		ctx, cerr := src.For(name, body, nil)
-		if cerr != nil {
-			return nil, fmt.Errorf("assembling %s: %w", name, cerr)
-		}
-		_, layout, lerr := s.Layouts.For(body)
-		if lerr != nil {
-			// Already reported above. Rendering it through something else to
-			// have something to check would be checking a document nobody is
-			// served.
-			continue
-		}
-		out, err := tmpl.Render(layout, ctx)
-		if err != nil {
-			return nil, fmt.Errorf("rendering %s: %w", name, err)
-		}
-		rendered[name] = out
-	}
-	return append(a11y.CheckAll(rendered), extra...), nil
-}
-
-// deniedChanges are the pages a publish of draft would change that this
-// session may not publish, at most a few of them, named.
-func (s *Server) deniedChanges(p principal, draft string) []string {
-	if s.Policy == nil || draft == "" {
-		return nil
-	}
-	changes, err := site.Diff(s.Store, s.Store.GetRef(site.RefLive), draft)
-	if err != nil {
-		return []string{"(the changes could not be read: " + err.Error() + ")"}
-	}
-	var out []string
-	for _, c := range changes {
-		id := c.After
-		if id == "" {
-			id = c.Before
-		}
-		if s.Store.IsTree(id) || s.allows(p, auth.ActPublish, pageResource(c.Path)) {
-			continue
-		}
-		if out = append(out, c.Path); len(out) == 5 {
-			break
-		}
-	}
-	return out
-}
-
-func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "POST only", http.StatusMethodNotAllowed)
-		return
-	}
-	p, ok := s.requireAuth(w, r)
-	if !ok {
-		return
-	}
-	if !s.can(w, r, p, auth.ActPublish, "/") {
-		return
-	}
-	if s.Frozen != nil {
-		if ferr := s.Frozen(); ferr != nil {
-			s.audit("publish", "/", map[string]string{"outcome": "refused", "by": p.Name, "reason": ferr.Error()})
-			s.render(w, r, "review.html", map[string]any{"Status": http.StatusConflict,
-				"Nav": "review", "Title": "Review", "Principal": p,
-				"CanPublish": false, "Error": ferr.Error()})
-			return
-		}
-	}
-
-	draft := s.Store.GetRef(site.RefDraft)
-
-	// Each page the publish would change, asked about its own path: a deny
-	// of publishing on /legal is not seen by the check on "/" above.
-	if denied := s.deniedChanges(p, draft); len(denied) > 0 {
-		msg := fmt.Sprintf("Publishing the draft would change %s, which you may not publish.",
-			strings.Join(denied, ", "))
-		s.audit("publish", "/", map[string]string{"outcome": "refused", "by": p.Name, "reason": "authorisation"})
-		s.render(w, r, "review.html", map[string]any{"Status": http.StatusForbidden,
-			"Nav": "review", "Title": "Review", "Principal": p,
-			"CanPublish": false, "Error": msg})
-		return
-	}
-
-	// Every check about the content, first and unwaivable.
-	//
-	// This screen used to run four fewer gates than `quilzo publish` —
-	// classification, image rights, arrangement and claims — and published a
-	// draft the command line refuses, with an unsubstantiated claim on it.
-	// internal/gate has the table and the demonstration.
-	//
-	// Before the reason box, and not clearable by it. The waiver on this
-	// screen is one text field that already clears more gates than the person
-	// typing in it is thinking about; adding four more to it would be worse
-	// than leaving them out.
-	if s.ContentGates == nil {
-		http.Error(w, "the content checks are not wired up in this build, so "+
-			"publishing would claim checks that did not happen",
-			http.StatusServiceUnavailable)
-		return
-	}
-	refused, advisory, gerr := s.ContentGates(draft)
-	if gerr != nil {
-		s.render(w, r, "message.html", map[string]any{"Status": http.StatusUnprocessableEntity,
-			"Title": "Not published", "Principal": p,
-			"Heading": "A check could not run", "Body": gerr.Error(),
-		})
-		return
-	}
-	if refused != nil {
-		details := make([]string, 0, len(refused.Findings))
-		for _, f := range refused.Findings {
-			details = append(details, f.String())
-		}
-		s.audit("publish.refused", "/", map[string]string{
-			"gate": refused.Check.Name,
-			"how":  strconv.Itoa(len(refused.Findings)),
-		})
-		s.render(w, r, "message.html", map[string]any{"Status": http.StatusUnprocessableEntity,
-			"Title": "Not published", "Principal": p,
-			"Heading": refused.Check.Refusal(len(refused.Findings)),
-			"Details": details,
-		})
-		return
-	}
-
-	reports, a11yErr := s.checkAll(draft)
-	if a11yErr != nil {
-		// Refused, not waived. An override is for a judgement call about a
-		// finding somebody has read; there is no finding here, because the
-		// check did not run.
-		s.render(w, r, "message.html", map[string]any{"Status": http.StatusUnprocessableEntity,
-			"Title": "Not published", "Principal": p,
-			"Heading": "The accessibility check could not run",
-			"Body": "Publishing would claim a check that did not happen: " +
-				a11yErr.Error(),
-		})
-		return
-	}
-	blocking := a11y.BlockingCount(reports)
-	reason := strings.TrimSpace(r.FormValue("reason"))
-	_ = advisory
-
-	// Provenance is gated here for the same reason accessibility is: a control
-	// present on the command line and absent from the interface is a control
-	// with a hole in whichever one people actually use — and the interface is
-	// the one an editor uses, which is exactly the person likely to be
-	// publishing what an assistant wrote.
-	unmarked, provErr := s.unmarkedPages(draft)
-	if provErr != nil {
-		// Refused, not waived, and for the same reason the accessibility error
-		// above is: the reason box is for a judgement call about something
-		// somebody has read, and there is nothing here to read.
-		s.render(w, r, "message.html", map[string]any{"Status": http.StatusUnprocessableEntity,
-			"Title": "Not published", "Principal": p,
-			"Heading": "The provenance check could not run",
-			"Body": "Publishing would claim a check that did not happen: " +
-				provErr.Error(),
-		})
-		return
-	}
-	// What the one reason field waives, collected as each gate is reached.
-	//
-	// review.html shows a single free-text box, and typing anything in it
-	// clears four independent gates at once: unmarked AI content, blocking
-	// accessibility failures, pages that expired before publication, and menu
-	// links that resolve to nothing. Somebody overriding a broken link also
-	// waives the Article 50 marking gate, in the same click, without being
-	// told. Splitting them is a change to the screen; recording which ones
-	// were actually in force is not, and it is the part an auditor needs.
-	var waived []string
-	if len(unmarked) > 0 {
-		waived = append(waived, "unmarked-ai")
-	}
-	if len(unmarked) > 0 && reason == "" {
-		s.render(w, r, "review.html", map[string]any{"Status": http.StatusUnprocessableEntity,
-			"Nav":   "review",
-			"Title": "Review", "Principal": p, "Reports": reports,
-			"Blocking": blocking, "Unmarked": unmarked, "CanPublish": true,
-			"Error": fmt.Sprintf(
-				"%d page%s without provenance. EU AI Act Article 50 requires "+
-					"AI-generated content to carry a machine-readable mark, and "+
-					"unrecorded is not the same as human-written.",
-				len(unmarked), plural(len(unmarked))),
-		})
-		return
-	}
-
-	// Dual authorisation, and this one has no override.
-	//
-	// The other gates accept a written reason because an accessibility failure
-	// somebody takes responsibility for is a judgement call. "Publish without
-	// the approvals the policy requires" is the thing the policy exists to
-	// prevent, so accepting a reason here would be offering a button that
-	// switches the control off.
-	if blocked := s.blockedByApproval(p, draft); blocked != "" {
-		s.render(w, r, "review.html", map[string]any{"Status": http.StatusUnprocessableEntity,
-			"Nav": "review", "Title": "Review", "Principal": p,
-			"Reports": reports, "Blocking": blocking, "CanPublish": true,
-			"Approval": s.approvalFor(p, draft),
-			"Error":    blocked,
-		})
-		return
-	}
-
-	// A page that expired before it was published.
-	//
-	// Almost always a date typed with the wrong year, or a draft that sat for
-	// a month. Publishing it writes content that is invisible from the instant
-	// it goes live, which looks exactly like a broken publish and is very hard
-	// to diagnose from outside.
-	stale := site.AlreadyExpired(site.PagesOf(s.Store, draft), time.Now())
-	if len(stale) > 0 {
-		waived = append(waived, "expired-pages")
-	}
-	if len(stale) > 0 && reason == "" {
-		s.render(w, r, "review.html", map[string]any{"Status": http.StatusUnprocessableEntity,
-			"Nav": "review", "Title": "Review", "Principal": p,
-			"Reports": reports, "Blocking": blocking, "CanPublish": true,
-			"Expired": stale,
-			"Error": fmt.Sprintf(
-				"%d page%s already past the date it stops being public. "+
-					"Publishing would put up content nobody can see.",
-				len(stale), plural(len(stale))),
-		})
-		return
-	}
-
-	// Every page satisfies its type, checked over the whole draft.
-	//
-	// This is the check that used to run on every save and never here, which is
-	// exactly backwards. Saving is per-page because a page can be made invalid
-	// without being written to, and one such page blocking every author is a
-	// worse failure than the one being prevented. Publishing is the whole set,
-	// because that is the moment the site becomes something readers see, and
-	// "only the pages you touched" is the exception somebody routes around by
-	// touching something else.
-	//
-	// No override. The other gates here take a written reason because an
-	// accessibility finding can be a judgement call; content that violates the
-	// shape it was declared to have is not a judgement call, and the type is
-	// the thing whoever set it up asked to be true.
-	// References, with the type gate and for the same reason: publishing is the
-	// whole set, and whether a reference resolves is a question only the whole
-	// set can answer. The same rule the CLI applies, so the two interfaces
-	// cannot disagree about what publishes.
-	if s.CheckReferences != nil {
-		if failures := s.CheckReferences(site.PagesOf(s.Store, draft)); len(failures) > 0 {
-			s.render(w, r, "review.html", map[string]any{"Status": http.StatusUnprocessableEntity,
-				"Nav": "review", "Title": "Review", "Principal": p,
-				"Reports": reports, "Blocking": blocking, "CanPublish": true,
-				"TypeFailures": failures,
-				"Error": fmt.Sprintf(
-					"%d page%s in this draft reference a page that is not being "+
-						"published. Publish the page it names, or change the "+
-						"reference — a link pointing at nothing is a broken link "+
-						"every reader finds before anybody here does.",
-					len(failures), plural(len(failures))),
-			})
-			return
-		}
-	}
-
-	if s.CheckTypes != nil {
-		if failures := s.CheckTypes(site.PagesOf(s.Store, draft)); len(failures) > 0 {
-			names := make([]string, 0, len(failures))
-			for _, f := range failures {
-				names = append(names, f.Page)
-			}
-			s.render(w, r, "review.html", map[string]any{"Status": http.StatusUnprocessableEntity,
-				"Nav": "review", "Title": "Review", "Principal": p,
-				"Reports": reports, "Blocking": blocking, "CanPublish": true,
-				"TypeFailures": failures,
-				"Error": fmt.Sprintf(
-					"%d page%s in this draft do not satisfy the type they were "+
-						"given: %s. A page can end up here without being edited — "+
-						"giving an existing page a type it does not match is "+
-						"enough — so this is checked on the way out.",
-					len(failures), plural(len(failures)), strings.Join(names, ", ")),
-			})
-			return
-		}
-	}
-
-	// Navigation integrity, gated rather than warned about.
-	//
-	// A menu entry pointing at a page that is not going live works for the
-	// person who wrote it and 404s for every reader — which is the version of
-	// the dangling-link bug that actually ships. Drupal has an open issue and
-	// five contributed modules for this; here it is the same kind of refusal
-	// as an inaccessible page, with the same override.
-	broken := s.brokenLinks(site.PagesOf(s.Store, draft))
-	if len(broken) > 0 {
-		waived = append(waived, "broken-links")
-	}
-	if len(broken) > 0 && reason == "" {
-		s.render(w, r, "review.html", map[string]any{"Status": http.StatusUnprocessableEntity,
-			"Nav": "review", "Title": "Review", "Principal": p,
-			"Reports": reports, "Blocking": blocking, "CanPublish": true,
-			"BrokenLinks": broken,
-			"Error": fmt.Sprintf(
-				"%d navigation entr%s point at pages that are not being "+
-					"published. They work for you and 404 for every reader.",
-				len(broken), map[bool]string{true: "y", false: "ies"}[len(broken) == 1]),
-		})
-		return
-	}
-
-	// The same gate as the CLI, for the same reason. An override that is
-	// available in the interface but not on the command line, or the reverse, is
-	// a control with a hole in whichever one people actually use.
-	if blocking > 0 {
-		waived = append(waived, "accessibility")
-	}
-	if blocking > 0 && reason == "" {
-		s.render(w, r, "review.html", map[string]any{"Status": http.StatusUnprocessableEntity,
-			"Nav":   "review",
-			"Title": "Review", "Principal": p, "Reports": reports,
-			"Blocking":   blocking,
-			"CanPublish": true,
-			"Error": fmt.Sprintf(
-				"%d blocking accessibility failure%s. Fix them, or give a reason "+
-					"to publish anyway — it will be recorded.",
-				blocking, plural(blocking)),
-		})
-		return
-	}
-
-	// Publishing with nothing to publish is a thing somebody did, not a thing
-	// that went wrong, so it is answered on the screen they pressed the button
-	// on rather than as a server error. Every other refusal in this handler
-	// already does that; this one was reaching the store first and reporting
-	// whatever came back.
-	if draft == "" {
-		s.render(w, r, "review.html", map[string]any{"Status": http.StatusUnprocessableEntity,
-			"Nav":   "review",
-			"Title": "Review", "Principal": p, "Reports": reports,
-			"Blocking": blocking, "CanPublish": true,
-			"Error": "There is no draft to publish. Save a page first, and it " +
-				"becomes the draft that publishing makes live.",
-		})
-		return
-	}
-
-	pub, err := site.Publish(s.Store, "")
-	if err != nil {
-		s.audit("publish", "/", map[string]string{
-			"outcome": "failed", "detail": err.Error()})
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	// Publishing is recorded here, which it was not.
-	//
-	// This handler wrote nothing to the audit log at all: not the publish, not
-	// the override, not the reason. The CLI has always recorded all three. So
-	// the audit log held every publish made from a script and none made from
-	// the browser — which is the interface an ordinary editor uses, and the
-	// only one most people ever touch.
-	//
-	// The override field mattered most. review.html labels the reason box
-	// "Recorded." and it was not: the text went into the confirmation page and
-	// nowhere else, and site.Publish is not even given it. One free-text field
-	// waives four separate gates — unmarked AI content, blocking accessibility
-	// failures, expired pages and broken menu links — so what it waived is
-	// recorded next to it rather than left to be inferred from what happened
-	// to be failing at the time.
-	s.audit("publish", "/", map[string]string{
-		"commit":  shortHash(pub.Published),
-		"changes": fmt.Sprintf("%d", len(pub.Changes)),
-		"waived":  strings.Join(waived, ","),
-		"reason":  reason,
-	})
-	s.tell("published", pub)
-	s.render(w, r, "message.html", map[string]any{
-		"Title": "Published", "Principal": p,
-		"Heading": "Published",
-		"Body": fmt.Sprintf("%d change%s are now live. The previous version is "+
-			"still stored, so rolling back moves a pointer.",
-			len(pub.Changes), plural(len(pub.Changes))),
-		// What was waived, and not the word "accessibility" whatever it was.
-		// The template said "Published with an accessibility override" for
-		// every one of the four gates this box clears, so somebody who typed a
-		// reason for an unmarked page was told they had overridden an
-		// accessibility failure — which is the wrong record of the wrong
-		// decision, on the screen where the decision is confirmed.
-		"Override": reason,
-		"Waived":   waived,
-	})
-}
-
-func (s *Server) handleAccess(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.requireAuth(w, r)
-	if !ok {
-		return
-	}
-	if !s.can(w, r, p, auth.ActGrant, "/") {
-		return
-	}
-
-	type row struct {
-		Principal string
-		Actions   []struct {
-			Name    string
-			Allowed bool
-			Reason  string
-		}
-	}
-	var rows []row
-	for _, who := range s.Policy.Principals() {
-		rr := row{Principal: who}
-		for _, a := range auth.Actions() {
-			d := s.Policy.Evaluate(who, a, "/")
-			rr.Actions = append(rr.Actions, struct {
-				Name    string
-				Allowed bool
-				Reason  string
-			}{string(a), d.Allowed, d.Reason})
-		}
-		rows = append(rows, rr)
-	}
-
-	s.render(w, r, "access.html", map[string]any{
-		"Nav":   "access",
-		"Title": "Access", "Principal": p,
-		"Rows": rows, "Bindings": s.Policy.Bindings,
-	})
-}
-
-// unmarkedPages lists pages with no usable provenance at a commit.
-// unmarkedPages is the pages in a commit that declare no provenance.
-//
-// The error matters as much as the list. Every failure here — an unreadable
-// provenance index, a draft that will not read — came back as an empty slice,
-// which reads as "nothing is unmarked", and the publish handler then reported
-// a clean provenance check, recorded an affirmative audit entry, and put the
-// content up. Corrupting the index was the way to publish unmarked AI content
-// through the browser. The command line and the agent interface both refuse on
-// a gate error and both say why.
-func (s *Server) unmarkedPages(commitID string) ([]string, error) {
-	if commitID == "" {
-		return nil, nil
-	}
-	if s.LoadProvenance == nil {
-		// Unwired, which is a build without provenance rather than a store
-		// with none. Reported so the caller can say which.
-		return nil, errNoProvenance
-	}
-	idx, err := s.LoadProvenance()
-	if err != nil {
-		return nil, err
-	}
-	// site.PageIDsAt and not the raw tree.
-	//
-	// The tree holds more than pages. A store with records in it carries a
-	// "data" entry, and walking the tree treated that entry as a page called
-	// "data" — so this screen told an editor "1 page(s) have no usable
-	// provenance: data", named something they cannot open, cannot mark, and
-	// did not write. The only way past it was to type a reason into the
-	// override box, which then recorded a waiver for a page that does not
-	// exist.
-	//
-	// The agent interface had the same bug and was fixed the same way.
-	// site.PageIDsAt is the single answer to "what did this page say", and
-	// asking it is what keeps three screens from each having their own idea of
-	// what a page is.
-	tree, err := site.PageIDsAt(s.Store, commitID)
-	if err != nil {
-		return nil, err
-	}
-	var out []string
-	for _, st := range provenance.Unmarked(provenance.Check(idx, tree)) {
-		out = append(out, st.Page)
-	}
-	sort.Strings(out)
-	return out, nil
-}
-
-// errNoProvenance is a build with nowhere to read provenance from.
-var errNoProvenance = errors.New(
-	"this build has no provenance index, so whether the content carries a " +
-		"machine-readable mark is unknown rather than satisfied")
-
-func (s *Server) handleProvenance(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.requireAuth(w, r)
-	if !ok {
-		return
-	}
-	if !s.can(w, r, p, auth.ActView, "/") {
-		return
-	}
-	if s.LoadProvenance == nil {
-		http.Error(w, "provenance is not configured", http.StatusServiceUnavailable)
-		return
-	}
-
-	idx, err := s.LoadProvenance()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	// An empty store has no draft ref, and asking the store for commit "" gets
-	// back "not an object id", which is a true statement about the lookup and
-	// tells somebody who has just run init that their new installation is
-	// broken. Nothing to describe is not a failure; it renders as no rows.
-	var tree map[string]string
-	if draft := s.Store.GetRef(site.RefDraft); draft != "" {
-		c, err := s.Store.GetCommit(draft)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		tree, _ = s.Store.GetTree(c.Tree)
-	}
-
-	type row struct {
-		Page, State, SourceType, Model, Disclosure string
-		NeedsMark                                  bool
-	}
-	var rows []row
-	for _, st := range provenance.Check(idx, tree) {
-		rr := row{Page: st.Page, Disclosure: st.Disclosure, NeedsMark: st.NeedsMark}
-		switch {
-		case !st.Have:
-			rr.State = "unrecorded"
-		case st.Stale:
-			rr.State = "stale"
-		default:
-			rr.State = "recorded"
-			rr.SourceType = string(st.Record.SourceType)
-			rr.Model = st.Record.Model
-		}
-		rows = append(rows, rr)
-	}
-
-	s.render(w, r, "provenance.html", map[string]any{
-		"Nav":   "provenance",
-		"Title": "Provenance", "Principal": p, "Rows": rows,
-		// The IPTC source types in the words the form offers them in. The
-		// code itself is kept in a tooltip, for whoever checks the mark.
-		"SourceWords": map[string]string{
-			"humanEdits":                           "A person wrote it",
-			"trainedAlgorithmicMedia":              "Generated by a model",
-			"compositeWithTrainedAlgorithmicMedia": "Part model, part person",
-			"algorithmicMedia":                     "Written by software",
-		},
-		"Saved":   r.URL.Query().Get("saved"),
-		"CanEdit": s.Policy.Evaluate(p.Name, auth.ActEditDraft, "/").Allowed,
-	})
-}
-
-func (s *Server) handleProvenanceSet(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "POST only", http.StatusMethodNotAllowed)
-		return
-	}
-	p, ok := s.requireAuth(w, r)
-	if !ok {
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad form", http.StatusBadRequest)
-		return
-	}
-	page := r.FormValue("page")
-	if !s.can(w, r, p, auth.ActEditDraft, "/"+page) {
-		return
-	}
-
-	// No draft means no page to mark, which is the same answer as a page that
-	// is not in the draft: not found. Reaching the store for commit "" would
-	// answer it with a 500 instead.
-	draft := s.Store.GetRef(site.RefDraft)
-	if draft == "" {
-		http.NotFound(w, r)
-		return
-	}
-	c, err := s.Store.GetCommit(draft)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	tree, _ := s.Store.GetTree(c.Tree)
-	hash, exists := tree[page]
-	if !exists {
-		http.NotFound(w, r)
-		return
-	}
-
-	idx, err := s.LoadProvenance()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	rec := provenance.Record{
-		ContentHash: hash,
-		SourceType:  provenance.SourceType(r.FormValue("source")),
-		Model:       strings.TrimSpace(r.FormValue("model")),
-		// The person signed in is accountable. Article 50 binds a provider or
-		// deployer, and a form field inviting someone to type a different name
-		// would be an invitation to write down the wrong one.
-		Author:     p.Name,
-		ReviewedBy: strings.TrimSpace(r.FormValue("reviewed_by")),
-	}
-	if err := idx.Set(page, rec); err != nil {
-		s.render(w, r, "message.html", map[string]any{"Status": http.StatusUnprocessableEntity,
-			"Title": "Not recorded", "Principal": p,
-			"Heading": "That provenance could not be recorded", "Body": err.Error(),
-		})
-		return
-	}
-	if err := s.SaveProvenance(idx); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	// `quilzo provenance set` records this and the interface did not, which is
-	// the wrong way round: this is the record that later satisfies the Article
-	// 50 gate, so it is the one whose authorship somebody asking questions
-	// most needs. Marking a page humanEdits to clear a publish gate left
-	// nothing saying who asserted it.
-	s.audit("provenance.set", pageResource(page), map[string]string{
-		"by": p.Name, "source": string(rec.SourceType), "model": rec.Model,
-	})
-	http.Redirect(w, r, "/provenance?saved="+page, http.StatusSeeOther)
-}
-
-func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.requireAuth(w, r)
-	if !ok {
-		return
-	}
-	if !s.can(w, r, p, auth.ActView, "/") {
-		return
-	}
-	live := s.Store.GetRef(site.RefLive)
-	head := s.Store.GetRef(site.RefDraft)
-	if head == "" {
-		head = live
-	}
-
-	type entry struct {
-		ID, Short, Message, Author string
-		Live, WasLive              bool
-	}
-	var entries []entry
-	hist, err := s.Store.History(head, 30)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	pubs, _ := site.Publications(s.Store)
-	was := map[string]bool{}
-	for _, c := range pubs {
-		was[c] = true
-	}
-	for _, h := range hist {
-		entries = append(entries, entry{
-			ID: h.ID, Short: h.ID[:12], Message: h.Commit.Message,
-			Author: h.Commit.Author, Live: h.ID == live, WasLive: was[h.ID],
-		})
-	}
-	s.render(w, r, "history.html", map[string]any{
-		"Nav":   "history",
-		"Title": "History", "Principal": p, "Entries": entries,
-		"CanRollback": s.Policy.Evaluate(p.Name, auth.ActRollback, "/").Allowed,
-	})
-}
-
-// tell sends a change to the live site to the webhooks, with the pages it
-// touched. Never blocking and never failing the request: a receiver being
-// down is not a reason the site cannot change.
-func (s *Server) tell(event string, pub site.Publication) {
-	if s.Told == nil {
-		return
-	}
-	pages := make([]string, 0, len(pub.Changes))
-	for _, c := range pub.Changes {
-		pages = append(pages, c.Path)
-	}
-	go s.Told(event, pub.Published, pages)
-}
-
-func (s *Server) handleRollback(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "POST only", http.StatusMethodNotAllowed)
-		return
-	}
-	p, ok := s.requireAuth(w, r)
-	if !ok {
-		return
-	}
-	if !s.can(w, r, p, auth.ActRollback, "/") {
-		return
-	}
-	target := r.FormValue("commit")
-	if target == "" {
-		http.Error(w, "no commit given", http.StatusBadRequest)
-		return
-	}
-	// Only back to a version that was live. Any other commit is a draft
-	// nobody published, and putting it live from here would skip every check
-	// and approval publishing makes.
-	if !site.WasLive(s.Store, target) {
-		s.audit("rollback", "/", map[string]string{"by": p.Name, "commit": shortHash(target),
-			"outcome": "denied", "reason": "never live"})
-		w.WriteHeader(http.StatusConflict)
-		s.render(w, r, "message.html", map[string]any{
-			"Title": "Not rolled back", "Principal": p, "Heading": "That version was never live",
-			"Body": "Going back only returns to a version the public has already seen. " +
-				"This one was saved and never published, so it goes through Review, where it is checked.",
-		})
-		return
-	}
-	pub, err := site.Publish(s.Store, target)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	// `quilzo rollback` records this. Moving what the public sees, from the
-	// interface most people use, recorded nothing at all.
-	s.audit("rollback", "/", map[string]string{
-		"by": p.Name, "commit": shortHash(target),
-		"changes": strconv.Itoa(len(pub.Changes)),
-	})
-	s.tell("rolled-back", pub)
-	s.render(w, r, "message.html", map[string]any{
-		"Title": "Rolled back", "Principal": p, "Heading": "Rolled back",
-		"Body": fmt.Sprintf("live is now %s. %d page%s changed. The version you "+
-			"moved away from is still stored, so this is reversible too.",
-			target[:12], len(pub.Changes), plural(len(pub.Changes))),
-	})
-}
-
-// handlePreview serves the real page to the real browser.
-//
-// ATAG A.3.7.1 asks that a preview either render in an in-market user agent or
-// meet UAAG Level A itself. Serving the actual HTML satisfies the first and is
-// also simply more honest: a preview panel that approximates the page is a
-// second renderer that can disagree with the one readers get.
-func (s *Server) handlePreview(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.requireAuth(w, r)
-	if !ok {
-		return
-	}
-	name := strings.TrimPrefix(r.URL.Path, "/preview/")
-	if !s.can(w, r, p, auth.ActView, "/"+name) {
-		return
-	}
-	pages, err := site.PagesAt(s.Store, site.RefDraft)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	body, exists := pages[name]
-	var record map[string]any
-	if !exists {
-		// A detail address, /product/copper-pen, which is what a page's own
-		// links point at. Looked up through the listing the page declares,
-		// by the same code the public site uses, so the preview shows a
-		// record exactly when a reader would see it and with exactly the
-		// fields a reader would get.
-		row, status, derr := s.previewRecord(pages, name)
-		if status != 0 {
-			if status == http.StatusNotFound {
-				http.NotFound(w, r)
-				return
-			}
-			http.Error(w, derr.Error(), status)
-			return
-		}
-		name, _, _ = strings.Cut(name, "/")
-		body, record = pages[name], row
-	}
-	// Resolved against the draft, because this is a preview: showing published
-	// data on a preview of an unpublished page would be a preview of something
-	// that does not exist. Menu targets are checked against the draft too, so
-	// an entry pointing at a page that is written and not yet published shows
-	// here and not to readers — which is what a preview is for.
-	ctx, cerr := s.sources(s.Store.GetRef(site.RefDraft), pages).
-		For(name, body, firstOf(r.URL.Query()))
-	if cerr != nil {
-		http.Error(w, cerr.Error(), http.StatusUnprocessableEntity)
-		return
-	}
-	if record != nil {
-		s.sources(s.Store.GetRef(site.RefDraft), pages).WithRecord(ctx, record)
-	}
-	_, layout, lerr := s.Layouts.For(body)
-	if lerr != nil {
-		http.Error(w, lerr.Error(), http.StatusUnprocessableEntity)
-		return
-	}
-	out, err := tmpl.Render(layout, ctx)
-	if err != nil {
-		http.Error(w, "template: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// The ways back into what you are looking at. See previewbar.go: the page
-	// itself is untouched and the panel is injected after rendering, so this
-	// cannot change what the renderer produced — a preview that differed from
-	// the page because of the preview's own furniture would be the second
-	// renderer this screen exists to avoid.
-	//
-	// ?plain=1 turns it off, for looking at the page exactly as a reader gets
-	// it. A toolbar with no way to take it off is a toolbar in every
-	// screenshot.
-	if r.URL.Query().Get("plain") != "1" {
-		var t schema.Type
-		typed := false
-		if s.TypeFor != nil {
-			t, typed = s.TypeFor(name)
-		}
-		out = injectBar(out, previewBar(name, body, t, typed))
-	}
-
-	// The one document this origin may frame, and only this origin: the
-	// editor shows it beside the form. Everything else stays unframeable.
-	w.Header().Set("Content-Security-Policy", adminPolicy("'self'"))
-	w.Header().Set("X-Frame-Options", "SAMEORIGIN")
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write([]byte(out))
-}
-
-// previewRecord resolves a detail address in the draft.
-//
-// A zero status means found. 404 covers both "no such record" and "a record
-// the listing excludes", as it does on the public site, and a detail route
-// that cannot work is a 422 that says why.
-func (s *Server) previewRecord(pages map[string]any, path string) (
-	map[string]any, int, error) {
-
-	base, key, ok := strings.Cut(path, "/")
-	if !ok || base == "" || key == "" || strings.Contains(key, "/") {
-		return nil, http.StatusNotFound, nil
-	}
-	d, declared := render.DetailOf(pages[base])
-	if !declared {
-		return nil, http.StatusNotFound, nil
-	}
-	if !d.Declared() {
-		return nil, http.StatusUnprocessableEntity, fmt.Errorf(
-			"%s declares a detail route without both a listing and a key "+
-				"field, so it cannot answer for any record", base)
-	}
-	row, err := s.resolverAt(s.Store.GetRef(site.RefDraft)).
-		Record(d.Listing, d.Key, key, nil)
-	switch {
-	case errors.Is(err, listing.ErrNoRecord):
-		return nil, http.StatusNotFound, nil
-	case err != nil:
-		return nil, http.StatusUnprocessableEntity, err
-	}
-	return map[string]any(row), 0, nil
-}
-
-// followPreviewLink sends a link clicked inside a preview to the preview of
-// where it points.
-//
-// A previewed page links /about and /product/copper-pen, because that is what
-// its readers follow. Inside the admin those addresses answered 404, so every
-// link in every preview was a dead end — the preview showed a site nobody
-// could move around. An address whose first segment names a page in the
-// draft goes to that page's preview, with its query string; anything else is
-// still a 404.
-//
-// Signed in first, and only for pages this person may read, so the redirect
-// cannot be used to learn which page names exist.
-func (s *Server) followPreviewLink(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.requireAuth(w, r)
-	if !ok {
-		return
-	}
-	path := strings.TrimPrefix(r.URL.Path, "/")
-	base, _, _ := strings.Cut(path, "/")
-	pages, err := site.PagesAt(s.Store, site.RefDraft)
-	if err != nil || base == "" {
-		http.NotFound(w, r)
-		return
-	}
-	if _, exists := pages[base]; !exists || !s.mayUse(p, auth.ActView, "/"+base) {
-		http.NotFound(w, r)
-		return
-	}
-	to := "/preview/" + (&url.URL{Path: path}).EscapedPath()
-	if r.URL.RawQuery != "" {
-		to += "?" + r.URL.Query().Encode()
-	}
-	http.Redirect(w, r, to, http.StatusSeeOther)
-}
-
-// previewCSS serves the editing panel's stylesheet.
-//
-// A route rather than an inline <style> because this response's policy is
-// `style-src 'self'`, which refuses an inline one silently — see previewbar.go.
-// Authenticated like every other thing here, for the reason siteCSS gives.
-func (s *Server) previewCSS(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.requireAuth(w, r); !ok {
-		return
-	}
-	w.Header().Set("Content-Type", "text/css; charset=utf-8")
-	// Immutable for the process: it is a constant in the binary, so a build
-	// changes it and nothing else does.
-	w.Header().Set("Cache-Control", "private, max-age=300")
-	_, _ = w.Write([]byte(PreviewBarCSS))
-}
-
-// siteCSS serves the site's stylesheet so a preview looks like the page.
-//
-// Authenticated like everything else here. A stylesheet is not secret, but it
-// is the operator's design and this origin is the administration interface;
-// there is no reason for it to answer anonymously when the public server
-// already serves the same bytes to readers.
-func (s *Server) siteCSS(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.requireAuth(w, r); !ok {
-		return
-	}
-	if s.SiteCSS == "" {
-		// 404 rather than empty, because an empty stylesheet is indisting-
-		// uishable from one that loaded and had no rules — and somebody
-		// debugging an unstyled preview would then be looking at the wrong
-		// thing.
-		http.NotFound(w, r)
-		return
-	}
-	w.Header().Set("Content-Type", "text/css; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-store")
-	_, _ = io.WriteString(w, s.SiteCSS)
-}
-
-// firstOf flattens a query string to one value per name.
-//
-// A repeated parameter is somebody probing, or a link built wrong. Taking the
-// first is what every framework does; the point of doing it explicitly is that
-// a listing parameter then has exactly one value and cannot be given two that
-// disagree.
-func firstOf(v url.Values) map[string]string {
-	out := make(map[string]string, len(v))
-	for k, vals := range v {
-		if len(vals) > 0 {
-			out[k] = vals[0]
-		}
-	}
-	return out
-}
 
 // agoAt is a moment as how long before now: "just now", "1 minute ago",
 // "3 days ago"; zero is never.
@@ -4002,59 +1536,4 @@ func landing(ds []destination) string {
 		}
 	}
 	return ""
-}
-
-// shieldedOff refuses a request for a feature the shield has turned off,
-// with when to try again; true means a response has been written.
-func (s *Server) shieldedOff(w http.ResponseWriter, target string) bool {
-	if s.Shield == nil {
-		return false
-	}
-	until, on := s.Shield(target)
-	if !on {
-		return false
-	}
-	if secs := int(time.Until(until).Seconds()) + 1; secs > 0 {
-		w.Header().Set("Retry-After", strconv.Itoa(secs))
-	}
-	w.Header().Set("Cache-Control", "no-store")
-	http.Error(w, "this is turned off for a while by the shield; an administrator can lift it on the Shield screen",
-		http.StatusServiceUnavailable)
-	return true
-}
-
-// shieldable is a handler that answers 503, with when to try again, while
-// the shield has its feature off: a sender that retries (an identity
-// provider, a webhook) delivers later instead of being lost.
-func (s *Server) shieldable(target string, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if s.shieldedOff(w, target) {
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-// themeBlockers are the theme's blocking contrast failures, as reports: the
-// same arithmetic the command line's publish gate runs, skipped only for a
-// hand-written stylesheet this program cannot read.
-func (s *Server) themeBlockers() []*a11y.Report {
-	if s.DesignSet == nil || s.DesignSet.Tokens == nil {
-		return nil
-	}
-	if s.DesignSet.OwnStylesheet != nil && s.DesignSet.OwnStylesheet() {
-		return nil
-	}
-	overrides, err := s.DesignSet.Tokens()
-	if err != nil {
-		return []*a11y.Report{a11y.Blocker("theme", "theme-unreadable", "", "the theme could not be read, so its contrast could not be checked: "+err.Error())}
-	}
-	th, _ := theme.New(overrides, s.siteFamilies())
-	var out []*a11y.Report
-	for _, f := range th.Check() {
-		if f.Blocking {
-			out = append(out, a11y.Blocker("theme", "theme-contrast", f.Criterion, f.Detail))
-		}
-	}
-	return out
 }

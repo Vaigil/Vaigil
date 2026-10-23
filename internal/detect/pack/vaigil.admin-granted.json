@@ -1,10 +1,10 @@
 {
-  "id": "quilzo.admin-granted",
-  "title": "Somebody was made an administrator of Quilzo",
+  "id": "vaigil.admin-granted",
+  "title": "Somebody was made an administrator of Vaigil",
   "why": "administrator is the role that can change every other control",
-  "blind": "a role granted outside Quilzo, on the machine it runs on",
+  "blind": "a role granted outside Vaigil, on the machine it runs on",
   "sources": [
-    "quilzo/audit"
+    "vaigil/audit"
   ],
   "severity": 3,
   "when": {
@@ -39,13 +39,13 @@
       "name": "made an administrator",
       "match": true,
       "event": {
-        "source": "quilzo/audit",
+        "source": "vaigil/audit",
         "time": "2026-10-01T09:00:00Z",
         "received": "2026-10-01T09:00:05Z",
         "class": 6003,
         "disposition": 1,
         "actor": {
-          "issuer": "quilzo",
+          "issuer": "vaigil",
           "value": "p_1a2b3c"
         },
         "message": "access.grant",
@@ -62,13 +62,13 @@
       "name": "made an administrator on the command line",
       "match": true,
       "event": {
-        "source": "quilzo/audit",
+        "source": "vaigil/audit",
         "time": "2026-10-01T09:00:00Z",
         "received": "2026-10-01T09:00:05Z",
         "class": 6003,
         "disposition": 1,
         "actor": {
-          "issuer": "quilzo",
+          "issuer": "vaigil",
           "value": "p_1a2b3c"
         },
         "message": "auth.granted",
@@ -85,13 +85,13 @@
       "name": "made an administrator by provisioning",
       "match": true,
       "event": {
-        "source": "quilzo/audit",
+        "source": "vaigil/audit",
         "time": "2026-10-01T09:00:00Z",
         "received": "2026-10-01T09:00:05Z",
         "class": 6003,
         "disposition": 1,
         "actor": {
-          "issuer": "quilzo",
+          "issuer": "vaigil",
           "value": "p_1a2b3c"
         },
         "message": "scim.granted",
@@ -108,13 +108,13 @@
       "name": "made an author",
       "match": false,
       "event": {
-        "source": "quilzo/audit",
+        "source": "vaigil/audit",
         "time": "2026-10-01T09:00:00Z",
         "received": "2026-10-01T09:00:05Z",
         "class": 6003,
         "disposition": 1,
         "actor": {
-          "issuer": "quilzo",
+          "issuer": "vaigil",
           "value": "p_1a2b3c"
         },
         "message": "access.grant",

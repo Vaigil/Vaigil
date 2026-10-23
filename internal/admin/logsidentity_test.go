@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/quilzo/quilzo/internal/audit"
+	"github.com/quilzo/vaigil/internal/audit"
 )
 
 // TestTheLogNamesPeopleInDetailsItKnows. Details naming a person are stored
@@ -18,7 +18,7 @@ func TestTheLogNamesPeopleInDetailsItKnows(t *testing.T) {
 	srv.LoadAudit = func() ([]audit.Event, error) {
 		return []audit.Event{{Seq: 1, At: "2026-09-29T10:00:00Z", Action: "grant",
 			Resource: "/", Outcome: audit.Success, Principal: "p_service", Kind: audit.KindHuman,
-			Detail: map[string]string{"by": "p_admin", "on_behalf_of": "p_stranger", "role": "author"}}}, nil
+			Detail: map[string]string{"by": "p_admin", "on_behalf_of": "p_stranger", "role": "analyst"}}}, nil
 	}
 	srv.ResolvePrincipal = func(p string) string {
 		if p == "p_admin" {
@@ -28,7 +28,7 @@ func TestTheLogNamesPeopleInDetailsItKnows(t *testing.T) {
 	}
 	body := get(t, srv, "/logs", token).Body.String()
 	if !strings.Contains(body, "dana") || !strings.Contains(body, "p_stranger") ||
-		!strings.Contains(body, "author") {
+		!strings.Contains(body, "analyst") {
 		t.Fatalf("details were not resolved as expected:\n%s", firstLines(body, 80))
 	}
 }

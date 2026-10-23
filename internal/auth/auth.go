@@ -58,18 +58,29 @@ import (
 )
 
 // Role is a rung on the ladder. Higher includes everything below it.
+//
+// The ladder follows how a security team separates its work — watching,
+// deciding, acting and administering — as Microsoft Sentinel, Splunk
+// Enterprise Security and Google Security Operations each do. Changing the
+// tooling (detections, playbooks) and judging vulnerabilities are jobs
+// rather than rungs, because they are a different kind of work, not more
+// of it (permission.go).
 type Role string
 
 const (
 	// RoleNone is the absence of a grant, not a role anyone holds.
 	RoleNone Role = ""
-	// RoleReader can see content, drafts included.
-	RoleReader Role = "reader"
-	// RoleAuthor can write drafts. Cannot make anything public.
-	RoleAuthor Role = "author"
-	// RolePublisher can move the live pointer. The boundary that matters.
-	RolePublisher Role = "publisher"
-	// RoleAdmin can grant and revoke access.
+	// RoleViewer reads findings, cases, the vulnerability queue and the
+	// dashboards. Changes nothing.
+	RoleViewer Role = "viewer"
+	// RoleAnalyst triages findings, opens and comments on cases, escalates
+	// and runs read-only hunts.
+	RoleAnalyst Role = "analyst"
+	// RoleResponder owns and changes cases, runs approved playbooks, asks
+	// for an act on another platform, and approves somebody else's.
+	RoleResponder Role = "responder"
+	// RoleAdmin manages people and roles, connectors and their credentials,
+	// and settings.
 	RoleAdmin Role = "admin"
 )
 
@@ -77,11 +88,11 @@ const (
 // about: there is no permission matrix to consult and no pair of roles whose
 // relationship has to be looked up.
 var rank = map[Role]int{
-	RoleNone: 0, RoleReader: 1, RoleAuthor: 2, RolePublisher: 3, RoleAdmin: 4,
+	RoleNone: 0, RoleViewer: 1, RoleAnalyst: 2, RoleResponder: 3, RoleAdmin: 4,
 }
 
 // Roles in ladder order, for help text and validation.
-var Roles = []Role{RoleReader, RoleAuthor, RolePublisher, RoleAdmin}
+var Roles = []Role{RoleViewer, RoleAnalyst, RoleResponder, RoleAdmin}
 
 func (r Role) Valid() bool { _, ok := rank[r]; return ok && r != RoleNone }
 
@@ -90,14 +101,14 @@ func (r Role) AtLeast(other Role) bool { return rank[r] >= rank[other] }
 
 func (r Role) Describe() string {
 	switch r {
-	case RoleReader:
-		return "see content and drafts"
-	case RoleAuthor:
-		return "write drafts; cannot publish"
-	case RolePublisher:
-		return "publish and roll back"
+	case RoleViewer:
+		return "read findings, cases, vulnerabilities and dashboards"
+	case RoleAnalyst:
+		return "triage findings, open and comment on cases, hunt"
+	case RoleResponder:
+		return "own cases, act on other platforms, approve others' acts"
 	case RoleAdmin:
-		return "manage who can do what"
+		return "manage people, connectors and settings"
 	}
 	return "no access"
 }
@@ -106,31 +117,27 @@ func (r Role) Describe() string {
 type Action string
 
 const (
-	ActView      Action = "view"
-	ActEditDraft Action = "edit-draft"
-	ActPublish   Action = "publish"
-	ActRollback  Action = "rollback"
-	ActGrant     Action = "grant"
-	ActToken     Action = "manage-tokens"
+	ActView    Action = "view"
+	ActTriage  Action = "triage"
+	ActRespond Action = "respond"
+	ActGrant   Action = "grant"
+	ActToken   Action = "manage-tokens"
 )
 
 // needs maps each action to the minimum role. Kept as data in one short table
 // so the complete answer to "what does this system let people do" fits on a
 // screen. A permission model you cannot read in full is one nobody checks.
 var needs = map[Action]Role{
-	ActView:      RoleReader,
-	ActEditDraft: RoleAuthor,
-	ActPublish:   RolePublisher,
-	ActRollback:  RolePublisher,
-	ActGrant:     RoleAdmin,
-	ActToken:     RoleAdmin,
-	// The permissions (permission.go), each at the rung it followed before
-	// it could be granted on its own.
-	ActRunAgents:    RoleAuthor,
-	ActApprove:      RoleAdmin,
-	ActManageAgents: RoleAdmin,
-	ActUseModels:    RoleAuthor,
-	ActInstall:      RoleAdmin,
+	ActView:    RoleViewer,
+	ActTriage:  RoleAnalyst,
+	ActRespond: RoleResponder,
+	ActGrant:   RoleAdmin,
+	ActToken:   RoleAdmin,
+	// The permissions (permission.go), each at the rung that holds it when
+	// nobody was granted it on its own.
+	ActApprove: RoleResponder,
+	ActTune:    RoleAdmin,
+	ActAssess:  RoleAdmin,
 }
 
 // Actions lists every action, for help and for the explain command.
@@ -160,21 +167,6 @@ type Binding struct {
 	Permission Action `json:"permission,omitempty"`
 	Resource   string `json:"resource"` // "/" is the whole site
 	Deny       bool   `json:"deny,omitempty"`
-	// OwnOnly restricts this binding to content the principal created.
-	//
-	// This is the answer to "do we need a contributor role", and the answer is
-	// that contributor is not a rung on the ladder. Every CMS vocabulary has
-	// one — somebody who writes drafts and cannot publish — and mapping it
-	// onto a role ladder gets it wrong, because the distinction is not *less
-	// power*. A contributor does exactly what an author does. They do it to a
-	// smaller set of pages.
-	//
-	// So it is a constraint on the binding rather than a role, and it composes
-	// with everything: any role can be own-only, it stacks with the resource
-	// path, and it stacks with a token's type and locale scope. A new rung
-	// would have composed with nothing and would have needed a decision about
-	// where it sits relative to every existing one.
-	OwnOnly bool `json:"own_only,omitempty"`
 	// Expires ends the binding at this Unix time. Zero is never. For a
 	// contractor, an auditor, or cover while somebody is away: access that
 	// ends by itself is access nobody has to remember to remove.
@@ -182,10 +174,6 @@ type Binding struct {
 	GrantedBy string `json:"granted_by,omitempty"`
 	GrantedAt int64  `json:"granted_at,omitempty"`
 	Note      string `json:"note,omitempty"`
-	// Via is what the binding was granted as, when it was granted as part of
-	// something larger: "app:PKG/ROLE" for a role an app declares (see
-	// approle.go). Such a binding changes with the role and goes with it.
-	Via string `json:"via,omitempty"`
 }
 
 // Live reports whether a binding is in force at a moment.
@@ -193,45 +181,27 @@ func (b Binding) Live(now time.Time) bool {
 	return b.Expires == 0 || now.Unix() < b.Expires
 }
 
-// Areas of the admin that are not content.
+// Areas.
 //
-// A binding's resource has always been a part of the site — "/" for all of
-// it, "/blog" for a section. These are parts of the admin instead, named
-// where no page can be (a page name cannot begin with @), and the screens,
-// commands and machine-interface tools of each area ask about its name. So
-// a role granted on "/" covers every area, and a role granted on one area
-// covers that area and nothing else — except for the guarded areas below.
-//
-// That is how a job is given without inventing rungs: a security analyst is
-// an administrator of /@security — the findings, cases and hunts — who can
-// grant nobody anything, because granting is asked about "/", and who
-// cannot open a page, because pages are asked about their own names.
+// A binding's resource is "/" for everything, or an area, named where no
+// other resource can be (a name beginning with @). The screens, commands
+// and machine-interface tools of each area ask about its name. So a role
+// granted on "/" covers every area but the guarded one, and a role granted
+// on one area covers that area and nothing else.
 const (
 	// AreaSecurity is security operations: findings, events, hunting,
 	// detections, cases, indicators, vulnerabilities, workforce risk.
 	AreaSecurity = "/@security"
-	// AreaCompliance is assurance: the security posture, frameworks,
-	// integrity, inventory and the evidence an assessor asks for.
-	AreaCompliance = "/@compliance"
 	// AreaLog is the audit log.
 	AreaLog = "/@log"
-	// AreaInbox is the conversations visitors asked to have with a person.
-	AreaInbox = "/@inbox"
-	// AreaBoards is moderating what a site's members write.
-	AreaBoards = "/@boards"
 )
 
-// guardedAreas are the areas a role over the site reaches only if it is
-// administrator: security operations, the posture and the audit log.
-//
-// What is in them is a list of where the defences are thin and a record of
-// who did what, across everybody, and the screens for them always asked for
-// an administrator. Some of their commands asked only to view, and a reader
-// over the whole site covered every area, so a content reviewer's token
-// could read the audit log from a terminal that the admin would not show
-// them. Somebody who should read one of these and change nothing — an
-// auditor — is granted reader on the area itself.
-var guardedAreas = []string{AreaSecurity, AreaCompliance, AreaLog}
+// guardedAreas are the areas a role over everything reaches only if it is
+// administrator. The audit log is a record of who did what, across
+// everybody, and a viewer reads the findings without reading that; somebody
+// who should read it and change nothing — an auditor — is granted it on the
+// area itself.
+var guardedAreas = []string{AreaLog}
 
 func guarded(target string) bool {
 	for _, a := range guardedAreas {
@@ -242,7 +212,7 @@ func guarded(target string) bool {
 	return false
 }
 
-// IsArea reports whether a resource names an area rather than content.
+// IsArea reports whether a resource names an area.
 func IsArea(resource string) bool {
 	return strings.HasPrefix(normalise(resource), "/@")
 }
@@ -252,24 +222,23 @@ type Job struct {
 	Name     string
 	Summary  string
 	Bindings []Binding
-	// Ends says it is granted only for a time: an assessor is there for an
-	// assessment, and access nobody remembered to remove is the finding
-	// they would write.
+	// Ends says it is granted only for a time: an auditor is there for an
+	// audit, and access nobody remembered to remove is the finding they
+	// would write.
 	Ends bool
 }
 
-// Jobs are the roles people ask for by what they do. Each is only the
-// bindings it lists: granting one is granting those, and the policy holds
-// nothing but bindings, so what a job allows is always readable in full.
+// Jobs are the roles people ask for by what they do, beside the ladder.
+// Each is only the bindings it lists: granting one is granting those, and
+// the policy holds nothing but bindings, so what a job allows is always
+// readable in full.
 var Jobs = []Job{
-	{Name: "analyst", Summary: "security operations and the audit log; nothing else",
-		Bindings: []Binding{{Role: RoleAdmin, Resource: AreaSecurity}, {Role: RoleAdmin, Resource: AreaLog}}},
-	{Name: "compliance", Summary: "the security posture, frameworks and evidence, and the audit log",
-		Bindings: []Binding{{Role: RoleAdmin, Resource: AreaCompliance}, {Role: RoleAdmin, Resource: AreaLog}}},
-	{Name: "support", Summary: "answer visitors in the inbox and moderate members' posts; nothing else",
-		Bindings: []Binding{{Role: RoleAuthor, Resource: AreaInbox}, {Role: RoleAuthor, Resource: AreaBoards}}},
-	{Name: "auditor", Summary: "read the posture, frameworks, evidence and the audit log, for a set time; change nothing",
-		Bindings: []Binding{{Role: RoleReader, Resource: AreaCompliance}, {Role: RoleReader, Resource: AreaLog}}, Ends: true},
+	{Name: "engineer", Summary: "write and tune detections, Sigma imports, correlations and automation rules; read the queue",
+		Bindings: []Binding{{Permission: ActTune, Resource: AreaSecurity}, {Role: RoleViewer, Resource: AreaSecurity}}},
+	{Name: "vuln-manager", Summary: "decide vulnerabilities: SSVC, VEX statements, asset tags and upgrade plans; read the queue",
+		Bindings: []Binding{{Permission: ActAssess, Resource: AreaSecurity}, {Role: RoleViewer, Resource: AreaSecurity}}},
+	{Name: "auditor", Summary: "read the queue, the cases and the audit log, for a set time; change nothing",
+		Bindings: []Binding{{Role: RoleViewer, Resource: AreaSecurity}, {Role: RoleViewer, Resource: AreaLog}}, Ends: true},
 }
 
 // JobNamed finds a job by name.
@@ -332,12 +301,6 @@ type Decision struct {
 	Reason  string   // why, in one line
 	Binding *Binding // the binding that decided, if any
 	Trail   []string // every binding considered, in order
-	// OwnsRequired reports that the winning binding is own-only, so the caller
-	// must confirm the principal created the resource. Set on an *allowed*
-	// decision, which is deliberate: a caller that ignores it gets the old
-	// behaviour rather than a wrong refusal, and EvaluateOwned is the path
-	// that does not let it be ignored.
-	OwnsRequired bool
 }
 
 // Evaluate answers whether a principal may perform an action on a resource.
@@ -382,14 +345,12 @@ func (p *Policy) Evaluate(principal string, action Action, resource string) Deci
 			continue
 		}
 		// A deny of role R blocks every action needing R *or more*. Denying
-		// "author" therefore also stops publishing, because leaving the higher
+		// "analyst" therefore also stops responding, because leaving the higher
 		// rung open would be a hole shaped exactly like the thing the deny was
 		// written to close.
 		//
-		// It must not run the other way. The first version also blocked when the
-		// denied role outranked the requirement, which made "deny publisher on
-		// /legal" stop the same person reading /legal — over-denial that looks
-		// like the tool is broken, and pushes people to stop using deny at all.
+		// It must not run the other way: denying responder on an area must not
+		// stop the same person reading it.
 		if required.AtLeast(b.Role) {
 			trail = append(trail, fmt.Sprintf(
 				"DENY %s on %s — matches", b.Role, normalise(b.Resource)))
@@ -438,8 +399,8 @@ func (p *Policy) Evaluate(principal string, action Action, resource string) Deci
 
 	if permission != nil && !best.AtLeast(required) {
 		return Decision{Allowed: true, Role: best, Binding: permission, Trail: trail,
-			Reason: fmt.Sprintf("%s holds %s, granted at %s%s", principal, permissionText(permission),
-				normalise(permission.Resource), asText(permission))}
+			Reason: fmt.Sprintf("%s holds %s, granted at %s", principal, permissionText(permission),
+				normalise(permission.Resource))}
 	}
 	if best == RoleNone {
 		return Decision{Allowed: false, Role: RoleNone, Trail: trail,
@@ -450,19 +411,9 @@ func (p *Policy) Evaluate(principal string, action Action, resource string) Deci
 			Reason: fmt.Sprintf("%s is %s on %s; %s needs %s",
 				principal, best, target, action, required)}
 	}
-	// The binding that won may be own-only, which Evaluate cannot resolve on
-	// its own: it does not know who created the page, and giving this package
-	// access to the store to find out would make the access model depend on
-	// the content it guards.
-	//
-	// So it is reported rather than decided. The caller — which is holding the
-	// page and knows its author — checks OwnsRequired against the creator.
-	// Fail-closed is the caller's job and EvaluateOwned below makes that the
-	// easy path.
 	return Decision{Allowed: true, Role: best, Binding: bestBinding, Trail: trail,
-		OwnsRequired: bestBinding.OwnOnly,
-		Reason: fmt.Sprintf("%s is %s on %s, granted at %s%s",
-			principal, best, target, normalise(bestBinding.Resource), asText(bestBinding))}
+		Reason: fmt.Sprintf("%s is %s on %s, granted at %s",
+			principal, best, target, normalise(bestBinding.Resource))}
 }
 
 // Anywhere reports whether a principal may perform an action on anything at
@@ -524,7 +475,7 @@ func (p *Policy) Highest(principal string) Role {
 		}
 	}
 	p.mu.RUnlock()
-	defining := map[Role]Action{RoleAdmin: ActGrant, RolePublisher: ActPublish, RoleAuthor: ActEditDraft, RoleReader: ActView}
+	defining := map[Role]Action{RoleAdmin: ActGrant, RoleResponder: ActRespond, RoleAnalyst: ActTriage, RoleViewer: ActView}
 	best := RoleNone
 	for _, b := range held {
 		if b.Role.AtLeast(best) && b.Role != best && p.Evaluate(principal, defining[b.Role], b.Resource).Allowed {
@@ -532,46 +483,6 @@ func (p *Policy) Highest(principal string) Role {
 		}
 	}
 	return best
-}
-
-// EvaluateOwned is Evaluate for a caller that knows who created the resource.
-//
-// The creator is passed rather than looked up, because this package must not
-// read content in order to decide who may read content — that dependency runs
-// the wrong way and would make the policy unevaluable without a store.
-//
-// An empty creator means nobody knows, and an own-only binding then refuses.
-// That is the direction that fails closed: content whose author was never
-// recorded is content an own-only principal has no claim to, and treating
-// "unknown" as "yours" would make every unattributed page editable by
-// everybody holding an own-only grant.
-func (p *Policy) EvaluateOwned(principal string, action Action, resource,
-	creator string) Decision {
-
-	d := p.Evaluate(principal, action, resource)
-	if !d.Allowed || !d.OwnsRequired {
-		return d
-	}
-	// Reads are not restricted by ownership. A contributor who cannot see the
-	// site cannot write for it, and an editorial team where people cannot read
-	// each other's drafts is not a team.
-	if action == ActView {
-		return d
-	}
-	if creator != "" && creator == principal {
-		return d
-	}
-	d.Allowed = false
-	if creator == "" {
-		d.Reason = fmt.Sprintf(
-			"%s may only change content they created, and nothing records who "+
-				"created %s", principal, normalise(resource))
-		return d
-	}
-	d.Reason = fmt.Sprintf(
-		"%s may only change content they created; %s was created by %s",
-		principal, normalise(resource), creator)
-	return d
 }
 
 // Grant adds a binding. Refuses a duplicate rather than stacking one.
@@ -596,7 +507,7 @@ func (p *Policy) Grant(b Binding) error {
 	}
 	for _, e := range p.Bindings {
 		if e.Principal == b.Principal && e.Role == b.Role && e.Permission == b.Permission &&
-			e.Resource == b.Resource && e.Deny == b.Deny && e.Via == b.Via {
+			e.Resource == b.Resource && e.Deny == b.Deny {
 			return fmt.Errorf("that binding already exists")
 		}
 	}
@@ -610,8 +521,7 @@ func (p *Policy) Revoke(principal string, role Role, resource string) int {
 }
 
 // RevokeNamed removes the bindings of a role or a permission, by its name,
-// and reports how many went. A binding that came with an app role is left:
-// it goes when the role does, so nobody is left holding half of one.
+// and reports how many went.
 func (p *Policy) RevokeNamed(principal, what, resource string) int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -620,7 +530,7 @@ func (p *Policy) RevokeNamed(principal, what, resource string) int {
 	kept := p.Bindings[:0]
 	removed := 0
 	for _, b := range p.Bindings {
-		if b.Principal == principal && b.Via == "" && b.What() == what && normalise(b.Resource) == resource {
+		if b.Principal == principal && b.What() == what && normalise(b.Resource) == resource {
 			removed++
 			continue
 		}
@@ -665,13 +575,13 @@ func roleList() string {
 
 // -- API tokens ---------------------------------------------------------------
 
-// TokenPrefix marks a quilzo token in logs, repositories and paste sites.
+// TokenPrefix marks a vaigil token in logs, repositories and paste sites.
 //
 // GitHub's `ghp_` convention exists so secret scanners can spot a leaked
 // credential without knowing what it belongs to. It costs six characters and it
 // is the difference between a token found by a scanner and one found by whoever
 // picked it up.
-const TokenPrefix = "qz_"
+const TokenPrefix = "vg_"
 
 // tokenBytes is 256 bits. Tokens are generated, not chosen, so the whole
 // dictionary-attack problem that motivates slow password hashing does not exist
@@ -680,9 +590,7 @@ const tokenBytes = 32
 
 var tokenEnc = base32.StdEncoding.WithPadding(base32.NoPadding)
 
-// NewSecret is a fresh token secret. The shield's decoys are made with it
-// too, so the only thing that tells a decoy from a real token is trying it,
-// and a change to the format moves both at once.
+// NewSecret is a fresh token secret.
 func NewSecret() (string, error) {
 	raw := make([]byte, tokenBytes)
 	if _, err := rand.Read(raw); err != nil {
@@ -934,32 +842,9 @@ type TokenStore struct {
 
 	// Ended are the sessions pruned lately, by a short fingerprint of their
 	// hash: enough to say "that session ended" to a script still using one
-	// a day later, rather than "no such token", which the shield counts as
-	// a guess; never enough to sign in with.
+	// a day later, rather than "no such token", which counts as a guess;
+	// never enough to sign in with.
 	Ended []Ended `json:"ended,omitempty"`
-
-	// Admit, when set, is asked about every credential that authenticates,
-	// including one presented to be exchanged for a session. The shield's
-	// lockdown sets it (internal/shield): it is given when the credential's
-	// own long-lived token was made — the parent's, for a session exchanged
-	// from one, so a stolen token cannot be laundered into a fresh session —
-	// and whether a passkey or single sign-on vouched for it. A store
-	// loaded for the command line on the machine has none: that is the way
-	// out of a lockdown, not a way in.
-	Admit func(c Credential) error `json:"-"`
-}
-
-// Credential is what Admit is told about one presented credential.
-type Credential struct {
-	// ID is the credential's own id; Parent the long-lived token it was
-	// exchanged from, if it was; Grant the app connection it was issued
-	// for, if it was.
-	ID, Parent, Grant string
-	// Issued is when the long-lived token behind it was made: the parent's
-	// for an exchanged session.
-	Issued int64
-	// Vouched says a passkey or single sign-on minted it.
-	Vouched bool
 }
 
 // Ended is a pruned session's fingerprint.
@@ -974,10 +859,6 @@ const (
 	endedPrint = 16 // hex characters: 8 bytes of the hash
 )
 
-// ErrLockedDown is a credential refused because the admin is accepting
-// only passkeys, single sign-on and tokens made since, for a while.
-var ErrLockedDown = errors.New("for a while the admin accepts only passkeys, single sign-on and tokens made since then")
-
 // Issue mints a token and returns the secret exactly once.
 //
 // The caller's role caps what may be issued: a token is a way to act as
@@ -990,8 +871,7 @@ func (ts *TokenStore) Issue(name, principal string, role Role, resource string,
 		Scope{})
 }
 
-// IssueScoped mints a token narrowed to particular content types, locales, or
-// to reading only.
+// IssueScoped mints a token narrowed to reading only.
 //
 // A separate entry point rather than a longer Issue, because every existing
 // caller means "unrestricted" and rewriting twenty call sites to pass an empty
@@ -1228,7 +1108,7 @@ func (ts *TokenStore) ExchangeProved(parentSecret string, role Role, resource st
 		// The parent's scope, carried. Leaving it off meant every exchanged
 		// session was unrestricted: a credential issued --read-only, or
 		// --types article, produced a session with the zero Scope — which
-		// CheckCredential reads as no restriction at all. So `quilzo token
+		// CheckCredential reads as no restriction at all. So `vaigil token
 		// exchange` turned a read-only CI credential into one that publishes,
 		// which is the opposite of what a session is for.
 		//
@@ -1447,9 +1327,8 @@ func (silent) Error() string { return "" }
 func (s silent) Unwrap() error { return s.error }
 
 // Unknown reports whether Authenticate refused a secret because it was never
-// issued here, rather than because it expired or was revoked. The shield
-// counts the first: guessing is an attack, and a script holding a token that
-// ran out is not.
+// issued here, rather than because it expired or was revoked: guessing is
+// an attack, and a script holding a token that ran out is not.
 func Unknown(err error) bool { return errors.Is(err, errUnknown) }
 
 // ErrStepUp is a session that must prove its person before it is used.
@@ -1460,7 +1339,7 @@ var ErrStepUp = errors.New("this session must confirm it is its person first: si
 // lock rather than deadlocking on a re-entrant call.
 func (ts *TokenStore) authenticate(secret string, now time.Time) (*Token, error) {
 	if !strings.HasPrefix(secret, TokenPrefix) {
-		return nil, fmt.Errorf("that is not a quilzo token (they start with %s)%w", TokenPrefix, silent{errUnknown})
+		return nil, fmt.Errorf("that is not a vaigil token (they start with %s)%w", TokenPrefix, silent{errUnknown})
 	}
 	want := []byte(hashToken(secret))
 
@@ -1484,22 +1363,6 @@ func (ts *TokenStore) authenticate(secret string, now time.Time) (*Token, error)
 	}
 	if ok, why := found.Usable(now); !ok {
 		return nil, fmt.Errorf("%s", why)
-	}
-	if ts.Admit != nil {
-		issued := found.CreatedAt
-		if found.Parent != "" {
-			// A parent that is gone made nothing anybody can vouch for.
-			issued = 0
-			for i := range ts.Tokens {
-				if ts.Tokens[i].ID == found.Parent {
-					issued = ts.Tokens[i].CreatedAt
-				}
-			}
-		}
-		if err := ts.Admit(Credential{ID: found.ID, Parent: found.Parent, Grant: found.Grant,
-			Issued: issued, Vouched: found.Session}); err != nil {
-			return nil, err
-		}
 	}
 	found.LastUsed = now.Unix()
 

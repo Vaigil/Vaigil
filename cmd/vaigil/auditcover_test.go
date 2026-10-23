@@ -11,12 +11,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/quilzo/quilzo/internal/auth"
+	"github.com/quilzo/vaigil/internal/auth"
 )
 
 // Every command that changes something must leave a record of having done it.
 //
-// There was already a test for this and it passed while `quilzo add` — the
+// There was already a test for this and it passed while `vaigil add` — the
 // most common write in the entire program — wrote nothing at all. It passed
 // because it checked a hand-maintained list of eight function names, and the
 // comment above that list said the quiet part: "adding a privileged command

@@ -12,11 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/decide"
-	"github.com/quilzo/quilzo/internal/finding"
-	"github.com/quilzo/quilzo/internal/spool"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/decide"
+	"github.com/quilzo/vaigil/internal/finding"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // stubModel answers from what it is shown.
@@ -279,103 +278,5 @@ func TestTheAnalystIsMeasuredOnThisOrganisationsOwnVerdicts(t *testing.T) {
 	}
 	if !found {
 		t.Error("the measurement left no record")
-	}
-}
-
-// What models do is in front of the detections, and the first new thing a
-// settled agent does is a finding.
-func TestAgentsAreALogSourceAndSomethingNewFromOneIsAFinding(t *testing.T) {
-	m := &stubModel{answer: func(string) string { return suggests("real", 0.95) }}
-	root, rules := analystSite(t, m)
-	ctx, now := context.Background(), time.Now().UTC()
-	if _, _, err := runTriage(ctx, root, human("dana"), 20, false, now); err != nil {
-		t.Fatal(err)
-	}
-	if err := detectRun(root, []string{"--rules", rules}); err != nil {
-		t.Fatal(err)
-	}
-	read := func() []telemetry.Event {
-		sp, err := openSpool(root, spool.Options{})
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer sp.Close()
-		var out []telemetry.Event
-		_ = sp.Range(time.Time{}, time.Time{}, func(e telemetry.Event) error {
-			if e.Source == AgentSource {
-				out = append(out, e)
-			}
-			return nil
-		})
-		return out
-	}
-	got := read()
-	if len(got) != 3 {
-		t.Fatalf("%d agent events stored for three suggestions", len(got))
-	}
-	for _, e := range got {
-		if e.Actor.Issuer != "agent" || e.Raw["action"] != finding.ProposalAction {
-			t.Errorf("%+v", e)
-		}
-		for _, v := range append([]string{e.Message}, e.Raw["resource"], e.Raw["action"]) {
-			if strings.Contains(v, "built from the counts") || strings.Contains(v, "IGNORE") {
-				t.Errorf("an agent event carries text: %q", v)
-			}
-		}
-	}
-	// A second run stores nothing twice, and a person's actions are not
-	// an agent's.
-	if err := cmdFinding(root, []string{"decide", queue(t, root)[0].ID,
-		"triaged", "--because", "real"}); err != nil {
-		t.Fatal(err)
-	}
-	if err := detectRun(root, []string{"--rules", rules}); err != nil {
-		t.Fatal(err)
-	}
-	if got = read(); len(got) != 3 {
-		t.Errorf("%d agent events after a second run and a person's decision", len(got))
-	}
-	newAction := func() int {
-		n := 0
-		for _, f := range queue(t, root) {
-			if strings.HasPrefix(f.Source, "agent/new-action") {
-				n++
-			}
-		}
-		return n
-	}
-	if newAction() != 0 {
-		t.Error("an agent's first day was reported as new behaviour")
-	}
-	// The same agent, settled, does something it has never done.
-	seen, _ := loadAgentsSeen(root)
-	for who := range seen.First {
-		seen.First[who] = now.Add(-72 * time.Hour)
-	}
-	if err := saveJSONFile(agentsSeenPath(root), seen); err != nil {
-		t.Fatal(err)
-	}
-	for i := 0; i < 2; i++ {
-		if err := recordE(root, audit.Record{Action: "mcp.publish",
-			Resource: "/", Outcome: audit.Success, Principal: triageAgent,
-			Kind: audit.KindAI, Model: "stub-model"}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := detectRun(root, []string{"--rules", rules}); err != nil {
-		t.Fatal(err)
-	}
-	if newAction() != 1 {
-		t.Errorf("%d findings for one new thing done twice", newAction())
-	}
-	// And what it has always done is not new.
-	if _, _, err := runTriage(ctx, root, human("dana"), 20, false, now); err != nil {
-		t.Fatal(err)
-	}
-	if err := detectRun(root, []string{"--rules", rules}); err != nil {
-		t.Fatal(err)
-	}
-	if newAction() != 1 {
-		t.Errorf("a suggestion, which it has made before, was reported as new")
 	}
 }

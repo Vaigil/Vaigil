@@ -74,44 +74,8 @@ type Setting struct {
 	Controls []string
 	OWASP    string
 	// Params are the NIST SP 800-53 organisation-defined parameters this
-	// setting is the value of, by their OSCAL ids (ac-07_odp.01). The
-	// organisation's policy declares those values (internal/odp), and the
-	// declaration becomes this setting's floor.
+	// setting is the value of, by their OSCAL ids (ac-07_odp.01).
 	Params []string
-}
-
-// Floor is the organisation's policy standing under a setting: a value it
-// declared for a NIST parameter, which this setting may meet or exceed and
-// may not fall below. Changing the floor itself takes two administrators
-// (internal/odp); changing the setting within it takes one.
-type Floor struct {
-	// Param is the parameter declared, and Declared its value as written.
-	Param    string
-	Declared string
-	// Allows reports whether a value of this setting meets the declaration.
-	Allows func(value string) bool
-	// Broken, when set, is why the policy could not be read: every change to
-	// the setting is refused until it can, because a floor nobody can read
-	// is not a floor anybody may step below.
-	Broken string
-}
-
-// ErrBelowPolicy is a change the organisation's policy does not allow.
-type ErrBelowPolicy struct {
-	Key   string
-	Value string
-	Floor Floor
-}
-
-func (e *ErrBelowPolicy) Error() string {
-	if e.Floor.Broken != "" {
-		return fmt.Sprintf("%s is set by the organisation's policy, which cannot be read (%s), "+
-			"so it is not changed until the policy is repaired", e.Key, e.Floor.Broken)
-	}
-	return fmt.Sprintf("%s = %s is below the organisation's policy: %s is declared as %q.\n"+
-		"  A setting may be stricter than the policy, never weaker. Changing the policy takes two "+
-		"administrators: quilzo policy propose %s=VALUE --reason \"why\"",
-		e.Key, e.Value, e.Floor.Param, e.Floor.Declared, e.Floor.Param)
 }
 
 // AcceptedRisk records a deliberate decision to run weaker than the default.
@@ -142,9 +106,8 @@ type File struct {
 
 // Config is the effective configuration.
 type Config struct {
-	file   File
-	now    func() time.Time
-	floors map[string][]Floor
+	file File
+	now  func() time.Time
 	// dropped are the values Parse left out, each with why.
 	dropped []string
 }
@@ -161,36 +124,6 @@ var retired = map[string]string{
 // a retired setting, or a value outside a setting's hard bounds. Saving the
 // configuration removes them from the file.
 func (c *Config) Dropped() []string { return c.dropped }
-
-// WithFloors attaches the organisation's policy, by setting key. Set and
-// Unset refuse a value below any floor; reading is unaffected.
-func (c *Config) WithFloors(f map[string][]Floor) *Config { c.floors = f; return c }
-
-// Floors is the policy standing under a setting.
-func (c *Config) Floors(key string) []Floor { return c.floors[key] }
-
-// belowFloor is the first floor a value does not meet.
-func (c *Config) belowFloor(key, value string) *ErrBelowPolicy {
-	for _, f := range c.floors[key] {
-		if f.Broken != "" || f.Allows == nil || !f.Allows(value) {
-			return &ErrBelowPolicy{Key: key, Value: value, Floor: f}
-		}
-	}
-	return nil
-}
-
-// Unmet is every setting whose current value is below the policy: the state
-// Set cannot reach, so the file was edited by hand or the policy was
-// declared after the value was set. Upkeep puts each one back.
-func (c *Config) Unmet() []ErrBelowPolicy {
-	var out []ErrBelowPolicy
-	for _, s := range settings {
-		if e := c.belowFloor(s.Key, c.Raw(s.Key)); e != nil && e.Floor.Broken == "" {
-			out = append(out, *e)
-		}
-	}
-	return out
-}
 
 // New returns a configuration with nothing overridden.
 func New() *Config {
@@ -225,7 +158,7 @@ func Parse(body []byte) (*Config, error) {
 		if !ok {
 			return nil, fmt.Errorf(
 				"%q is not a setting this version knows about. Remove it, or "+
-					"check `quilzo config list` for the current name", key)
+					"check `vaigil config list` for the current name", key)
 		}
 		if err := s.Validate(v); err != nil {
 			// Its default instead: the bounds are where a value stops being
@@ -342,9 +275,9 @@ func (e *ErrNeedsAcceptance) Error() string {
 	return fmt.Sprintf(
 		"%s = %s gives up security: %s\n"+
 			"  This is allowed. It needs a reason, which is recorded in the "+
-			"audit log and reported by `quilzo posture scan` until it is "+
+			"audit log and reported by `vaigil posture scan` until it is "+
 			"changed back or renewed:\n"+
-			"    quilzo config set %s %s --accept-risk \"why this is right here\"",
+			"    vaigil config set %s %s --accept-risk \"why this is right here\"",
 		e.Key, e.Value, e.Why, e.Key, e.Value)
 }
 
@@ -357,17 +290,11 @@ func (e *ErrNeedsAcceptance) Error() string {
 func (c *Config) Set(key, value, reason, by string) error {
 	s, ok := Lookup(key)
 	if !ok {
-		return fmt.Errorf("%q is not a setting; `quilzo config list` shows "+
+		return fmt.Errorf("%q is not a setting; `vaigil config list` shows "+
 			"every one", key)
 	}
 	if err := s.Validate(value); err != nil {
 		return fmt.Errorf("%s: %w", key, err)
-	}
-	// The organisation's floor before the shipped default's: no reason
-	// accepts a value the policy rules out, because the policy is a decision
-	// two administrators made and one cannot undo it by explaining.
-	if e := c.belowFloor(key, value); e != nil {
-		return e
 	}
 
 	if weaker, why := s.IsWeaker(value); weaker {
@@ -426,12 +353,9 @@ func (c *Config) Put(key, value, reason, by string) error {
 
 // Unset returns a setting to its default.
 func (c *Config) Unset(key string) error {
-	s, ok := Lookup(key)
+	_, ok := Lookup(key)
 	if !ok {
 		return fmt.Errorf("%q is not a setting", key)
-	}
-	if e := c.belowFloor(key, s.Default); e != nil {
-		return e
 	}
 	delete(c.file.Values, key)
 	c.dropAcceptance(key)
@@ -463,8 +387,6 @@ type Effective struct {
 	// Set — it means the file was edited by hand.
 	Accepted *AcceptedRisk
 	Expired  bool
-	// Floors is the organisation's policy under this setting, if any.
-	Floors []Floor
 }
 
 // Effectives returns every setting, in declaration order.
@@ -472,7 +394,7 @@ func (c *Config) Effectives() []Effective {
 	out := make([]Effective, 0, len(settings))
 	for _, s := range settings {
 		v := c.Raw(s.Key)
-		e := Effective{Setting: s, Value: v, Overriden: !c.IsDefault(s.Key), Floors: c.floors[s.Key]}
+		e := Effective{Setting: s, Value: v, Overriden: !c.IsDefault(s.Key)}
 		e.Weaker, e.Why = s.IsWeaker(v)
 		if a := c.acceptance(s.Key); a != nil {
 			e.Accepted = a

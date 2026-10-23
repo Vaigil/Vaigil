@@ -81,7 +81,7 @@ func (s *Server) endIdle(w http.ResponseWriter, r *http.Request, p principal, id
 	}
 	s.audit("session.idle", "/", map[string]string{"by": p.Name, "session": p.TokenID, "after": idle.String()})
 	http.SetCookie(w, &http.Cookie{
-		Name: "quilzo_token", Value: "", Path: "/", MaxAge: -1,
+		Name: "vaigil_token", Value: "", Path: "/", MaxAge: -1,
 		HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: r.TLS != nil || s.behindTLSProxy(),
 	})
 	if r.Method == http.MethodGet || r.Method == http.MethodHead {
@@ -97,7 +97,7 @@ func fromBrowser(r *http.Request) bool {
 	if r.Header.Get("Authorization") != "" {
 		return false
 	}
-	_, err := r.Cookie("quilzo_token")
+	_, err := r.Cookie("vaigil_token")
 	return err == nil
 }
 

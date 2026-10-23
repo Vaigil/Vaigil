@@ -15,11 +15,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/atomicfile"
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/finding"
-	"github.com/quilzo/quilzo/internal/incident"
+	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/finding"
+	"github.com/quilzo/vaigil/internal/incident"
 )
 
 // Incidents that outlive the command that declared them.
@@ -322,7 +322,7 @@ func incidentRegimes(root string, args []string) error {
 		}
 		if len(cur) == 0 {
 			w.Human("%sNo regime is set%s, so a new incident starts with "+
-				"no obligations and no clocks. quilzo incident regimes %s\n",
+				"no obligations and no clocks. vaigil incident regimes %s\n",
 				bold, reset, strings.Join(incident.Scopes(), " "))
 			return nil
 		}
@@ -361,14 +361,14 @@ func incidentDeclare(root string, args []string) error {
 	title := fs.String("title", "", "what is wrong, in a line")
 	grade := fs.String("grade", "sev3", "sev1 to sev4")
 	regimes := fs.String("regimes", "", "comma-separated; by default the "+
-		"ones quilzo incident regimes set")
+		"ones vaigil incident regimes set")
 	var findings multiFlag
 	fs.Var(&findings, "finding", "a finding this is about; may repeat")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActTriage, auth.AreaSecurity); err != nil {
 		return err
 	}
 	under := loadRegimes(root)
@@ -438,7 +438,7 @@ func incidentList(root string) error {
 
 func incidentShow(root string, args []string) error {
 	if len(args) != 1 {
-		return fmt.Errorf("usage: quilzo incident show ID")
+		return fmt.Errorf("usage: vaigil incident show ID")
 	}
 	i, err := loadIncident(root, args[0])
 	if err != nil {
@@ -497,7 +497,7 @@ func incidentDo(root, do string, args []string) error {
 		"step":      `ID PLAYBOOK STEP done|skip|undo --because "what was seen, or why"`,
 	}[do]
 	if len(pos) != positional {
-		return fmt.Errorf("usage: quilzo incident %s %s", do, usage)
+		return fmt.Errorf("usage: vaigil incident %s %s", do, usage)
 	}
 	a := incident.Action{Do: do, Text: strings.TrimSpace(*because),
 		Actions: actions}
@@ -518,7 +518,7 @@ func incidentDo(root, do string, args []string) error {
 		a.Run, a.Step, a.Outcome = pos[1], pos[2], pos[3]
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
+	if err := authorise(root, caller, caseNeed(do), auth.AreaSecurity); err != nil {
 		return err
 	}
 	now := time.Now().UTC()
@@ -594,7 +594,7 @@ func findPlaybook(root, id string) (incident.Playbook, error) {
 		}
 	}
 	return incident.Playbook{}, fmt.Errorf("there is no playbook %q; "+
-		"quilzo incident playbooks lists them", id)
+		"vaigil incident playbooks lists them", id)
 }
 
 func incidentPlaybooks(root string, args []string) error {
@@ -639,7 +639,7 @@ func incidentPlaybooks(root string, args []string) error {
 		return nil
 	}
 	if len(args) != 0 {
-		return fmt.Errorf("usage: quilzo incident playbooks [show ID | " +
+		return fmt.Errorf("usage: vaigil incident playbooks [show ID | " +
 			"check FILE]")
 	}
 	all, err := loadPlaybooks(root)
@@ -656,4 +656,17 @@ func incidentPlaybooks(root string, args []string) error {
 	w.Human("\n  %sa playbook does nothing itself: each step is carried "+
 		"out by a person, in their own tools, and recorded%s\n", dim, reset)
 	return nil
+}
+
+// caseNeed is what each change to a case takes, as on the Cases screen: an
+// analyst notes and links; a responder runs the case; an approval takes
+// the approve permission, which a responder holds.
+func caseNeed(do string) auth.Action {
+	switch do {
+	case "note", "link", "unlink", "watch":
+		return auth.ActTriage
+	case "approve", "act-approve":
+		return auth.ActApprove
+	}
+	return auth.ActRespond
 }

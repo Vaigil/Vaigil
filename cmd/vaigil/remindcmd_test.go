@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/remind"
+	"github.com/quilzo/vaigil/internal/remind"
 )
 
 func TestRemindersGoOnceToWhoeverHasSomethingToDo(t *testing.T) {
@@ -49,7 +49,7 @@ func TestRemindersGoOnceToWhoeverHasSomethingToDo(t *testing.T) {
 	slackTarget = func() (remind.Doer, string) { return slack.Client(), slack.URL }
 	defer func() { slackTarget = old }()
 
-	t.Setenv("QUILZO_CONNECT_SECRET", "xoxb-test-token")
+	t.Setenv("VAIGIL_CONNECT_SECRET", "xoxb-test-token")
 	if err := cmdConnect(root, []string{"secret", slackSecret}); err != nil {
 		t.Fatal(err)
 	}

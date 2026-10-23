@@ -24,25 +24,25 @@ func fresh() *Config {
 // value needs a reason, and that reason is recorded and reported.
 func TestAWeakerValueIsAllowedButNeedsAReason(t *testing.T) {
 	c := fresh()
-	err := c.Set("publish.require_a11y", "false", "", "dana")
+	err := c.Set("siem.stream.reveal", "true", "", "dana")
 	if err == nil {
-		t.Fatal("the accessibility gate was switched off with no reason given")
+		t.Fatal("names were let into the audit stream with no reason given")
 	}
 	var need *ErrNeedsAcceptance
 	if !as(err, &need) {
 		t.Fatalf("refused with %T, want *ErrNeedsAcceptance: %v", err, err)
 	}
-	if !strings.Contains(err.Error(), "inaccessible") {
+	if !strings.Contains(err.Error(), "names") {
 		t.Errorf("the refusal does not say what is given up: %v", err)
 	}
 
 	// With a reason, it is simply allowed. This is the half people expect to
 	// be missing.
-	if err := c.Set("publish.require_a11y", "false", "a migration, staging only",
+	if err := c.Set("siem.stream.reveal", "true", "the SIEM is ours and holds names already",
 		"dana"); err != nil {
 		t.Fatalf("a reasoned change was still refused: %v", err)
 	}
-	if c.Bool("publish.require_a11y") {
+	if !c.Bool("siem.stream.reveal") {
 		t.Error("the setting did not take effect")
 	}
 }
@@ -51,8 +51,8 @@ func TestAWeakerValueIsAllowedButNeedsAReason(t *testing.T) {
 // risk from becoming a forgotten one.
 func TestAnAcceptedRiskIsReportedUntilItIsFixed(t *testing.T) {
 	c := fresh()
-	if err := c.Set("token.ttl.default", "20000h", "migration from the old "+
-		"CMS runs until March", "dana"); err != nil {
+	if err := c.Set("token.ttl.default", "20000h", "a collector migration "+
+		"runs until March", "dana"); err != nil {
 		t.Fatal(err)
 	}
 	w := c.Weakened()
@@ -82,7 +82,7 @@ func TestAnAcceptedRiskIsReportedUntilItIsFixed(t *testing.T) {
 func TestAnAcceptanceExpires(t *testing.T) {
 	now := when
 	c := New().WithClock(func() time.Time { return now })
-	if err := c.Set("publish.require_a11y", "false", "staging", "dana"); err != nil {
+	if err := c.Set("siem.stream.reveal", "true", "staging", "dana"); err != nil {
 		t.Fatal(err)
 	}
 	if c.Weakened()[0].Expired {
@@ -98,7 +98,7 @@ func TestAnAcceptanceExpires(t *testing.T) {
 // and that is the case worth showing loudest: the difference between a
 // decision and an accident is whether somebody wrote down why.
 func TestAWeakValueWithNoAcceptanceIsStillReported(t *testing.T) {
-	c, err := Parse([]byte(`{"values":{"publish.require_a11y":"false"}}`))
+	c, err := Parse([]byte(`{"values":{"siem.stream.reveal":"true"}}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,14 +112,13 @@ func TestAWeakValueWithNoAcceptanceIsStillReported(t *testing.T) {
 }
 
 // Most settings have no security dimension and must not ask for a
-// justification. Requiring a reason to change a page size trains people to
+// justification. Requiring a reason to change an address trains people to
 // type anything into the box that also guards the settings that matter.
 func TestOrdinarySettingsChangeWithoutCeremony(t *testing.T) {
 	c := fresh()
 	for _, tc := range [][2]string{
-		{"api.rate.burst", "40"},
-		{"review.required_approvals", "2"},
-		{"site.csp.extra_img", "cdn.example.com"},
+		{"admin.base_url", "https://vaigil.example"},
+		{"security.contact", "mailto:soc@example.com"},
 		{"auth.throttle.after", "3"},  // stricter, not weaker
 		{"token.ttl.default", "168h"}, // shorter, not weaker
 	} {
@@ -183,7 +182,7 @@ func TestAValueOutsideItsBoundsIsRefusedWhateverTheReason(t *testing.T) {
 // it is saved.
 func TestAFileWithARetiredOrOutOfBoundsValueLoadsWithoutIt(t *testing.T) {
 	c, err := Parse([]byte(`{"values":{"auth.throttle":"false","auth.lockout.hard":"true",` +
-		`"auth.throttle.max":"6h","api.rate.burst":"40"},` +
+		`"auth.throttle.max":"6h","auth.lockout.alert":"3"},` +
 		`"accepted":[{"key":"auth.throttle","value":"false","reason":"load test"},` +
 		`{"key":"auth.throttle.max","value":"6h","reason":"why not"}]}`))
 	if err != nil {
@@ -192,8 +191,8 @@ func TestAFileWithARetiredOrOutOfBoundsValueLoadsWithoutIt(t *testing.T) {
 	if got := c.Dropped(); len(got) != 3 || !strings.Contains(strings.Join(got, "\n"), "auth.throttle.max: 6h is outside its bounds, 1s to 1h; 15m is used instead") {
 		t.Errorf("dropped %q", got)
 	}
-	if c.Dur("auth.throttle.max") != 15*time.Minute || c.Int("api.rate.burst") != 40 {
-		t.Errorf("max %s, burst %d", c.Dur("auth.throttle.max"), c.Int("api.rate.burst"))
+	if c.Dur("auth.throttle.max") != 15*time.Minute || c.Int("auth.lockout.alert") != 3 {
+		t.Errorf("max %s, alert %d", c.Dur("auth.throttle.max"), c.Int("auth.lockout.alert"))
 	}
 	if never, err := Parse([]byte(`{"values":{"session.idle":"0s"}}`)); err != nil || len(never.Dropped()) != 1 ||
 		never.Dur("session.idle") != time.Hour {
@@ -218,7 +217,7 @@ func TestAnUnknownSettingIsRefusedAtLoad(t *testing.T) {
 }
 
 func TestAStoredValueThatDoesNotParseIsRefusedAtLoad(t *testing.T) {
-	if _, err := Parse([]byte(`{"values":{"api.page.max":"loads"}}`)); err == nil {
+	if _, err := Parse([]byte(`{"values":{"auth.throttle.after":"loads"}}`)); err == nil {
 		t.Error("a configuration with an unparseable value loaded")
 	}
 }
@@ -263,15 +262,12 @@ func TestTheDefaultsAreTheOnesWeMeanToShip(t *testing.T) {
 		key  string
 		want string
 	}{
-		{"auth.throttle.after", "5"},     // ASVS 5.0 alerting threshold
-		{"auth.throttle.ceiling", "100"}, // ASVS 5.0 hourly ceiling
-		{"auth.lockout.alert", "5"},      // ASVS 5.0: more than five deserves a reaction
-		{"session.idle", "1h"},           // NIST SP 800-63B-4 AAL2's inactivity limit
-		{"publish.require_a11y", "true"},
-		{"publish.require_types", "true"},
-		{"site.csp.mode", "enforce"},
-		{"ext.enabled", "false"},
-		{"ext.require_pinned", "true"},
+		{"auth.throttle.after", "5"},          // ASVS 5.0 alerting threshold
+		{"auth.throttle.ceiling", "100"},      // ASVS 5.0 hourly ceiling
+		{"auth.lockout.alert", "5"},           // ASVS 5.0: more than five deserves a reaction
+		{"session.idle", "1h"},                // NIST SP 800-63B-4 AAL2's inactivity limit
+		{"siem.stream.reveal", "false"},       // pseudonyms leave, not names
+		{"siem.stream.allow_remote", "false"}, // the log stays on this network
 	} {
 		if got := c.Raw(tc.key); got != tc.want {
 			t.Errorf("%s defaults to %q, want %q", tc.key, got, tc.want)
@@ -284,7 +280,7 @@ func TestTheDefaultsAreTheOnesWeMeanToShip(t *testing.T) {
 // able to say why it was accepted.
 func TestAConfigurationSurvivesARoundTrip(t *testing.T) {
 	c := fresh()
-	c.Set("api.rate.burst", "40", "", "dana")
+	c.Set("admin.base_url", "https://vaigil.example", "", "dana")
 	c.Set("token.ttl.default", "20000h", "penetration test window", "sam")
 
 	body, err := c.Bytes()
@@ -295,7 +291,7 @@ func TestAConfigurationSurvivesARoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if back.Int("api.rate.burst") != 40 {
+	if back.Raw("admin.base_url") != "https://vaigil.example" {
 		t.Error("a plain value did not survive")
 	}
 	if back.Dur("token.ttl.default") != 20000*time.Hour {

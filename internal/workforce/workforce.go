@@ -52,8 +52,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Subject is what an identity is.

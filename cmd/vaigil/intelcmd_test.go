@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/finding"
-	"github.com/quilzo/quilzo/internal/indicator"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/finding"
+	"github.com/quilzo/vaigil/internal/indicator"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // went is one connection by one account to one address, some minutes ago.

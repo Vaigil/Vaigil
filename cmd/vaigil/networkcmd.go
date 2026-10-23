@@ -6,7 +6,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/quilzo/quilzo/internal/egress"
+	"github.com/quilzo/vaigil/internal/egress"
 )
 
 // What this program would connect to, and whether it may.
@@ -19,7 +19,7 @@ import (
 
 func cmdNetwork(root string, args []string) error {
 	if len(args) > 0 && args[0] != "show" {
-		return fmt.Errorf("usage: quilzo network [show]")
+		return fmt.Errorf("usage: vaigil network [show]")
 	}
 
 	// The mode as configured, so this reports the deployment rather than the
@@ -43,7 +43,7 @@ func cmdNetwork(root string, args []string) error {
 	if egress.Current() == egress.Open {
 		w.Human("  %sto refuse everything that would leave this host:%s\n",
 			dim, reset)
-		w.Human("    quilzo config set network.mode offline\n")
+		w.Human("    vaigil config set network.mode offline\n")
 	}
 	return nil
 }

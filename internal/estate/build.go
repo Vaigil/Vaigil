@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/telemetry"
-	"github.com/quilzo/quilzo/internal/workforce"
+	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/workforce"
 )
 
 // Individual is one person as every tool that knows them describes them.

@@ -98,7 +98,7 @@ func pad(v *big.Int, n int) []byte {
 func goodClaims() map[string]any {
 	return map[string]any{
 		"iss": "https://idp.example", "sub": "user-1",
-		"aud": "quilzo-client", "nonce": "the-nonce",
+		"aud": "vaigil-client", "nonce": "the-nonce",
 		"exp": now.Add(time.Hour).Unix(), "iat": now.Unix(),
 		"email": "dana@example.com", "email_verified": true,
 	}
@@ -115,7 +115,7 @@ func verifier(s *signer, algs ...Algorithm) *Verifier {
 		}
 	}
 	return &Verifier{
-		Issuer: "https://idp.example", ClientID: "quilzo-client",
+		Issuer: "https://idp.example", ClientID: "vaigil-client",
 		Algorithms: algs, Keys: oneKey{key},
 		Now: func() time.Time { return now },
 	}
@@ -279,7 +279,7 @@ func TestMultipleAudiencesNeedAnAuthorizedParty(t *testing.T) {
 	s := newSigner(t)
 
 	claims := goodClaims()
-	claims["aud"] = []any{"quilzo-client", "another-client"}
+	claims["aud"] = []any{"vaigil-client", "another-client"}
 	if _, err := verifier(s).Verify(s.sign(t, "RS256", nil, claims),
 		"the-nonce"); err == nil {
 		t.Fatal("a multi-audience token with no azp was accepted")
@@ -292,7 +292,7 @@ func TestMultipleAudiencesNeedAnAuthorizedParty(t *testing.T) {
 			"client was listed as a secondary audience")
 	}
 
-	claims["azp"] = "quilzo-client"
+	claims["azp"] = "vaigil-client"
 	if _, err := verifier(s).Verify(s.sign(t, "RS256", nil, claims),
 		"the-nonce"); err != nil {
 		t.Errorf("a correct multi-audience token was refused: %v", err)

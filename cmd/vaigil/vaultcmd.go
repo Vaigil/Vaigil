@@ -13,10 +13,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/store"
-	"github.com/quilzo/quilzo/internal/vault"
+	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/vault"
 )
+
+// The keyring the credentials this store holds are sealed under: what a
+// connector signs in with, and the secret a feed is checked against. The
+// keyring file holds ids and metadata, never key material, which comes
+// from outside the store (keySource).
 
 func keyringPath(root string) string { return filepath.Join(root, "keyring.json") }
 
@@ -28,9 +33,9 @@ func keyringPath(root string) string { return filepath.Join(root, "keyring.json"
 // HSM, a cloud KMS, a password manager or a hardware token work without this
 // program knowing any of them exist.
 const (
-	keyEnv     = "QUILZO_KEY"
-	keyCmdEnv  = "QUILZO_KEY_COMMAND"
-	keyFileEnv = "QUILZO_KEY_FILE"
+	keyEnv     = "VAIGIL_KEY"
+	keyCmdEnv  = "VAIGIL_KEY_COMMAND"
+	keyFileEnv = "VAIGIL_KEY_FILE"
 )
 
 // loadKeyring reads the keyring and supplies key material from outside.
@@ -168,22 +173,6 @@ func applyMaterial(kr *vault.Keyring, material string) error {
 	return nil
 }
 
-// openEncrypted is what every command uses instead of open().
-func openEncrypted(root string) (*store.Store, error) {
-	s, err := store.Open(root)
-	if err != nil {
-		return nil, err
-	}
-	kr, err := loadKeyring(root)
-	if err != nil {
-		return nil, err
-	}
-	if kr != nil {
-		s = s.WithKeys(kr)
-	}
-	return s, nil
-}
-
 func cmdVault(root string, args []string) error {
 	if len(args) == 0 {
 		args = []string{"status"}
@@ -210,13 +199,11 @@ func vaultStatus(root string) error {
 		if w.JSON(map[string]any{"encrypted": false}) {
 			return nil
 		}
-		w.Human("objects are stored in the clear\n")
-		w.Human("  %squilzo vault enable — encrypt new objects at rest%s\n",
-			dim, reset)
-		w.Human("  %sthis protects against somebody obtaining the files: a lost\n"+
-			"  laptop, a backup on an open bucket, a disposed disk. It cannot\n"+
-			"  protect against somebody who can run this program, because the\n"+
-			"  program has to read the content to render it.%s\n", dim, reset)
+		w.Human("there is no keyring, so no credential can be kept\n")
+		w.Human("  %svaigil vault enable — make one%s\n", dim, reset)
+		w.Human("  %sa connector's credentials and a feed's secret are sealed under it,\n"+
+			"  so the files alone give nobody the values: a lost laptop, a backup\n"+
+			"  on an open bucket, a disposed disk.%s\n", dim, reset)
 		return nil
 	}
 	if err != nil {
@@ -238,7 +225,7 @@ func vaultStatus(root string) error {
 		return nil
 	}
 
-	w.Human("objects are encrypted at rest\n")
+	w.Human("credentials are sealed at rest\n")
 	w.Human("  active key   %s%s%s\n", bold, kr.Active, reset)
 	for _, id := range kr.IDs() {
 		state := "active"
@@ -293,11 +280,10 @@ func vaultEnable(root string, args []string) error {
 		"  somebody who takes the directory.%s\n", yellow, reset)
 	w.Human("\n  %ssupply it with one of:%s\n", dim, reset)
 	w.Human("    export %s='%s'\n", keyEnv, "…")
-	w.Human("    export %s=/run/secrets/quilzo.key\n", keyFileEnv)
+	w.Human("    export %s=/run/secrets/vaigil.key\n", keyFileEnv)
 	w.Human("    export %s='aws kms decrypt … --output text'\n", keyCmdEnv)
-	w.Human("\n  %sobjects already written stay in the clear; only new ones are\n"+
-		"  sealed. Nothing is rewritten, so enabling this cannot lose content.%s\n",
-		dim, reset)
+	w.Human("\n  %sa credential kept before this, in the clear, is sealed by:%s\n", dim, reset)
+	w.Human("    vaigil vault rewrap\n")
 	return nil
 }
 
@@ -316,7 +302,7 @@ func vaultRotate(root string, args []string) error {
 		return err
 	}
 	if kr == nil {
-		return fmt.Errorf("this store is not encrypted; use vault enable")
+		return fmt.Errorf("this store has no keyring; use vault enable")
 	}
 	previous := kr.Active
 	if err := kr.Add(*id, time.Now()); err != nil {
@@ -335,36 +321,25 @@ func vaultRotate(root string, args []string) error {
 	})
 
 	w.Human("%s%s%s\n", bold, secret, reset)
-	w.Human("\n  %snew objects are sealed with %s. %s is still needed to read\n"+
+	w.Human("\n  %snew credentials are sealed with %s. %s is still needed to read\n"+
 		"  everything written before now — supply both:%s\n",
 		yellow, *id, previous, reset)
 	w.Human("    export %s='%s=…,%s=…'\n", keyEnv, previous, *id)
 	w.Human("\n  %sthen move what is already there:%s\n", bold, reset)
-	w.Human("    quilzo vault rewrap\n")
-	w.Human("\n  %suntil that runs, %s is mandatory. This command used to say\n"+
-		"  rotation rewraps data keys — it does, and nothing was calling the\n"+
-		"  function that does it, so the old key stayed necessary forever.%s\n",
-		dim, previous, reset)
+	w.Human("    vaigil vault rewrap\n")
+	w.Human("\n  %suntil that runs, %s is still needed.%s\n", dim, previous, reset)
 	return nil
 }
 
-// vaultRewrap moves every object onto the active key.
+// vaultRewrap seals every credential under the active key: one sealed
+// under an older key is opened and sealed again, and one kept in the
+// clear from before the keyring existed is sealed for the first time.
 //
-// # Why this is its own command
-//
-// Because rotation is two steps and pretending otherwise loses keys. The new
-// key's material exists only in memory and in whatever the operator copied off
-// the terminal — the keyring on disk holds ids and metadata and never the
-// bytes. So a rotate that generated a key, saved it as active, and then failed
-// part-way through rewrapping would leave a store whose active key nobody has:
-// unreadable for writing, and unrecoverable. I did exactly that to a test
-// store while building this.
-//
-// Splitting it also makes each step safe on its own. After rotate, every
-// object is still readable with the keys the operator already had. During
-// rewrap, both keys are loaded by definition — the command cannot start
-// otherwise — so an object is readable whichever side of the move it is on. A
-// rewrap that stops half way is finished by running it again.
+// Its own command because rotation is two steps, and each is safe on its
+// own: after rotate every credential is still readable with the keys the
+// operator already had, and during rewrap both keys are loaded by
+// definition. A rewrap that stops half way is finished by running it
+// again.
 func vaultRewrap(root string, args []string) error {
 	fs := flag.NewFlagSet("rewrap", flag.ContinueOnError)
 	if err := fs.Parse(args); err != nil {
@@ -375,46 +350,57 @@ func vaultRewrap(root string, args []string) error {
 		return err
 	}
 	if kr == nil {
-		return fmt.Errorf("this store is not encrypted; use vault enable")
+		return fmt.Errorf("this store has no keyring; use vault enable")
 	}
-
-	base, err := store.Open(root)
+	var moved, sealed int
+	err = atomicfile.Update(secretsPath(root), func(f *sealedSecrets) error {
+		if f.Sealed == nil {
+			f.Sealed = map[string]json.RawMessage{}
+		}
+		for name, raw := range f.Sealed {
+			s, err := vault.Unmarshal(raw)
+			if err != nil {
+				return fmt.Errorf("%s: %w", name, err)
+			}
+			if s.KEK == kr.Active {
+				continue
+			}
+			again, err := kr.Rewrap(s, []byte("connect/"+name))
+			if err != nil {
+				return fmt.Errorf("%s: %w", name, err)
+			}
+			if f.Sealed[name], err = vault.Marshal(again); err != nil {
+				return err
+			}
+			moved++
+		}
+		for name, value := range f.Plain {
+			s, err := kr.Seal([]byte(value), []byte("connect/"+name))
+			if err != nil {
+				return fmt.Errorf("%s: %w", name, err)
+			}
+			if f.Sealed[name], err = vault.Marshal(s); err != nil {
+				return err
+			}
+			delete(f.Plain, name)
+			sealed++
+		}
+		if moved+sealed == 0 {
+			return atomicfile.ErrUnchanged
+		}
+		return nil
+	})
 	if err != nil {
-		return err
-	}
-	done, err := base.WithKeys(kr).Rewrap()
-	if err != nil {
-		return fmt.Errorf("%w\n  nothing is lost: every object is readable "+
+		return fmt.Errorf("%w\n  nothing is lost: every credential is readable "+
 			"with the keys you already have. Run this again to finish", err)
 	}
-
 	caller := resolveCaller(root, "")
 	record(root, audit.Record{
 		Action: "vault.rewrap", Resource: "/", Outcome: audit.Success,
 		Principal: caller.Name, Kind: caller.Kind, Model: caller.Model, Verified: caller.Verified,
-		Detail: map[string]string{
-			"kek_id": kr.Active,
-			"moved":  fmt.Sprint(done.Moved),
-		},
+		Detail: map[string]string{"kek_id": kr.Active, "moved": fmt.Sprint(moved), "sealed": fmt.Sprint(sealed)},
 	})
-
-	w.Human("  %s%d object(s) moved to %s", green, done.Moved, kr.Active)
-	if done.Current > 0 {
-		w.Human(", %d already on it", done.Current)
-	}
-	w.Human("%s\n", reset)
-	if done.Plain > 0 {
-		w.Human("  %s%d object(s) predate encryption and are still in the "+
-			"clear. Enabling the vault did not rewrite them and neither does "+
-			"this.%s\n", dim, done.Plain, reset)
-	}
-	if done.Moved+done.Current > 0 {
-		w.Human("\n  %severy sealed object is now wrapped with %s. The other "+
-			"keys are needed only for backups taken before now.%s\n",
-			yellow, kr.Active, reset)
-	}
-	w.Human("\n  %sthe content was never decrypted: this unwraps and re-wraps\n"+
-		"  thirty-two bytes an object, which is why it is cheap enough to\n"+
-		"  actually do.%s\n", dim, reset)
+	w.Human("  %s%d credential(s) moved to %s, %d sealed for the first time%s\n",
+		green, moved, kr.Active, sealed, reset)
 	return nil
 }

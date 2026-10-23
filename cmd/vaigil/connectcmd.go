@@ -14,12 +14,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/atomicfile"
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/connector"
-	"github.com/quilzo/quilzo/internal/egress"
-	"github.com/quilzo/quilzo/internal/vault"
+	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/connector"
+	"github.com/quilzo/vaigil/internal/egress"
+	"github.com/quilzo/vaigil/internal/vault"
 )
 
 // Connecting to a company's tools, one reviewable file per tool.
@@ -164,7 +164,7 @@ func connectList(root string) error {
 	}
 	if len(rows) == 0 {
 		w.Human("no connectors in %s\n", connectDir(root))
-		w.Human("  %sone file per tool; quilzo connect check FILE reads "+
+		w.Human("  %sone file per tool; vaigil connect check FILE reads "+
 			"one without installing it%s\n", dim, reset)
 		return nil
 	}
@@ -189,7 +189,7 @@ func connectList(root string) error {
 func connectCheck(root string, args []string) error {
 	pos, _ := leadingArgs(args, 1)
 	if len(pos) != 1 {
-		return fmt.Errorf("usage: quilzo connect check NAME|FILE")
+		return fmt.Errorf("usage: vaigil connect check NAME|FILE")
 	}
 	m, err := findConnector(root, pos[0])
 	if err != nil {
@@ -323,23 +323,23 @@ func connectSecret(root string, args []string) error {
 	pos, _ := leadingArgs(args, 1)
 	if len(pos) != 1 {
 		return fmt.Errorf(
-			"usage: quilzo connect secret NAME\n" +
-				"  the value is read from QUILZO_CONNECT_SECRET, never from " +
+			"usage: vaigil connect secret NAME\n" +
+				"  the value is read from VAIGIL_CONNECT_SECRET, never from " +
 				"the command line:\n" +
 				"  an argument is in the shell history and in the process " +
 				"table")
 	}
 	name := pos[0]
-	value := os.Getenv("QUILZO_CONNECT_SECRET")
+	value := os.Getenv("VAIGIL_CONNECT_SECRET")
 	if strings.TrimSpace(value) == "" {
 		return fmt.Errorf(
-			"QUILZO_CONNECT_SECRET is empty. The credential is read from " +
+			"VAIGIL_CONNECT_SECRET is empty. The credential is read from " +
 				"the environment rather than taken as an argument, because " +
 				"an argument is visible in the shell history and to every " +
 				"other process on the machine")
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActPublish, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
 		return err
 	}
 	sealed, err := storeSecret(root, name, value)
@@ -360,7 +360,7 @@ func connectSecret(root string, args []string) error {
 	w.Human("%s%s%s stored\n", bold, name, reset)
 	if !sealed {
 		w.Human("  %skept in plain text: this store has no keyring. "+
-			"quilzo vault enable seals it%s\n", yellow, reset)
+			"vaigil vault enable seals it%s\n", yellow, reset)
 	} else {
 		w.Human("  %ssealed with the store's keyring%s\n", dim, reset)
 	}
@@ -397,7 +397,7 @@ func connectProbe(root string, args []string) error {
 		return err
 	}
 	if len(pos) != 2 {
-		return fmt.Errorf("usage: quilzo connect probe NAME ENDPOINT")
+		return fmt.Errorf("usage: vaigil connect probe NAME ENDPOINT")
 	}
 	m, err := findConnector(root, pos[0])
 	if err != nil {
@@ -447,12 +447,12 @@ func connectRun(root string, args []string) error {
 	full := fs.Bool("full", false,
 		"ignore the checkpoint and read everything again")
 	save := fs.Bool("save", false,
-		"keep this read as the tool's latest, for quilzo estate")
+		"keep this read as the tool's latest, for vaigil estate")
 	if err := fs.Parse(flags); err != nil {
 		return err
 	}
 	if len(pos) < 1 {
-		return fmt.Errorf("usage: quilzo connect run NAME [ENDPOINT] [--save]")
+		return fmt.Errorf("usage: vaigil connect run NAME [ENDPOINT] [--save]")
 	}
 	if *save && len(pos) == 2 {
 		return fmt.Errorf("--save keeps a tool's whole read, and one endpoint " +
@@ -473,7 +473,7 @@ func connectRun(root string, args []string) error {
 		names = []string{pos[1]}
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActEditDraft, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
 		return err
 	}
 	out, failed, err := runConnector(root, m, names, *full, *save, caller)
@@ -723,7 +723,7 @@ func connectCatalogue() error {
 		}
 		w.Human("\n")
 	}
-	w.Human("  %squilzo connect add NAME --region REGION installs one as a "+
+	w.Human("  %svaigil connect add NAME --region REGION installs one as a "+
 		"file you can read%s\n", dim, reset)
 	return nil
 }
@@ -749,8 +749,8 @@ func connectAdd(root string, args []string) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return fmt.Errorf("usage: quilzo connect add NAME [--region REGION]" +
-			"\n  quilzo connect catalogue lists what ships")
+		return fmt.Errorf("usage: vaigil connect add NAME [--region REGION]" +
+			"\n  vaigil connect catalogue lists what ships")
 	}
 	all, err := connector.Catalogue()
 	if err != nil {
@@ -759,7 +759,7 @@ func connectAdd(root string, args []string) error {
 	e, ok := all[pos[0]]
 	if !ok {
 		return fmt.Errorf("no connector called %q ships with this program; "+
-			"quilzo connect catalogue lists them", pos[0])
+			"vaigil connect catalogue lists them", pos[0])
 	}
 	m, err := e.With(*region, map[string]string{"tenant": *tenant,
 		"org": *org, "address": *address})
@@ -767,7 +767,7 @@ func connectAdd(root string, args []string) error {
 		return err
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActPublish, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
 		return err
 	}
 	dest := filepath.Join(connectDir(root), m.Name+".json")
@@ -813,7 +813,7 @@ func connectAdd(root string, args []string) error {
 			continue
 		}
 		w.Human("\n  %sneeds %s%s: %s\n", yellow, c, reset, e.Credentials[c])
-		w.Human("  %sQUILZO_CONNECT_SECRET=… quilzo connect secret %s%s\n",
+		w.Human("  %sVAIGIL_CONNECT_SECRET=… vaigil connect secret %s%s\n",
 			dim, c, reset)
 	}
 	return nil

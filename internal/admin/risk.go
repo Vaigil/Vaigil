@@ -10,8 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/finding"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/finding"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Risk: the queue turned on its side.
@@ -63,7 +64,7 @@ func playbookFor(parts []finding.Part) string {
 const MaxRiskRows = 100
 
 func (s *Server) handleRisk(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActView)
 	if !ok {
 		return
 	}

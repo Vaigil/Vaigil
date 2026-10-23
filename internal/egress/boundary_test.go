@@ -3,7 +3,7 @@
 
 package egress_test
 
-import "github.com/quilzo/quilzo/internal/egress"
+import "github.com/quilzo/vaigil/internal/egress"
 
 import (
 	"fmt"

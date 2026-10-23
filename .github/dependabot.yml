@@ -1,15 +1,6 @@
-# Dependabot, for the one supply chain this project has.
-#
-# There is no gomod ecosystem entry, because go.mod has no require block and
-# there is nothing for Dependabot to bump. The Go toolchain itself is the
-# dependency, and that is watched by govulncheck in ci.yml — which does
-# reachability analysis rather than version comparison, and is what would have
-# caught this project sitting on an end-of-life Go release for six months.
-#
-# What is here is the CI supply chain. Actions are pinned to commit SHAs so a
-# moved tag cannot substitute code into the workflow that signs releases and
-# pushes the container image; the cost of pinning is that nothing updates on
-# its own, and this is what pays it. Dependabot rewrites both the SHA and the
+# Dependabot, for the CI supply chain. go.mod has no require block, so there is
+# nothing else to bump; the Go toolchain is watched by govulncheck in ci.yml.
+# Actions are pinned to commit SHAs, and Dependabot rewrites the SHA and the
 # trailing version comment together.
 version: 2
 updates:

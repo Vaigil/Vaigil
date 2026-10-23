@@ -15,7 +15,7 @@
 //
 // Then a city database in the MaxMind DB format: DB-IP's IP to City Lite,
 // published monthly under Creative Commons Attribution 4.0, which a person
-// downloads (quilzo geo fetch) — this package never fetches anything, and a
+// downloads (vaigil geo fetch) — this package never fetches anything, and a
 // lookup never leaves the machine, so no third party learns who signed in
 // from where.
 //

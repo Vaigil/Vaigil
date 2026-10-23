@@ -1,24 +1,10 @@
 {{template "head" .}}
 <h1>{{.Heading}}</h1>
 <p>{{.Body}}</p>
-{{if .Failures}}
-<div class="notice bad">
-  <p>Nothing was saved. The store is immutable, so a page that fails its type is
-  refused before it is written rather than corrected afterwards.</p>
-  {{range .Failures}}
-  <h2>{{.Page}} <span class="dim">must satisfy {{.Type}}</span></h2>
-  <ul>{{range .Problems}}<li><strong>{{.Field}}</strong> {{.Reason}}</li>{{end}}</ul>
-  {{end}}
-</div>
-<p><a href="/page/{{.Page}}">Go back and fix it</a></p>
-{{end}}
 {{if .Details}}
 <div class="notice bad">
   <ul>{{range .Details}}<li>{{.}}</li>{{end}}</ul>
 </div>
 {{end}}
-{{if .Override}}<p class="notice bad">Published, waiving
-  {{range $i, $g := .Waived}}{{if $i}}, {{end}}{{$g}}{{else}}nothing{{end}}:
-  {{.Override}}</p>{{end}}
-<p><a href="/">Back to pages</a></p>
+<p><a href="/today">Back to Today</a></p>
 {{template "foot" .}}

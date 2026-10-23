@@ -136,6 +136,6 @@ func TestAnUndeclaredPurposeIsRefused(t *testing.T) {
 	c := Speaking("not-a-purpose", Anywhere, time.Second)
 	if _, err := c.Get(srv.URL); err == nil {
 		t.Fatal("a connection was made for a purpose nothing declares, so " +
-			"`quilzo network` cannot list what this program would connect to")
+			"`vaigil network` cannot list what this program would connect to")
 	}
 }

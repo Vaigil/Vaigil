@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/connector"
-	"github.com/quilzo/quilzo/internal/out"
+	"github.com/quilzo/vaigil/internal/connector"
+	"github.com/quilzo/vaigil/internal/out"
 )
 
 func connectStore(t *testing.T) string {
@@ -104,7 +104,7 @@ func installManifest(t *testing.T, root string, m connector.Manifest) {
 		b, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("QUILZO_CONNECT_SECRET", "k3y")
+	t.Setenv("VAIGIL_CONNECT_SECRET", "k3y")
 	if err := cmdConnect(root, []string{"secret", m.Auth.Secret}); err != nil {
 		t.Fatal(err)
 	}

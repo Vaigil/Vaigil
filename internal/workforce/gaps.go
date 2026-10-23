@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/finding"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/finding"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // What the join is for: the questions no single system can answer.

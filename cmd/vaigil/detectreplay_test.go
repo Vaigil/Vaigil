@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/finding"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/finding"
 )
 
 // The whole loop: a false positive is closed, learned, known, fixed, and

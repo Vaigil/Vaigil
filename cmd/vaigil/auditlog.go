@@ -8,24 +8,24 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
-	"github.com/quilzo/quilzo/internal/anchor"
-	"github.com/quilzo/quilzo/internal/fetch"
-	"github.com/quilzo/quilzo/internal/logd"
+	"github.com/quilzo/vaigil/internal/anchor"
+	"github.com/quilzo/vaigil/internal/fetch"
+	"github.com/quilzo/vaigil/internal/logd"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/dual"
-	"github.com/quilzo/quilzo/internal/out"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/dual"
+	"github.com/quilzo/vaigil/internal/out"
 )
 
 // Where the audit log lives.
 //
 // By default inside the store, which is the single-account bootstrap. A
-// separated deployment puts it somewhere the CMS account cannot write, and
+// separated deployment puts it somewhere the Vaigil account cannot write, and
 // that directory is recorded in the store so every command finds it without
 // each one growing a flag — a flag that has to be passed identically to
 // `auditlog`, `siem` and `logd status` forever is a flag that will eventually
@@ -67,7 +67,7 @@ func cmdAuditDir(root string, args []string) error {
 			w.Human("  the log is in the store: %s", auditPath(root))
 			w.Human("  %sthat means this account writes its own audit record%s",
 				dim, reset)
-			w.Human("  %squilzo auditlog dir /srv/audit — after creating it "+
+			w.Human("  %svaigil auditlog dir /srv/audit — after creating it "+
 				"for the log account%s", dim, reset)
 			return nil
 		}
@@ -81,7 +81,7 @@ func cmdAuditDir(root string, args []string) error {
 	}
 	if fi, err := os.Stat(abs); err != nil {
 		return fmt.Errorf("%s: %w\n  create it first, owned by the account "+
-			"that will run `quilzo logd`", abs, err)
+			"that will run `vaigil logd`", abs, err)
 	} else if !fi.IsDir() {
 		return fmt.Errorf("%s is not a directory", abs)
 	}
@@ -102,7 +102,7 @@ func cmdAuditDir(root string, args []string) error {
 		return err
 	}
 	w.Human("  the log is now read from %s", filepath.Join(abs, "audit.jsonl"))
-	w.Human("  %sstart the writer: quilzo --root %s logd --log-dir %s%s",
+	w.Human("  %sstart the writer: vaigil --root %s logd --log-dir %s%s",
 		dim, root, abs, reset)
 	return nil
 }
@@ -154,8 +154,8 @@ func openAudit(root string) (*audit.Log, error) {
 			return nil, err
 		}
 		// 0640, not 0600. In a separated deployment the writer owns this and
-		// the CMS account has to read it to render `auditlog` and `siem`
-		// output — the CMS is not trusted to *write* the log, which is a
+		// the Vaigil account has to read it to render `auditlog` and `siem`
+		// output — Vaigil is not trusted to *write* the log, which is a
 		// different claim from not being trusted to read it. A shared group
 		// is the Unix answer and 0600 made the deployment impossible.
 		if err := os.WriteFile(auditKeyPath(root), key, keyMode(root)); err != nil {
@@ -178,7 +178,7 @@ func openAudit(root string) (*audit.Log, error) {
 		host = "unknown-host"
 	}
 	return audit.New(audit.Options{
-		Path: auditPath(root), Key: key, Source: "quilzo-cli@" + host,
+		Path: auditPath(root), Key: key, Source: "vaigil-cli@" + host,
 		Mode: keyMode(root),
 	})
 }
@@ -189,7 +189,7 @@ func openAudit(root string) (*audit.Log, error) {
 // trade: NIST allows for alerting on audit failure, and the alternative — a
 // publish refused because a log file is full — trades an availability problem
 // for an accountability one. Reporting loudly and continuing is the choice
-// for what a person does, and `quilzo auditlog verify` is what catches a gap
+// for what a person does, and `vaigil auditlog verify` is what catches a gap
 // afterwards. What an agent does is the other way round (SP 800-53 AU-5): it
 // is asked about first (auditReady) and refused while its record could not
 // be written, because an agent acting unrecorded is the gap nobody can
@@ -246,7 +246,7 @@ const auditHeadroom = 8 << 20
 func auditReady(root string) error {
 	refuse := func(why string) error {
 		return fmt.Errorf("the audit log cannot take a record (%s), so nothing an agent does is performed "+
-			"until it can: quilzo auditlog verify", why)
+			"until it can: vaigil auditlog verify", why)
 	}
 	if v, ok := auditFaults.Load(auditKey(root)); ok {
 		return refuse("the last record was not written: " + v.(error).Error())
@@ -333,7 +333,15 @@ func cmdAuditLog(root string, args []string) error {
 	case "consistency":
 		return auditConsistency(root, args[1:])
 	case "anchor":
-		return auditAnchor(root)
+		switch {
+		case len(args) == 1 || args[1] == "submit":
+			return auditAnchor(root)
+		case args[1] == "upgrade":
+			return anchorUpgrade(root)
+		case args[1] == "status":
+			return anchorStatus(root)
+		}
+		return fmt.Errorf("usage: vaigil auditlog anchor [submit] | upgrade | status")
 	default:
 		return fmt.Errorf("unknown auditlog command %q; try show, verify, "+
 			"export, head, verify-head, prove, consistency or anchor", args[0])
@@ -416,7 +424,7 @@ func auditShow(root string, args []string) error {
 	// Verified here, and not only by `auditlog verify`.
 	//
 	// This printed whatever was in the file. Somebody who edits an entry and
-	// then runs `quilzo auditlog show` sees the doctored record with nothing
+	// then runs `vaigil auditlog show` sees the doctored record with nothing
 	// to suggest it is doctored, and `show` is what anybody reads — `verify`
 	// is what you run when you already suspect something, which is the one
 	// time you do not need telling.
@@ -441,7 +449,7 @@ func auditShow(root string, args []string) error {
 		for _, p := range problems {
 			w.Human("  %sentry %d: %s%s\n", dim, p.Seq, p.Reason, reset)
 		}
-		w.Human("  %squilzo auditlog verify — the whole story%s\n\n", dim, reset)
+		w.Human("  %svaigil auditlog verify — the whole story%s\n\n", dim, reset)
 	}
 	if len(events) == 0 {
 		w.Human("no audit entries\n")
@@ -572,7 +580,7 @@ func auditHead(root string, args []string) error {
 	w.Human("\n  %sthis commits to every entry. Get it out of this machine —\n"+
 		"  export it to a SIEM, hand it to an auditor, or anchor it:%s\n",
 		dim, reset)
-	w.Human("    %squilzo auditlog anchor%s\n", dim, reset)
+	w.Human("    %svaigil auditlog anchor%s\n", dim, reset)
 	w.Human("\n  %sthe public keys to check it are at %s%s\n",
 		dim, headKeysPath(root), reset)
 	w.Human("\n  %sa head kept only here protects nothing: whoever can rewrite\n"+
@@ -583,7 +591,7 @@ func auditHead(root string, args []string) error {
 // auditProve produces an inclusion proof for one entry.
 func auditProve(root string, args []string) error {
 	if len(args) != 1 {
-		return fmt.Errorf("usage: quilzo auditlog prove <sequence>")
+		return fmt.Errorf("usage: vaigil auditlog prove <sequence>")
 	}
 	var seq int64
 	if _, err := fmt.Sscanf(args[0], "%d", &seq); err != nil {
@@ -648,7 +656,7 @@ func auditConsistency(root string, args []string) error {
 		if len(f.Heads) == 0 {
 			return fmt.Errorf(
 				"no head has been published, so there is nothing to check " +
-					"against.\n  `quilzo auditlog head --save` records one; a " +
+					"against.\n  `vaigil auditlog head --save` records one; a " +
 					"head only proves anything once it exists somewhere the log " +
 					"cannot be quietly rewritten alongside")
 		}

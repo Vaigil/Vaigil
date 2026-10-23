@@ -4,22 +4,20 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/site"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
 )
 
 // Who is running this, and did anyone check?
 //
 // The audit log shipped before this could record any name the caller fancied,
-// because the principal came from $USER. `USER=ceo quilzo publish` wrote a
+// because the principal came from $USER. `USER=ceo vaigil publish` wrote a
 // distinct, plausible principal into a tamper-evident chain — integrity
 // without authenticity, which is the worse of the two failures because the
 // record looks authoritative.
@@ -71,12 +69,12 @@ type Caller struct {
 // tokenFile is preferred over the environment.
 //
 // The research reason, not a stylistic one: every process a user starts
-// inherits their environment, so a token in QUILZO_TOKEN is readable by any
+// inherits their environment, so a token in VAIGIL_TOKEN is readable by any
 // subprocess — including an agent this CLI is designed to be driven by. A file
 // at 0600 is read by what opens it deliberately.
 func tokenFile() string {
 	if h, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(h, ".quilzo", "token")
+		return filepath.Join(h, ".vaigil", "token")
 	}
 	return ""
 }
@@ -93,8 +91,8 @@ func findToken(explicit string) (string, string) {
 			}
 		}
 	}
-	if t := strings.TrimSpace(os.Getenv("QUILZO_TOKEN")); t != "" {
-		return t, "QUILZO_TOKEN"
+	if t := strings.TrimSpace(os.Getenv("VAIGIL_TOKEN")); t != "" {
+		return t, "VAIGIL_TOKEN"
 	}
 	return "", ""
 }
@@ -125,12 +123,12 @@ func resolveCaller(root, explicitToken string) *Caller {
 		// identity, so it is still unverified, and the reason says what happened.
 		//
 		// Named by where it came from: the file is read before the
-		// environment, so somebody who set QUILZO_TOKEN and still has an old
+		// environment, so somebody who set VAIGIL_TOKEN and still has an old
 		// file is told which one was tried, instead of hunting for why a
 		// token they just issued is "no such token".
 		why := fmt.Sprintf("the token from %s was rejected: %v", from, err)
-		if from == tokenFile() && strings.TrimSpace(os.Getenv("QUILZO_TOKEN")) != "" {
-			why += "; QUILZO_TOKEN is set too, and the file is read first"
+		if from == tokenFile() && strings.TrimSpace(os.Getenv("VAIGIL_TOKEN")) != "" {
+			why += "; VAIGIL_TOKEN is set too, and the file is read first"
 		}
 		return unverified(why)
 	}
@@ -176,9 +174,9 @@ func osUser() string {
 // purpose — turned access control off across the whole store, and the only
 // symptom was that everything started working:
 //
-//	quilzo add index=home.json          refused, no token
+//	vaigil add index=home.json          refused, no token
 //	echo 'not json' > policy.json
-//	quilzo add index=home.json          "draft 995b0d7e386f  1 page(s)"
+//	vaigil add index=home.json          "draft 995b0d7e386f  1 page(s)"
 //
 // So an unreadable policy is now treated as a policy in force that cannot be
 // evaluated, and the answer to every question is no. Absent still means
@@ -212,7 +210,7 @@ func authorise(root string, c *Caller, action auth.Action, resource string) erro
 	if !c.Verified {
 		return fmt.Errorf(
 			"this store has access control configured, so %s needs a verified "+
-				"identity (%s).\nPresent one with --token, %s, or QUILZO_TOKEN",
+				"identity (%s).\nPresent one with --token, %s, or VAIGIL_TOKEN",
 			action, c.Why, tokenFile())
 	}
 	p, err := loadPolicy(root)
@@ -271,33 +269,6 @@ func authoriseUnder(root string, c *Caller, action auth.Action, area string) err
 		return nil
 	}
 	return err
-}
-
-// conflictError turns a compare-and-swap refusal into something a person can
-// act on, and leaves anything else alone.
-//
-// The distinction that matters is whether the other write touched anything this
-// one did. Telling somebody who edited an unrelated page that they have a
-// dangerous conflict is how people learn to retry blindly — and then the real
-// ones get retried blindly too.
-func conflictError(err error, changed []string) error {
-	var c *site.Conflict
-	if !errors.As(err, &c) {
-		return err
-	}
-	both := c.Touches(changed)
-
-	var b strings.Builder
-	fmt.Fprintf(&b, "%s", c.Error())
-	if len(both) == 0 && len(changed) > 0 {
-		fmt.Fprintf(&b, "\n  nothing you changed was touched, so re-running "+
-			"this against the current draft is safe")
-	} else if len(both) > 0 {
-		fmt.Fprintf(&b, "\n  %syou both changed: %s%s — look before retrying",
-			red, strings.Join(both, ", "), reset)
-	}
-	fmt.Fprintf(&b, "\n  current draft: %s", short(c.Actual))
-	return errBlocked{fmt.Errorf("%s", b.String())}
 }
 
 // changedNames extracts page names from NAME=FILE arguments.

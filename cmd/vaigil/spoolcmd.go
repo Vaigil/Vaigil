@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/admin"
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/spool"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/admin"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/spool"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Storing events, saying honestly what the store covers, and deleting on
@@ -98,7 +98,7 @@ func spoolAdd(root string, args []string) error {
 	}
 
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActEditDraft, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
 		return err
 	}
 
@@ -290,7 +290,7 @@ func spoolRetain(root string, args []string) error {
 	caller := resolveCaller(root, flagToken)
 	// Deleting evidence is the same authority as publishing: it is a
 	// statement the organisation stands behind, and it cannot be undone.
-	if err := authorise(root, caller, auth.ActPublish, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
 		return err
 	}
 	gone, err := s.Apply(plan)
@@ -344,11 +344,11 @@ func spoolHold(root string, args []string) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return fmt.Errorf("usage: quilzo spool hold NAME --why ... " +
+		return fmt.Errorf("usage: vaigil spool hold NAME --why ... " +
 			"[--until 2026-12-31]")
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActPublish, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
 		return err
 	}
 	s, err := openSpool(root, spool.Options{})
@@ -388,10 +388,10 @@ func spoolHold(root string, args []string) error {
 func spoolLift(root string, args []string) error {
 	pos, _ := leadingArgs(args, 1)
 	if len(pos) != 1 {
-		return fmt.Errorf("usage: quilzo spool lift NAME")
+		return fmt.Errorf("usage: vaigil spool lift NAME")
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActPublish, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
 		return err
 	}
 	s, err := openSpool(root, spool.Options{})

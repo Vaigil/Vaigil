@@ -52,7 +52,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
+	"github.com/quilzo/vaigil/internal/audit"
 )
 
 // Format is an export format.
@@ -86,7 +86,7 @@ func (o Options) withDefaults() Options {
 		o.Vendor = "rsh1k"
 	}
 	if o.Product == "" {
-		o.Product = "quilzo"
+		o.Product = "vaigil"
 	}
 	if o.Version == "" {
 		o.Version = "1"
@@ -245,7 +245,7 @@ const (
 // did.
 //
 // So the attestation is the chain, expressed in the schema's own terms rather
-// than in this program's. A consumer that has never heard of Quilzo can
+// than in this program's. A consumer that has never heard of Vaigil can
 // follow prev_event.uid backwards and check each fingerprint.
 //
 // # What is deliberately not claimed
@@ -454,7 +454,7 @@ func activityFor(e audit.Event) int {
 	// the write tool: an agent's reading is most of what it does, and an
 	// export that called every one an update would bury the writes.
 	if e.Action == "mcp.call" {
-		if e.Detail["tool"] == "quilzo_write" {
+		if e.Detail["tool"] == "vaigil_write" {
 			return 3
 		}
 		return 2

@@ -9,7 +9,7 @@
   wrong. {{if .NoInventory}}There is no inventory of what is installed. {{end}}{{if .NoAdvisories}}There is no list of advisories. {{end}}The
   queue needs both.</p>
 <p>Load both on the machine:</p>
-<pre class="code whole"><code>quilzo vuln load --advisories advisories.jsonl --inventory inventory.jsonl</code></pre>
+<pre class="code whole"><code>vaigil vuln load --advisories advisories.jsonl --inventory inventory.jsonl</code></pre>
 <p class="hint">Each file is one JSON object per line and is checked line by
   line as it is loaded; loading replaces what was there.</p>
 {{else}}
@@ -37,7 +37,7 @@
   </tr>{{end}}</tbody></table></div>
 <p class="hint">"Move to" is the lowest version that clears everything listed
   beside it, checked against every advisory loaded, not only the open ones.
-  Risk removed is that change's share of the expected exploitation.{{if .MoreUpgrades}} {{plural .MoreUpgrades "more package is" "more packages are"}} not shown; <code>quilzo vuln plan --top 500</code> lists them.{{end}}</p>
+  Risk removed is that change's share of the expected exploitation.{{if .MoreUpgrades}} {{plural .MoreUpgrades "more package is" "more packages are"}} not shown; <code>vaigil vuln plan --top 500</code> lists them.{{end}}</p>
 {{else}}<p>Nothing is open.</p>{{end}}
 
 <h2>The queue</h2>
@@ -52,13 +52,13 @@
     <td class="wf-score"><span class="wf-points">{{.Weight}}</span>
       <svg class="wf-meter" viewBox="0 0 100 8" aria-hidden="true"><rect class="track" width="100" height="8" rx="4"></rect><rect class="fill" width="{{.W}}" height="8" rx="4"></rect></svg></td>
   </tr>{{end}}</tbody></table></div>
-{{if .MoreQueue}}<p class="hint">{{.MoreQueue}} more are below these. <code>quilzo vuln queue --top 500</code> lists them.</p>{{end}}
+{{if .MoreQueue}}<p class="hint">{{.MoreQueue}} more are below these. <code>vaigil vuln queue --top 500</code> lists them.</p>{{end}}
 {{else}}<p>Nothing is in the queue.</p>{{end}}
 
 <h2>What you say about your machines</h2>
 {{if not .HasTree}}<p class="notice warn">No SSVC decision table is loaded, so no
   decision is offered. The table is CERT/CC's and is loaded from the file
-  they publish: <code>quilzo vuln ssvc-tree FILE</code>.</p>{{end}}
+  they publish: <code>vaigil vuln ssvc-tree FILE</code>.</p>{{end}}
 <p class="hint">An SSVC decision needs two things no feed knows: how exposed
   a machine is, and what is lost if it is compromised. Where neither is
   recorded the decision is given as a range, not as a guess.</p>
@@ -113,7 +113,7 @@
 </table></div>
 <p class="hint">Out of the queue, not out of the record. Anything with a date
   comes back on it, above where it left.
-  <code>quilzo vuln vex --author "…" --id URL</code> writes these as an
+  <code>vaigil vuln vex --author "…" --id URL</code> writes these as an
   OpenVEX draft, without the names or the internal reasons.</p>
 {{else}}<p>Nothing has been decided away.</p>{{end}}
 {{end}}

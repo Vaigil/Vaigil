@@ -18,7 +18,7 @@ import (
 // logging problem should not stop somebody publishing. The cost is that an
 // invalid record is a bug that shows up as one line of stderr nobody reads.
 //
-// This found exactly that: `quilzo import` constructed a service-kind record
+// This found exactly that: `vaigil import` constructed a service-kind record
 // without Verified, the audit package refused it because a service principal is
 // only a service if a credential proved it, and the least trustworthy operation
 // in the system was the one with no log entry.
@@ -181,7 +181,7 @@ func TestEveryPrivilegedCommandWritesAnAuditRecord(t *testing.T) {
 	//
 	// This list is no longer the coverage check — TestEveryMutatingCommand-
 	// CanReachTheAuditLog derives that from the privilege table, because this
-	// list passed for months while `quilzo add` recorded nothing at all. A
+	// list passed for months while `vaigil add` recorded nothing at all. A
 	// list maintained by the same person who forgets the call is not a check.
 	//
 	// It is kept for what it does test and the derived one cannot: that these
@@ -193,8 +193,6 @@ func TestEveryPrivilegedCommandWritesAnAuditRecord(t *testing.T) {
 		"tokenIssueAs":  "token.issue",
 		"tokenExchange": "token.exchange",
 		"tokenRevoke":   "token.revoke",
-		"cmdImport":     "import",
-		"cmdExport":     "export",
 		"cmdSiem":       "auditlog.export",
 	}
 

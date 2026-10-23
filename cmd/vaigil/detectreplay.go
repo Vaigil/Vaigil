@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/detect"
-	"github.com/quilzo/quilzo/internal/finding"
-	"github.com/quilzo/quilzo/internal/spool"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/detect"
+	"github.com/quilzo/vaigil/internal/finding"
+	"github.com/quilzo/vaigil/internal/spool"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // The corpus: events people have already ruled on, replayed against every
@@ -94,7 +94,7 @@ func detectReplay(root string, args []string) error {
 	}
 	if len(corpus) == 0 {
 		return fmt.Errorf("%s holds nothing, so a replay would pass by "+
-			"checking nothing. quilzo detect learn FINDING adds the event "+
+			"checking nothing. vaigil detect learn FINDING adds the event "+
 			"behind a finding somebody has closed", path)
 	}
 	outs, err := detect.Replay(rules, corpus)
@@ -160,10 +160,10 @@ func detectLearn(root string, args []string) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return fmt.Errorf("usage: quilzo detect learn FINDING-ID")
+		return fmt.Errorf("usage: vaigil detect learn FINDING-ID")
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActTune, auth.AreaSecurity); err != nil {
 		return err
 	}
 	if caller.Kind == audit.KindAI {
@@ -281,7 +281,7 @@ func detectLearn(root string, args []string) error {
 	}
 	if entry.Pending {
 		w.Human("added to %s as a known false positive. %s still raises on "+
-			"it; when the rule is fixed, quilzo detect replay says so\n", path,
+			"it; when the rule is fixed, vaigil detect replay says so\n", path,
 			f.Source)
 	} else {
 		w.Human("added to %s: %s must keep firing on it\n", path, f.Source)

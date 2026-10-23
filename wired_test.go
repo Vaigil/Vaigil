@@ -42,7 +42,7 @@ func TestEveryPackageIsReachedBySomething(t *testing.T) {
 
 	var orphans []string
 	for p := range pkgs {
-		if imported[p] || p == "cmd/quilzo" {
+		if imported[p] || p == "cmd/vaigil" {
 			continue
 		}
 		if reason, ok := notImported[p]; ok {
@@ -65,7 +65,7 @@ func TestEveryPackageIsReachedBySomething(t *testing.T) {
 // notImported is for packages that exist without being imported, with a
 // written reason each.
 //
-// A registry rather than a rule, the same shape as cmd/quilzo's coverage
+// A registry rather than a rule, the same shape as cmd/vaigil's coverage
 // table: a pattern that excuses one package excuses the next one of that
 // shape, including the one that was an oversight.
 var notImported = map[string]string{
@@ -80,7 +80,7 @@ var notImported = map[string]string{
 // every package in the tree.
 func importGraph(t *testing.T) (imported map[string]bool, pkgs map[string]bool) {
 	t.Helper()
-	const mod = "github.com/quilzo/quilzo/"
+	const mod = "github.com/quilzo/vaigil/"
 	imported = map[string]bool{}
 	pkgs = map[string]bool{}
 

@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/vuln"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/vuln"
 )
 
 // A vulnerability queue that is not sorted by severity.
@@ -301,7 +301,7 @@ func vulnWhy(root string, args []string) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return fmt.Errorf("usage: quilzo vuln why CVE-ID")
+		return fmt.Errorf("usage: vaigil vuln why CVE-ID")
 	}
 	advPath := orStored(*advFlag, "advisories.jsonl", storedAdvisories(root))
 	advisories, err := loadAdvisories(advPath)
@@ -369,7 +369,7 @@ func vulnAssess(root string, args []string) error {
 	fs := flag.NewFlagSet("assess", flag.ContinueOnError)
 	because := fs.String("because", "", "the evidence, in one line")
 	reason := fs.String("reason", "",
-		"for not_affected: one of the five; quilzo vuln reasons lists them")
+		"for not_affected: one of the five; vaigil vuln reasons lists them")
 	where := fs.String("where", "",
 		"one asset, issuer:value; empty means every installation")
 	until := fs.String("until", "",
@@ -380,7 +380,7 @@ func vulnAssess(root string, args []string) error {
 	}
 	if len(pos) != 3 {
 		return fmt.Errorf(
-			"usage: quilzo vuln assess CVE-ID ECOSYSTEM:PACKAGE STATUS " +
+			"usage: vaigil vuln assess CVE-ID ECOSYSTEM:PACKAGE STATUS " +
 				"--because \"...\"\n" +
 				"  statuses: affected, not_affected, fixed, " +
 				"under_investigation")
@@ -408,7 +408,7 @@ func vulnAssess(root string, args []string) error {
 	}
 	// Deciding a vulnerability does not apply is a statement the
 	// organisation stands behind: the same authority as publishing.
-	if err := authorise(root, caller, auth.ActPublish, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActAssess, auth.AreaSecurity); err != nil {
 		return err
 	}
 	if err := recordAssessment(root, a, false); err != nil {

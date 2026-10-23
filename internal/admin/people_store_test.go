@@ -6,7 +6,7 @@ package admin
 import (
 	"testing"
 
-	"github.com/quilzo/quilzo/internal/auth"
+	"github.com/quilzo/vaigil/internal/auth"
 )
 
 // An access change made here is applied to the policy as stored, so a
@@ -25,14 +25,14 @@ func TestAPeopleChangeIsAppliedToThePolicyAsStored(t *testing.T) {
 	if err := srv.Policy.Grant(auth.Binding{Principal: "leaver", Role: auth.RoleAdmin, Resource: "/"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := stored.Grant(auth.Binding{Principal: "newcomer", Role: auth.RoleReader, Resource: "/"}); err != nil {
+	if err := stored.Grant(auth.Binding{Principal: "newcomer", Role: auth.RoleViewer, Resource: "/"}); err != nil {
 		t.Fatal(err)
 	}
 	srv.UpdatePolicy = func(change func(*auth.Policy) error) (*auth.Policy, error) {
 		return stored, change(stored)
 	}
-	postForm(t, srv, "/people/grant", token, "principal=ria&role=author&resource=/")
-	if !stored.Evaluate("ria", auth.ActEditDraft, "/").Allowed {
+	postForm(t, srv, "/people/grant", token, "principal=ria&role=analyst&resource=/")
+	if !stored.Evaluate("ria", auth.ActTriage, "/").Allowed {
 		t.Fatal("the grant was not applied to the stored policy")
 	}
 	if stored.Evaluate("leaver", auth.ActGrant, "/").Allowed {

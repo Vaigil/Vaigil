@@ -20,7 +20,7 @@ var productNames = map[string]string{
 	"mdmplus":         "MDM Plus",
 	"github":          "GitHub",
 	"aws":             "AWS",
-	"quilzo":          "Quilzo",
+	"vaigil":          "Vaigil",
 	"evm":             "EVM",
 }
 
@@ -28,7 +28,7 @@ var productNames = map[string]string{
 // sentence: "according to entra and knowbe4". A key inside an identifier
 // (knowbe4:k-03, posture/token.admin-role) is left alone, since that is a
 // value somebody may copy, not prose.
-var productWord = regexp.MustCompile(`(^|[\s(,])(entra|okta|knowbe4|vanta|endpointcentral|mdmplus|github|aws|quilzo)($|[\s),.;])`)
+var productWord = regexp.MustCompile(`(^|[\s(,])(entra|okta|knowbe4|vanta|endpointcentral|mdmplus|github|aws|vaigil)($|[\s),.;])`)
 
 // productName is one source key as its product's name, or the key itself
 // when it is not one this knows.

@@ -16,7 +16,7 @@ import (
 // section being worked in is marked.
 func TestTheCollapsedMenuIsARailOfItsSections(t *testing.T) {
 	srv, token := setup(t)
-	req := httptest.NewRequest("GET", "/security/frameworks", nil)
+	req := httptest.NewRequest("GET", "/security/detections", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.AddCookie(&http.Cookie{Name: SidebarCookie, Value: "hidden"})
 	rec := httptest.NewRecorder()
@@ -33,7 +33,7 @@ func TestTheCollapsedMenuIsARailOfItsSections(t *testing.T) {
 	for _, m := range found {
 		if m[1] != "" {
 			here++
-			if m[4] != "Assurance" {
+			if m[4] != "Detection" {
 				t.Errorf("the rail marks %s, not the section this screen is in", m[4])
 			}
 		}

@@ -57,7 +57,7 @@ func TestASessionIsWorthWhatItCameFrom(t *testing.T) {
 		t.Error("a bound token was exchanged with another key")
 	}
 
-	short, _, err := ts.Issue("job", "ci", RolePublisher, "/", 30*time.Minute, RoleAdmin)
+	short, _, err := ts.Issue("job", "ci", RoleResponder, "/", 30*time.Minute, RoleAdmin)
 	if err != nil {
 		t.Fatal(err)
 	}

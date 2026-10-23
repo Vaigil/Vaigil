@@ -12,16 +12,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/atomicfile"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Keeping the list, the notices and what has been delivered.
 //
 // Plain files, 0600, in a directory of their own. The contact list is
 // personal data and the suppression list is a list of people who asked to be
-// left alone, so neither goes in the content store the web process serves and
-// neither is exported by anything that exports a site.
+// left alone, so neither is kept anywhere the console serves or exports.
 //
 // The fingerprinting key lives beside them in a file of its own, which is a
 // compromise worth naming rather than hiding: a key in the same directory as

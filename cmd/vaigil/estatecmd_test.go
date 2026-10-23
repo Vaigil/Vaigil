@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/finding"
+	"github.com/quilzo/vaigil/internal/finding"
 )
 
 // From two real connectors to the findings register, and back out again
@@ -74,7 +74,7 @@ func TestTheEstateFindsWhatTwoToolsDisagreeOnAndLetsItGo(t *testing.T) {
 		"vanta-client-id": "vci", "vanta-client-secret": "vcs",
 		"zoho-client-id": "1000.C", "zoho-client-secret": "zs",
 		"endpointcentral-refresh-token": "1000.r"} {
-		t.Setenv("QUILZO_CONNECT_SECRET", value)
+		t.Setenv("VAIGIL_CONNECT_SECRET", value)
 		if err := cmdConnect(root, []string{"secret", name}); err != nil {
 			t.Fatal(err)
 		}

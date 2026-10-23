@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/correlate"
-	"github.com/quilzo/quilzo/internal/detect"
-	"github.com/quilzo/quilzo/internal/finding"
-	"github.com/quilzo/quilzo/internal/spool"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/correlate"
+	"github.com/quilzo/vaigil/internal/detect"
+	"github.com/quilzo/vaigil/internal/finding"
+	"github.com/quilzo/vaigil/internal/spool"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Correlations, run over the estate's own events.

@@ -19,9 +19,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/enrol"
-	"github.com/quilzo/quilzo/internal/lockout"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/enrol"
+	"github.com/quilzo/vaigil/internal/lockout"
 )
 
 // signInFrom is signIn from an address of the caller's choosing.
@@ -58,7 +58,7 @@ func postFormAs(t *testing.T, srv *Server, path, session string, form url.Values
 	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Sec-Fetch-Site", "same-origin")
-	req.AddCookie(&http.Cookie{Name: "quilzo_token", Value: session})
+	req.AddCookie(&http.Cookie{Name: "vaigil_token", Value: session})
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 	return w
@@ -161,7 +161,7 @@ func TestTheCeilingTurnsPasskeysOffUntilThePersonProvesThemselves(t *testing.T) 
 		!strings.Contains(w.Body.String(), "until you sign in another way") {
 		t.Fatalf("a disabled account signed in: %d %s", w.Code, w.Body)
 	}
-	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r := httptest.NewRequest(http.MethodGet, "/today", nil)
 	r.RemoteAddr = "192.0.2.10:5000"
 	// A sign-on the provider did not say used two factors proves nothing.
 	srv.ssoNext(r, "dana", ssoProof{})
@@ -202,7 +202,7 @@ func (f *fakeAuthenticator) verifyAs(t *testing.T, srv *Server, expect string) *
 func TestSigningInAgainInPlaceIsForThePagesPerson(t *testing.T) {
 	srv := enrolling(t)
 	srv.Lockout = &lockout.Store{Path: filepath.Join(t.TempDir(), "lockout.json")}
-	if err := srv.Policy.Grant(auth.Binding{Principal: "erin", Role: auth.RoleAuthor, Resource: "/"}); err != nil {
+	if err := srv.Policy.Grant(auth.Binding{Principal: "erin", Role: auth.RoleAnalyst, Resource: "/"}); err != nil {
 		t.Fatal(err)
 	}
 	keys := map[string]*fakeAuthenticator{}

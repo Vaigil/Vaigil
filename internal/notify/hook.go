@@ -9,8 +9,6 @@ import (
 	"net/url"
 	"strings"
 	"time"
-
-	"github.com/quilzo/quilzo/internal/webhook"
 )
 
 // The channel for a customer whose own systems have to act.
@@ -20,16 +18,11 @@ import (
 // users, opening their own incident. An email to a shared inbox starts that
 // an hour later than a signed POST to an endpoint they control.
 //
-// # Why this does not reuse the CMS webhook event
+// # What the payload carries
 //
-// internal/webhook's Event is a closed list of things a site does —
-// published, rolled-back, submitted — and its whole design is to name what
-// changed rather than carry it, so that a misconfigured endpoint cannot leak
-// unpublished content. A notice is the opposite case: the content is what the
-// receiver needs, and there is nothing to fetch later. The signature scheme
-// is shared because it is good and because a customer who already verifies
-// one kind of webhook from this system should not have to write a second
-// verifier.
+// The content is what the receiver needs, and there is nothing to fetch
+// later. It is signed with a length-prefixed HMAC (Sign) that a receiver
+// checks with Verify.
 //
 // # One contact per request
 //
@@ -86,8 +79,8 @@ func NewHook(n Notice, d Delivery, at time.Time) Hook {
 
 // HookSender posts a notice to a customer's endpoint.
 type HookSender struct {
-	// Post is the transport, the same interface internal/webhook uses.
-	Post webhook.Sender
+	// Post is the transport.
+	Post Poster
 	// Secret is the HMAC key shared with the receiver. Where a deployment
 	// holds a different secret per customer, Secrets is consulted first.
 	Secret  string
@@ -139,11 +132,11 @@ func (h HookSender) Send(n Notice, d Delivery) error {
 	}
 	status, err := h.Post.Post(d.Address, body, map[string]string{
 		"Content-Type":     "application/json",
-		"User-Agent":       "quilzo-notify",
-		"Quilzo-Delivery":  d.Key,
-		"Quilzo-Timestamp": fmt.Sprint(at.Unix()),
-		"Quilzo-Signature": webhook.Sign(secret, at, body),
-		"Quilzo-Notice-Of": string(n.Kind),
+		"User-Agent":       "vaigil-notify",
+		"Vaigil-Delivery":  d.Key,
+		"Vaigil-Timestamp": fmt.Sprint(at.Unix()),
+		"Vaigil-Signature": Sign(secret, at, body),
+		"Vaigil-Notice-Of": string(n.Kind),
 		"Auto-Submitted":   "auto-generated",
 	})
 	if err != nil {

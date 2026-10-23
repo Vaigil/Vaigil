@@ -44,7 +44,7 @@ func TestHidingTheNavigationSurvivesTheNextPage(t *testing.T) {
 
 	// Now a different page, carrying the cookie.
 	rec2 := httptest.NewRecorder()
-	req2 := httptest.NewRequest("GET", "/", nil)
+	req2 := httptest.NewRequest("GET", "/today", nil)
 	req2.Header.Set("Authorization", "Bearer "+token)
 	req2.AddCookie(set)
 	s.Handler().ServeHTTP(rec2, req2)
@@ -64,7 +64,7 @@ func TestHidingTheNavigationSurvivesTheNextPage(t *testing.T) {
 func TestTheControlIsStillThereWhenTheNavigationIsHidden(t *testing.T) {
 	s, token := setup(t)
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest("GET", "/today", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.AddCookie(&http.Cookie{Name: SidebarCookie, Value: "hidden"})
 	s.Handler().ServeHTTP(rec, req)
@@ -92,7 +92,7 @@ func TestTheControlNamesTheStateItWants(t *testing.T) {
 		{"hidden", "shown"},
 	} {
 		rec := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest("GET", "/today", nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 		if c.cookie != "" {
 			req.AddCookie(&http.Cookie{Name: SidebarCookie, Value: c.cookie})
@@ -245,7 +245,7 @@ func TestTheReturnFieldCannotLeaveThisServer(t *testing.T) {
 func TestEveryScreenTellsTheToggleWhereItIs(t *testing.T) {
 	s, token := setup(t)
 
-	for _, path := range []string{"/", "/logs", "/media", "/settings", "/people"} {
+	for _, path := range []string{"/today", "/logs", "/findings", "/settings", "/people"} {
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest("GET", path, nil)
 		req.Header.Set("Authorization", "Bearer "+token)
@@ -325,7 +325,7 @@ func TestOnlyAPlaceOnThisServerIsSomewhereToGoBackTo(t *testing.T) {
 func TestTheMenuControlLeadsTheBarAndSaysWhetherTheMenuIsOpen(t *testing.T) {
 	s, token := setup(t)
 	for _, c := range []struct{ cookie, expanded string }{{"", "true"}, {"hidden", "false"}} {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest("GET", "/today", nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 		if c.cookie != "" {
 			req.AddCookie(&http.Cookie{Name: SidebarCookie, Value: c.cookie})

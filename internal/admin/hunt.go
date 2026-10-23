@@ -13,15 +13,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/detect"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/detect"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Hunting: looking at the events before there is a rule.
 //
 // Stacking — sort by how rare a thing is and read the top — is the oldest
 // technique in security analysis and the one that keeps earning its place,
-// because malicious activity is rare by definition. `quilzo hunt` did it
+// because malicious activity is rare by definition. `vaigil hunt` did it
 // over a file somebody exported. This does it over the store, where the
 // events are.
 //
@@ -56,7 +57,7 @@ var huntOps = []detect.Op{detect.Equals, detect.Contains, detect.Prefix,
 	detect.Suffix}
 
 func (s *Server) handleHunt(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActTriage)
 	if !ok {
 		return
 	}

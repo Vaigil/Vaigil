@@ -8,8 +8,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/quilzo/quilzo/internal/appsec"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/appsec"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Severity boundaries, as the platform publishes them.

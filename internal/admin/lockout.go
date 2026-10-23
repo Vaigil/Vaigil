@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/lockout"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/lockout"
 )
 
 // Smart lockout at the admin's door (internal/lockout).
@@ -149,7 +149,7 @@ func (s *Server) handleSignInsUnlock(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "POST only", http.StatusMethodNotAllowed)
 		return
 	}
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActRespond)
 	if !ok {
 		return
 	}

@@ -9,9 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/admin"
-	"github.com/quilzo/quilzo/internal/agent"
-	"github.com/quilzo/quilzo/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/admin"
+	"github.com/quilzo/vaigil/internal/atomicfile"
 )
 
 // Two factors for every person (SP 800-63B-4 AAL2): from when.
@@ -68,8 +67,7 @@ func mfaFromIfSet(root string) (time.Time, bool) {
 // withoutSecondFactor are the people with access here who have no way to
 // sign in with two factors: no passkey, and no single sign-on that covers
 // their address and can say it used two (a SAML provider with no way set
-// up to say so cannot). Agents are not people and are left out, as is
-// anybody whose only bindings deny.
+// up to say so cannot). Anybody whose only bindings deny is left out.
 func withoutSecondFactor(root string) []string {
 	pol, err := loadPolicy(root)
 	if err != nil || pol == nil {
@@ -111,7 +109,7 @@ func withoutSecondFactor(root string) []string {
 	}
 	var out []string
 	for name := range grants {
-		if strings.HasPrefix(name, agent.PrincipalPrefix) || keyed[strings.ToLower(name)] || covered(name) {
+		if keyed[strings.ToLower(name)] || covered(name) {
 			continue
 		}
 		out = append(out, name)

@@ -1,20 +1,14 @@
 // SPDX-FileCopyrightText: 2026 Rashik Adhikari
 // SPDX-License-Identifier: Apache-2.0
 
-// Package pii finds personal data in text before it is published.
+// Package pii finds personal data in text, and masks it before a prompt
+// leaves for a model that may not receive it.
 //
-// Two kinds of finding, because a gate that refuses everything is a gate
-// people switch off. What no published page should carry is blocking: a
-// payment card number, the right length for its network and passing the
-// Luhn check, so a price or an order number is not one. What a page often
-// carries on purpose is advisory: a bank account as an IBAN (passing its
-// mod-97 check), since a charity's donation page and a business's invoice
-// details print their own; an email address and a telephone number, since a
-// contact page lists them. A page pasted from a support ticket lists the
-// customer's, and somebody should look before it goes out.
-//
-// Credentials are internal/codescan's, which the publish gate runs beside
-// this: one list of what a key looks like, not two.
+// A payment card number is the right length for its network and passes the
+// Luhn check, so a price or an order number is not one; a bank account is an
+// IBAN passing its mod-97 check; and email addresses and telephone numbers
+// are found as they are written. Credentials are internal/secret's: one list
+// of what a key looks like, not two.
 //
 // The numbers payment and banking documentation publishes to be copied —
 // the networks' test cards, the standard's example IBANs — are nobody's,

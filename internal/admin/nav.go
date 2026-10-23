@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/find"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/find"
 )
 
 // The navigation, as data.
@@ -51,135 +51,63 @@ type destination struct {
 	Needs auth.Action
 }
 
-// groups are the sections, in their default order.
-//
-// Named for what somebody is doing rather than for how the code is arranged.
-// The earlier attempt used Build / Publish / Trust / Administer, and "Trust"
-// was the one nobody could place: it held provenance, the log and the security
-// dashboard, which are three answers to "can I show somebody this is right" —
-// so Assurance, which is the word the people who ask for it use.
+// groups are the sections, in their default order, named for what somebody
+// on a security team is doing.
 var groups = []string{
-	"Content",             // what you make
-	"Release",             // how it goes out
-	"Assurance",           // evidence that it is right
-	"Security operations", // what is wrong, and what is being done about it
-	"Administration",      // who may do what, and what this talks to
-	"Reference",           // how any of it works
+	"Operations",     // what is wrong now, and what is being done about it
+	"Investigation",  // what happened
+	"Detection",      // what counts as wrong, and what arrives to be judged
+	"Exposure",       // where the estate is weak before anything happens
+	"Administration", // who may do what, and how this console is set up
+	"Reference",      // how any of it works
 }
 
 // destinations is every screen, in the default order.
 var destinations = []destination{
-	// What is waiting and what is happening, for everybody who signs in;
-	// where a sign-in lands unless somebody chose Pages.
-	{"today", "Today", "/today", "Content", "today", auth.ActView},
-	{"pages", "Pages", "/", "Content", "pages", auth.ActView},
+	// What is waiting and what is wrong, for everybody who signs in; where
+	// a sign-in lands.
+	{"today", "Today", "/today", "Operations", "start", auth.ActView},
 	// Everything waiting for a person, from every part of the program, so
 	// nothing waits unseen because it waited somewhere nobody opened.
-	{"approvals", "Approvals", "/approvals", "Content", "agents", auth.ActView},
-	{"make", "Make", "/make", "Content", "make", auth.ActInstall},
-	// Beside the data it analyses: projects whose every number is linked
-	// to the code that produced it.
-	{"research", "Research", "/research", "Content", "research", auth.ActView},
-	{"records", "Data", "/records", "Content", "types", auth.ActView},
-	{"types", "Types", "/types", "Content", "types", auth.ActView},
-	{"structure", "Structure", "/structure", "Content", "structure", auth.ActView},
-	{"listings", "Listings", "/listings", "Content", "structure", auth.ActView},
-	{"forms", "Forms", "/forms", "Content", "forms", auth.ActEditDraft},
-	{"media", "Media", "/media", "Content", "media", auth.ActView},
-	// Its own section rather than #templates. The template language and the
-	// theme are different things, and the screen an operator opens to change
-	// a colour was sending Help to the page explaining why there is no eval.
-	{"design", "Design", "/design", "Content", "design", auth.ActEditDraft},
-	{"sections", "Sections", "/sections", "Content", "pages", auth.ActEditDraft},
-	{"languages", "Languages", "/languages", "Content", "languages", auth.ActView},
-	{"assist", "Assistant", "/assist", "Content", "assistant", auth.ActUseModels},
-	// Beside Assistant, which drafts pages for the people editing them. This
-	// is the other side: chatbots the site offers its visitors, answering
-	// from what is published.
-	{"assistants", "Chatbots", "/assistants", "Content", "chatbots", auth.ActEditDraft},
-	// Next to the chatbots it is fed by: what a visitor asked a person.
-	{"inbox", "Inbox", "/inbox", "Content", "chatbots", auth.ActEditDraft},
-	// What members wrote, beside what visitors asked a person.
-	{"boards", "Boards", "/boards", "Content", "members", auth.ActEditDraft},
-	{"decisions", "Decisions", "/decisions", "Content", "assistant", auth.ActEditDraft},
+	{"approvals", "Approvals", "/approvals", "Operations", "approvals", auth.ActView},
+	{"findings", "Findings", "/findings", "Operations", "findings", auth.ActView},
+	{"cases", "Cases", "/security/cases", "Operations", "cases", auth.ActView},
+	{"risk", "Risk", "/security/risk", "Operations", "findings", auth.ActView},
 
-	// With Review rather than with Content: a note is part of agreeing that
-	// something is ready, which is what this group is about.
-	{"notes", "Notes", "/notes", "Release", "publishing", auth.ActView},
-	{"review", "Review", "/review", "Release", "publishing", auth.ActView},
-	{"publishing", "Publishing", "/publishing", "Release", "publishing", auth.ActView},
-	{"history", "History", "/history", "Release", "publishing", auth.ActView},
-	// With Release: what happened to what went out.
-	{"analytics", "Analytics", "/analytics", "Release", "growth", auth.ActEditDraft},
-	{"experiments", "Experiments", "/experiments", "Release", "growth", auth.ActEditDraft},
-	{"personalise", "Personalisation", "/personalise", "Release", "growth", auth.ActEditDraft},
-	{"transfer", "Transfer", "/transfer", "Release", "transfer", auth.ActView},
-	{"decentralised", "Permanent web", "/decentralised", "Release", "transfer", auth.ActView},
+	{"events", "Events", "/security/events", "Investigation", "events", auth.ActTriage},
+	{"hunt", "Hunt", "/security/hunt", "Investigation", "events", auth.ActTriage},
+	{"indicators", "Indicators", "/security/indicators", "Investigation", "intelligence", auth.ActView},
 
-	{"provenance", "Provenance", "/provenance", "Assurance", "provenance", auth.ActView},
-	// Reading, on guarded areas: see auth's guardedAreas.
-	{"security", "Security", "/security", "Assurance", "security", auth.ActView},
-	{"logs", "Log", "/logs", "Assurance", "logging", auth.ActView},
+	{"detections", "Detections", "/security/detections", "Detection", "detections", auth.ActView},
+	{"automations", "Automations", "/security/automations", "Detection", "automations", auth.ActView},
+	{"signins", "Sign-ins", "/security/signins", "Detection", "automations", auth.ActTriage},
+	{"feeds", "Feeds", "/security/feeds", "Detection", "connectors", auth.ActView},
 
-	// The working half of security: the queue, and the events it is raised
-	// from. Apart from Assurance, which is evidence that the system is right;
-	// this is the list of what is currently wrong.
-	{"findings", "Findings", "/findings", "Security operations", "detection", auth.ActGrant},
-	{"risk", "Risk", "/security/risk", "Security operations", "detection", auth.ActGrant},
-	{"cases", "Cases", "/security/cases", "Security operations", "cases", auth.ActGrant},
-	{"events", "Events", "/security/events", "Security operations", "detection", auth.ActGrant},
-	{"hunt", "Hunt", "/security/hunt", "Security operations", "detection", auth.ActGrant},
-	{"detections", "Detections", "/security/detections", "Security operations", "detection", auth.ActGrant},
-	{"indicators", "Indicators", "/security/indicators", "Security operations", "detection", auth.ActGrant},
-	{"vulns", "Vulnerabilities", "/security/vulns", "Security operations", "vulnerabilities", auth.ActGrant},
+	{"vulns", "Vulnerabilities", "/security/vulns", "Exposure", "vulnerabilities", auth.ActView},
 	// People and their machines, from what the company's tools say. Admin
 	// only: a person's score is a file on an employee.
-	{"workforce", "Workforce risk", "/workforce", "Security operations", "workforce", auth.ActGrant},
-	// What happens next, and who signed in from where.
-	// What Quilzo is doing to protect itself, and the playbooks deciding it.
-	{"shield", "Shield", "/security/shield", "Security operations", "shield", auth.ActGrant},
-	{"automations", "Automations", "/security/automations", "Security operations", "automations", auth.ActGrant},
-	{"signins", "Sign-ins", "/security/signins", "Security operations", "automations", auth.ActGrant},
-	{"feeds", "Feeds", "/security/feeds", "Security operations", "collect", auth.ActGrant},
+	{"workforce", "Workforce risk", "/workforce", "Exposure", "workforce", auth.ActGrant},
 
-	{"agents", "Agents", "/agents", "Administration", "agents", auth.ActManageAgents},
-	// Beside Agents: every agent, Quilzo's and other vendors', the apps and
-	// tool servers and model routes, who called what, and the AI use
-	// nobody registered.
-	{"fleet", "Fleet", "/fleet", "Administration", "fleet", auth.ActGrant},
 	{"people", "People", "/people", "Administration", "people", auth.ActGrant},
-	// The site's own accounts, beside the people who run it.
-	{"members", "Members", "/members", "Administration", "members", auth.ActGrant},
 	// Beside People: the same people, kept in step by the identity provider.
-	{"provisioning", "Provisioning", "/provisioning", "Administration", "provisioning", auth.ActGrant},
+	{"provisioning", "Provisioning", "/provisioning", "Administration", "people", auth.ActGrant},
 	// Beside Provisioning: the identity provider that keeps people in step
 	// is usually the one they sign in through.
 	{"sso", "Single sign-on", "/sso", "Administration", "sso", auth.ActGrant},
-	{"access", "Access", "/access", "Administration", "people", auth.ActGrant},
 	// View, not grant: everybody manages their own passkeys, and a screen that
 	// only administrators could open would be a second factor only
 	// administrators could have.
 	{"passkeys", "Passkeys", "/passkeys", "Administration", "passkeys", auth.ActView},
-	// View, for the same reason: everybody sees and disconnects the apps
-	// they connected to the agent interface.
-	{"apps", "Connected apps", "/apps", "Administration", "agent-interface", auth.ActView},
-	// View, as with apps: everybody sees, and removes, what agents remember
-	// about them.
-	{"memory", "Memory", "/memory", "Administration", "memory", auth.ActView},
-	{"integrations", "Integrations", "/integrations", "Administration", "integrations", auth.ActGrant},
-	// Beside Integrations: both decide what this program talks to, and a
-	// model route decides who receives what visitors typed.
-	{"models", "Models", "/models", "Administration", "models", auth.ActGrant},
-	{"settings", "Settings", "/settings", "Administration", "settings", auth.ActEditDraft},
+	{"settings", "Settings", "/settings", "Administration", "settings", auth.ActGrant},
+	{"logs", "Log", "/logs", "Administration", "audit", auth.ActView},
 
-	// Find is in Reference and not in Content, because it is about this
-	// interface rather than about what is in it — and because the box in the
-	// bar is how anybody will actually reach it. The row exists so the screen
-	// is reachable on a narrow window, where the bar has no room for the box.
+	// Find is in Reference, because it is about this console rather than
+	// about what is in it — and because the box in the bar is how anybody
+	// will actually reach it. The row exists so the screen is reachable on a
+	// narrow window, where the bar has no room for the box.
 	{"find", "Find", "/find", "Reference", "start", auth.ActView},
 	{"start", "Get started", "/start", "Reference", "start", auth.ActView},
-	{"playground", "API", "/playground", "Reference", "api", auth.ActView},
-	{"profile", "You", "/profile", "Reference", "start", auth.ActView},
+	{"profile", "You", "/profile", "Reference", "passkeys", auth.ActView},
 }
 
 // DocsBase is where the manual lives.
@@ -193,7 +121,7 @@ var destinations = []destination{
 // rather than the next time somebody ships. The cost is that the link target
 // is no longer verifiable by compiling this program, which is what docSections
 // below exists to hold on to.
-const DocsBase = "https://quilzo.github.io/"
+const DocsBase = "https://quilzo.github.io/vaigil.github.io/"
 
 // docSections is every anchor the published manual carries.
 //
@@ -212,19 +140,14 @@ const DocsBase = "https://quilzo.github.io/"
 // the documentation exists to correct.
 var docSections = map[string]bool{
 	// One page per screen, named by the destination table above.
-	"agent-interface": true, "agents": true, "api": true, "assistant": true, "automations": true, "cases": true,
-	"chatbots": true, "collect": true, "design": true, "detection": true, "fleet": true, "forms": true,
-	"growth": true, "integrations": true, "languages": true, "logging": true, "make": true, "media": true, "members": true,
-	"memory": true, "models": true, "pages": true, "passkeys": true, "people": true, "provenance": true,
-	"provisioning": true, "publishing": true, "research": true, "security": true, "settings": true, "shield": true, "sso": true,
-	"start": true, "structure": true, "today": true, "transfer": true, "types": true, "vulnerabilities": true, "workforce": true,
+	"approvals": true, "audit": true, "automations": true, "cases": true, "connectors": true,
+	"detections": true, "events": true, "findings": true, "intelligence": true, "passkeys": true,
+	"people": true, "settings": true, "sso": true, "start": true, "vulnerabilities": true, "workforce": true,
 
 	// Guides no screen owns, because they explain a concept or a surface
 	// rather than a destination. Named individually so that one quietly
 	// disappearing from the site is a change somebody made on purpose.
-	"install": true, "concepts": true, "agent-limits": true, "agent-identity": true, "evals": true, "programs": true,
-	"chatbot-safety": true, "a2a": true, "ai-evidence": true, "compliance": true, "isolated": true, "privacy": true,
-	"collaboration": true, "licence": true,
+	"install": true, "roles": true, "cli": true, "mcp": true, "security": true, "licence": true,
 }
 
 // DocURL is the address of one guide in the manual. Each guide is a page
@@ -316,7 +239,7 @@ func (s *Server) navigation(r *http.Request, p principal, current string) []navG
 }
 
 // NavOrderCookie holds a person's chosen arrangement.
-const NavOrderCookie = "quilzo_nav_order"
+const NavOrderCookie = "vaigil_nav_order"
 
 // storedOrder reads the arrangement from the request.
 //
@@ -478,20 +401,14 @@ func groupOf(key string) string {
 	return ""
 }
 
-// screenAreas are the screens that belong to an area of the admin rather
-// than to the site's content, and are shown to whoever holds that area. See
-// auth.AreaSecurity: a whole-site role covers them all, so nothing changes
-// for anybody granted on "/".
+// screenAreas are the screens that belong to an area, and are shown to
+// whoever holds that area. A role granted on "/" covers them all.
 var screenAreas = map[string]string{
 	"findings": auth.AreaSecurity, "risk": auth.AreaSecurity, "cases": auth.AreaSecurity,
 	"events": auth.AreaSecurity, "hunt": auth.AreaSecurity, "detections": auth.AreaSecurity,
 	"indicators": auth.AreaSecurity, "vulns": auth.AreaSecurity, "workforce": auth.AreaSecurity,
 	"automations": auth.AreaSecurity, "signins": auth.AreaSecurity, "feeds": auth.AreaSecurity,
-	"shield":   auth.AreaSecurity,
-	"agents":   auth.AreaAgents,
-	"records":  auth.AreaData,
-	"security": auth.AreaCompliance, "logs": auth.AreaLog,
-	"inbox": auth.AreaInbox, "boards": auth.AreaBoards,
+	"logs": auth.AreaLog,
 }
 
 // resource is what a screen's entry is checked against.
@@ -502,16 +419,11 @@ func (d destination) resource() string {
 	return "/"
 }
 
-// underAnywhere are the screens that show part of their area to somebody
-// granted that part: Data, to somebody who may read one collection.
-var underAnywhere = map[string]bool{"records": true}
-
 // visibleTo is the destinations a principal may use.
 func visibleTo(s *Server, p principal) []destination {
 	out := make([]destination, 0, len(destinations))
 	for _, d := range destinations {
-		if d.Key != "today" && s.Policy != nil && !s.Policy.Evaluate(p.Name, d.Needs, d.resource()).Allowed &&
-			!(underAnywhere[d.Key] && s.Policy.AnywhereUnder(p.Name, d.Needs, d.resource())) {
+		if d.Key != "today" && s.Policy != nil && !s.Policy.Evaluate(p.Name, d.Needs, d.resource()).Allowed {
 			continue
 		}
 		out = append(out, d)
@@ -550,38 +462,27 @@ func (s *Server) clearCookie(w http.ResponseWriter, r *http.Request, name string
 // under the word everybody uses for it.
 func Screens() []find.Destination {
 	also := map[string][]string{
-		"pages":         {"content", "article", "post", "page"},
-		"records":       {"data", "row", "collection", "record"},
-		"types":         {"schema", "field", "validation", "type"},
-		"structure":     {"taxonomy", "term", "vocabulary", "menu", "navigation"},
-		"listings":      {"query", "view", "filter", "list"},
-		"forms":         {"submission", "contact", "enquiry", "retention"},
-		"media":         {"image", "picture", "photo", "file", "upload", "video"},
-		"design":        {"theme", "template", "layout", "colour", "color", "font", "css"},
-		"sections":      {"block", "component", "section"},
-		"languages":     {"translation", "locale", "i18n", "language"},
-		"assist":        {"ai", "assistant", "model", "llm"},
-		"notes":         {"note", "comment", "remark", "feedback", "review"},
-		"review":        {"approval", "approve", "sign off"},
-		"publishing":    {"environment", "staging", "promote", "schedule", "deploy"},
-		"history":       {"commit", "log", "rollback", "revert", "version"},
-		"transfer":      {"export", "import", "backup", "migrate"},
-		"decentralised": {"ipfs", "permanent", "cid"},
-		"provenance":    {"ai", "source", "attribution", "c2pa", "credential"},
-		"security":      {"scan", "posture", "vulnerability", "hardening"},
-		"logs":          {"audit", "log", "event", "trail"},
-		"agents":        {"agent", "mcp", "tool", "automation"},
-		"people":        {"user", "account", "member", "staff", "invite"},
-		"access": {"permission", "role", "grant", "token", "authorisation",
-			"authorization"},
-		"passkeys":     {"passkey", "webauthn", "2fa", "security key", "login"},
-		"apps":         {"oauth", "mcp", "connected", "assistant", "claude", "chatgpt", "copilot", "agent interface"},
-		"memory":       {"remember", "forget", "personal data", "privacy", "erase", "recall"},
-		"fleet":        {"agent map", "shadow ai", "a2a", "registry", "inventory", "who called what"},
-		"integrations": {"webhook", "siem", "extension"},
+		"today":        {"home", "dashboard", "waiting"},
+		"approvals":    {"approve", "decide", "second person", "four eyes"},
+		"findings":     {"alert", "queue", "triage", "detection"},
+		"cases":        {"incident", "response", "playbook", "act"},
+		"risk":         {"score", "priority", "exposure"},
+		"events":       {"log", "telemetry", "raw"},
+		"hunt":         {"search", "query", "baseline", "stack"},
+		"indicators":   {"ioc", "intelligence", "threat", "hash", "domain"},
+		"detections":   {"rule", "sigma", "tuning", "suppression", "ring"},
+		"automations":  {"soar", "playbook", "rule", "response"},
+		"signins":      {"login", "travel", "location", "unlock"},
+		"feeds":        {"ingest", "webhook", "ssf", "caep", "connector", "source"},
+		"vulns":        {"cve", "ssvc", "vex", "patch", "advisory"},
+		"workforce":    {"device", "estate", "employee", "compliance", "machine"},
+		"people":       {"user", "account", "role", "permission", "grant", "invite"},
+		"provisioning": {"scim", "identity provider", "group"},
+		"sso":          {"oidc", "saml", "entra", "okta", "google"},
+		"passkeys":     {"passkey", "webauthn", "2fa", "mfa", "security key", "login"},
 		"settings":     {"configuration", "config", "option", "preference"},
+		"logs":         {"audit", "log", "trail", "record"},
 		"start":        {"help", "documentation", "docs", "guide", "getting started"},
-		"playground":   {"api", "rest", "endpoint", "json"},
 		"profile":      {"me", "my account", "sign out", "session"},
 	}
 	out := make([]find.Destination, 0, len(destinations))

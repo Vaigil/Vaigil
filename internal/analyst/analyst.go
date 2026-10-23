@@ -32,9 +32,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/decide"
-	"github.com/quilzo/quilzo/internal/finding"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/decide"
+	"github.com/quilzo/vaigil/internal/finding"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Step is one thing the plan reads.

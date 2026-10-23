@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/finding"
-	"github.com/quilzo/quilzo/internal/out"
-	"github.com/quilzo/quilzo/internal/spool"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/finding"
+	"github.com/quilzo/vaigil/internal/out"
+	"github.com/quilzo/vaigil/internal/spool"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // A rule a real estate would run: a failed sign-in to a privileged account.

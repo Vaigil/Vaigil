@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/workforce"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/workforce"
 )
 
 // Reconciling people and devices across the systems that each hold a
@@ -187,7 +187,7 @@ func workforceCoverage(root string, args []string) error {
 		w.Human("  %s%s was not joined on: %s%s\n", yellow, email, why, reset)
 	}
 	if n := len(r.Propose()); n > 0 {
-		w.Human("\n  %s%d match(es) to confirm: quilzo workforce propose%s\n",
+		w.Human("\n  %s%d match(es) to confirm: vaigil workforce propose%s\n",
 			dim, n, reset)
 	}
 	return nil
@@ -218,7 +218,7 @@ func workforcePropose(root string, args []string) error {
 		// Every proposal states what would make it wrong, because a
 		// suggestion without one is accepted in a batch of forty unread.
 		w.Human("  %sit is wrong if: %s%s\n", yellow, p.Doubt, reset)
-		w.Human("  %squilzo workforce link %s %s --because \"...\"%s\n",
+		w.Human("  %svaigil workforce link %s %s --because \"...\"%s\n",
 			dim, p.A.String(), p.B.String(), reset)
 	}
 	return nil
@@ -234,7 +234,7 @@ func workforceLink(root string, args []string) error {
 	}
 	if len(pos) != 2 {
 		return fmt.Errorf(
-			"usage: quilzo workforce link ISSUER:VALUE ISSUER:VALUE " +
+			"usage: vaigil workforce link ISSUER:VALUE ISSUER:VALUE " +
 				"--because \"...\"")
 	}
 	a, err := contactID(pos[0])
@@ -256,7 +256,7 @@ func workforceLink(root string, args []string) error {
 	}
 	// Merging two people's records reports one person's device compliance as
 	// another's. The same authority as publishing.
-	if err := authorise(root, caller, auth.ActPublish, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
 		return err
 	}
 	if err := os.MkdirAll(workforceDir(root), 0o700); err != nil {

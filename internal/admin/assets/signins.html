@@ -23,6 +23,22 @@
     <td><form method="post" action="/security/signins/unlock"><input type="hidden" name="person" value="{{.Person}}"><button type="submit" class="btn-text">Unlock</button></form></td></tr>{{end}}</tbody>
 </table></div>{{else}}<p>Nobody is locked out.</p>{{end}}
 
+{{if .Throttled}}
+<h2>Being slowed down</h2>
+<p class="hint">{{len .Throttled}} source{{if ne (len .Throttled) 1}}s{{end}} failed to sign in
+   repeatedly and {{if eq (len .Throttled) 1}}is{{else}}are{{end}} being slowed down. They are stored scrambled, so only
+   the numbers are shown. The delay doubles and decays, and the ceiling holds until the hour passes.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th scope="col">Failures</th><th scope="col">Over</th><th scope="col">Next attempt in</th><th scope="col">State</th></tr></thead>
+  <tbody>{{range .Throttled}}<tr>
+    <td>{{.Failures}}</td>
+    <td>{{.Since}}</td>
+    <td>{{if .RetryIn}}{{.RetryIn}}{{else}}<span class="hint">now</span>{{end}}</td>
+    <td>{{if .Locked}}<span class="tag tag-bad">locked out</span>{{else if .Alerted}}<span class="tag tag-warn">past the alert threshold</span>{{else}}<span class="tag">delayed</span>{{end}}</td>
+  </tr>{{end}}</tbody>
+</table></div>
+{{end}}
+
 <h2>Recent</h2>
 {{if .NoHistory}}<p class="notice bad">{{.NoHistory}}</p>{{else if .Rows}}<div class="table-wrap"><table>
   <thead><tr><th scope="col">Person</th><th scope="col">When</th><th scope="col">From</th><th scope="col">Device</th><th scope="col">Risk</th><th scope="col">Why</th></tr></thead>

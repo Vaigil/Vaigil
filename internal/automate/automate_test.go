@@ -106,6 +106,14 @@ func TestWatchAndAskDoNothingUntilAPersonSays(t *testing.T) {
 	if _, err := e.Decide(run.ID, true, "lee"); err == nil {
 		t.Error("a run was approved twice")
 	}
+	// Whoever wrote the rule may decline what it holds, and not approve it.
+	out, _ = e.Handle(ev)
+	if _, err := e.Decide(out.Runs[0].ID, true, "boss"); err == nil || !strings.Contains(err.Error(), "wrote") {
+		t.Errorf("the rule's author approved its run: %v", err)
+	}
+	if _, err := e.Decide(out.Runs[0].ID, false, "boss"); err != nil {
+		t.Errorf("the rule's author could not decline: %v", err)
+	}
 }
 
 // Past its hourly limit, a rule watches instead of acting, and says so.

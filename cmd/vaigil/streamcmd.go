@@ -14,16 +14,16 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auditstream"
-	"github.com/quilzo/quilzo/internal/fetch"
-	"github.com/quilzo/quilzo/internal/upkeep"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auditstream"
+	"github.com/quilzo/vaigil/internal/fetch"
+	"github.com/quilzo/vaigil/internal/upkeep"
 )
 
 // The audit log pushed to a SIEM as it is written (internal/auditstream):
-// `quilzo siem stream`, and the round quilzo serve runs.
+// `vaigil siem stream`, and the round vaigil serve runs.
 
-// StreamEvery is how often quilzo serve sends what is waiting.
+// StreamEvery is how often vaigil serve sends what is waiting.
 const StreamEvery = 15 * time.Second
 
 func streamKeyPath(root string) string    { return filepath.Join(root, "stream.key") }
@@ -85,7 +85,7 @@ func streamSender(root string) (*auditstream.Sender, error) {
 		CursorPath: streamCursorPath(root), Reveal: cfg.Bool("siem.stream.reveal")}, nil
 }
 
-// streamJob sends what is waiting; quilzo serve runs it every StreamEvery.
+// streamJob sends what is waiting; vaigil serve runs it every StreamEvery.
 // Read afresh each round, so setting siem.stream.url starts it and clearing
 // it stops it without a restart.
 func streamJob(root string) upkeep.Job {
@@ -100,7 +100,7 @@ func streamJob(root string) upkeep.Job {
 	}}
 }
 
-// cmdSiemStream is `quilzo siem stream status | key | send`.
+// cmdSiemStream is `vaigil siem stream status | key | send`.
 func cmdSiemStream(root string, args []string) error {
 	if len(args) == 0 {
 		args = []string{"status"}
@@ -137,7 +137,7 @@ func cmdSiemStream(root string, args []string) error {
 			if w.JSON(map[string]any{"set": false}) {
 				return nil
 			}
-			w.Human("no stream is set; quilzo config set siem.stream.url https://...\n")
+			w.Human("no stream is set; vaigil config set siem.stream.url https://...\n")
 			return nil
 		}
 		c, err := s.Status()
@@ -163,7 +163,7 @@ func cmdSiemStream(root string, args []string) error {
 			return err
 		}
 		if s == nil {
-			return errors.New("no stream is set; quilzo config set siem.stream.url https://...")
+			return errors.New("no stream is set; vaigil config set siem.stream.url https://...")
 		}
 		n, err := s.Push(context.Background(), time.Now())
 		if err != nil {
@@ -172,5 +172,5 @@ func cmdSiemStream(root string, args []string) error {
 		w.Human("sent %d record(s)\n", n)
 		return nil
 	}
-	return errors.New("usage: quilzo siem stream [status] | key | send")
+	return errors.New("usage: vaigil siem stream [status] | key | send")
 }

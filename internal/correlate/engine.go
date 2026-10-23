@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Seen is one event that matched one of the correlated rules.

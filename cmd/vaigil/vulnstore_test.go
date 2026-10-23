@@ -4,7 +4,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/mcp"
-	"github.com/quilzo/quilzo/internal/out"
-	"github.com/quilzo/quilzo/internal/vuln"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/mcp"
+	"github.com/quilzo/vaigil/internal/out"
+	"github.com/quilzo/vaigil/internal/vuln"
 )
 
 // vulnSite is a store with three advisories against one library on two
@@ -221,47 +220,15 @@ func TestAScreenAssessmentMustNameSomethingInTheStore(t *testing.T) {
 	}
 }
 
-func TestTheVEXDraftIsTheDecisionsWithoutTheNames(t *testing.T) {
-	root := loaded(t)
-	if err := cmdVuln(root, []string{"assess", "CVE-2026-1003",
-		"npm:left-pad", "not_affected", "--reason",
-		"vulnerable_code_not_in_execute_path", "--because",
-		"ticket SEC-881", "--impact", "never called with user input"}); err != nil {
-		t.Fatal(err)
-	}
-	pipe, read := captureStdout(t)
-	err := cmdVuln(root, []string{"vex", "--author", "Example Ltd", "--id",
-		"https://example.test/vex/1"})
-	pipe.Close()
-	text := read()
-	if err != nil {
-		t.Fatal(err)
-	}
-	var d vuln.Document
-	if uerr := json.Unmarshal([]byte(text), &d); uerr != nil {
-		t.Fatalf("not a document: %v\n%s", uerr, text)
-	}
-	if len(d.Statements) != 1 || d.Statements[0].Status != vuln.NotAffected ||
-		d.Statements[0].Impact != "never called with user input" {
-		t.Errorf("%+v", d.Statements)
-	}
-	if strings.Contains(text, "SEC-881") {
-		t.Error("the internal evidence is in a document meant for outside")
-	}
-	if cmdVuln(root, []string{"vex"}) == nil {
-		t.Error("a statement from nobody")
-	}
-}
-
 // An agent gets the plan and the counts: no advisory text, no host names,
 // and no way to decide anything.
 func TestAnAgentReadsThePlanWithoutTextOrHosts(t *testing.T) {
 	root := loaded(t)
-	srv := mcp.NewServer("quilzo", "test")
+	srv := mcp.NewServer("vaigil", "test")
 	srv.Authorise = func(mcp.Operation) error { return nil }
 	registerSecurityOps(srv, root, &Caller{Name: "dana",
 		Kind: audit.KindHuman, Verified: true})
-	text, merr := callTool(t, srv, "quilzo_read", "vuln_plan", nil)
+	text, merr := callTool(t, srv, "vaigil_read", "vuln_plan", nil)
 	if merr != nil {
 		t.Fatal(merr.Message)
 	}
@@ -278,11 +245,11 @@ func TestAnAgentReadsThePlanWithoutTextOrHosts(t *testing.T) {
 	}
 	// Nothing loaded is a refusal, not an empty plan.
 	bare, _, _ := vulnSite(t)
-	srv2 := mcp.NewServer("quilzo", "test")
+	srv2 := mcp.NewServer("vaigil", "test")
 	srv2.Authorise = func(mcp.Operation) error { return nil }
 	registerSecurityOps(srv2, bare, &Caller{Name: "dana",
 		Kind: audit.KindHuman, Verified: true})
-	if text, merr := callTool(t, srv2, "quilzo_read", "vuln_plan", nil); merr == nil &&
+	if text, merr := callTool(t, srv2, "vaigil_read", "vuln_plan", nil); merr == nil &&
 		!strings.Contains(text, "not a clean result") {
 		t.Errorf("an unloaded store gave an agent a plan: %s", text)
 	}

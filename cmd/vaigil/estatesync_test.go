@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/mcp"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/mcp"
 )
 
 // vantaStore is a store with the Vanta connector installed and a fake Vanta
@@ -49,7 +49,7 @@ func vantaStore(t *testing.T) (string, *int) {
 	}
 	for name, v := range map[string]string{"vanta-client-id": "vci",
 		"vanta-client-secret": "vcs"} {
-		t.Setenv("QUILZO_CONNECT_SECRET", v)
+		t.Setenv("VAIGIL_CONNECT_SECRET", v)
 		if err := cmdConnect(root, []string{"secret", name}); err != nil {
 			t.Fatal(err)
 		}
@@ -154,11 +154,11 @@ func TestAnAgentGetsTheEstateInNumbersOnly(t *testing.T) {
 	if err := cmdEstate(root, []string{"sync"}); err != nil {
 		t.Fatal(err)
 	}
-	srv := mcp.NewServer("quilzo", "test")
+	srv := mcp.NewServer("vaigil", "test")
 	srv.Authorise = func(mcp.Operation) error { return nil }
 	registerEstateOps(srv, root, &Caller{Name: "dana", Kind: audit.KindHuman,
 		Verified: true})
-	text, merr := callTool(t, srv, "quilzo_read", "estate_summary", nil)
+	text, merr := callTool(t, srv, "vaigil_read", "estate_summary", nil)
 	if merr != nil {
 		t.Fatal(merr.Message)
 	}

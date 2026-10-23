@@ -15,14 +15,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/atomicfile"
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/connector"
-	"github.com/quilzo/quilzo/internal/source"
-	"github.com/quilzo/quilzo/internal/spool"
-	"github.com/quilzo/quilzo/internal/telemetry"
-	"github.com/quilzo/quilzo/internal/upkeep"
+	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/connector"
+	"github.com/quilzo/vaigil/internal/source"
+	"github.com/quilzo/vaigil/internal/spool"
+	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/upkeep"
 )
 
 // Collection: the part between a platform's log and the event store.
@@ -155,7 +155,7 @@ func findSource(root, name string) (source.Source, error) {
 		}
 	}
 	return source.Source{}, fmt.Errorf("there is no mapping for %q; "+
-		"quilzo source list shows them", name)
+		"vaigil source list shows them", name)
 }
 
 var sourceFileName = func(s source.Source) string {
@@ -172,7 +172,7 @@ func sourceAdd(root string, args []string) error {
 		return err
 	}
 	if len(pos) != 1 || *sample == "" {
-		return fmt.Errorf("usage: quilzo source add MAPPING.json --sample " +
+		return fmt.Errorf("usage: vaigil source add MAPPING.json --sample " +
 			"RECORDS.json\n  a mapping is only installed once it has " +
 			"mapped real records")
 	}
@@ -234,7 +234,7 @@ func sourceAdd(root string, args []string) error {
 		w.Human("%s%s/%s%s is installed: it mapped %d of %d sample "+
 			"record(s)\n", bold, s.Issuer, s.Stream, reset, batch.Mapped,
 			batch.Records)
-		w.Human("  %sstore its events with quilzo collect file %s/%s FILE%s\n",
+		w.Human("  %sstore its events with vaigil collect file %s/%s FILE%s\n",
 			dim, s.Issuer, s.Stream, reset)
 	}
 	return nil
@@ -518,7 +518,7 @@ func collectAll(root string, names []string, caller *Caller,
 		}
 		for n := range want {
 			return nil, unmapped, fmt.Errorf("%s is not a source a "+
-				"connector is installed for; quilzo collect status lists "+
+				"connector is installed for; vaigil collect status lists "+
 				"them", n)
 		}
 		todo = kept
@@ -615,7 +615,7 @@ func cmdCollect(root string, args []string) error {
 		}
 		if len(sts) == 0 {
 			w.Human("No connector that produces events is installed. " +
-				"quilzo connect catalogue lists them; okta, entra, github " +
+				"vaigil connect catalogue lists them; okta, entra, github " +
 				"and evm read logs.\n")
 		}
 		printCollect(sts)
@@ -646,7 +646,7 @@ func statusWithoutDigests(in []collectStatus) []collectStatus {
 
 func collectFile(root string, args []string) error {
 	if len(args) != 2 {
-		return fmt.Errorf("usage: quilzo collect file ISSUER/STREAM FILE")
+		return fmt.Errorf("usage: vaigil collect file ISSUER/STREAM FILE")
 	}
 	caller := resolveCaller(root, flagToken)
 	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
@@ -741,8 +741,8 @@ func collectShow(root string) error {
 	}
 	if len(rows) == 0 {
 		w.Human("Nothing is collected. Install a connector that reads a " +
-			"log (quilzo connect add okta|entra|github|evm), or store a " +
-			"file with quilzo collect file.\n")
+			"log (vaigil connect add okta|entra|github|evm), or store a " +
+			"file with vaigil collect file.\n")
 		return nil
 	}
 	now := time.Now().UTC()
@@ -760,7 +760,7 @@ func collectShow(root string) error {
 		w.Human("\n  %sread every %s while the server runs%s\n", dim,
 			sched.Every, reset)
 	} else {
-		w.Human("\n  %snot scheduled: quilzo collect auto 15m%s\n", dim, reset)
+		w.Human("\n  %snot scheduled: vaigil collect auto 15m%s\n", dim, reset)
 	}
 	return nil
 }
@@ -791,7 +791,7 @@ func loadCollectSchedule(root string) (collectSchedule, error) {
 
 func collectAuto(root string, args []string) error {
 	if len(args) != 1 {
-		return fmt.Errorf("usage: quilzo collect auto 15m|1h|off")
+		return fmt.Errorf("usage: vaigil collect auto 15m|1h|off")
 	}
 	caller := resolveCaller(root, flagToken)
 	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {

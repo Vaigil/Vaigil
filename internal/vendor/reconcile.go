@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/connector"
-	"github.com/quilzo/quilzo/internal/finding"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/connector"
+	"github.com/quilzo/vaigil/internal/finding"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Comparing the register against the credentials that actually exist.

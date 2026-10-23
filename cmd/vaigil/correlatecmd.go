@@ -9,8 +9,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/correlate"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/correlate"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Detections that are about several events rather than one.

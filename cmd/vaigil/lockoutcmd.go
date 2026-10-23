@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/lockout"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/lockout"
 )
 
 // Smart lockout at the admin's door (internal/lockout), from the command
@@ -21,10 +21,10 @@ func lockoutStore(root string) *lockout.Store {
 	return &lockout.Store{Path: filepath.Join(root, "lockout.json")}
 }
 
-// authUnlock is `quilzo auth unlock NAME`.
+// authUnlock is `vaigil auth unlock NAME`.
 func authUnlock(root string, args []string) error {
 	if len(args) != 1 || strings.HasPrefix(args[0], "-") {
-		return errors.New("usage: quilzo auth unlock NAME")
+		return errors.New("usage: vaigil auth unlock NAME")
 	}
 	name := args[0]
 	caller := resolveCaller(root, "")

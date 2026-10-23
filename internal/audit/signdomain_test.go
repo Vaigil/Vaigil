@@ -59,3 +59,32 @@ func TestTheSignedMessageCarriesItsContext(t *testing.T) {
 			"signed cannot be told apart from what it replaced")
 	}
 }
+
+// Heads another program signed in its own context verify only in that
+// context, and a head signed here is not one of them.
+func TestAHeadVerifiesOnlyInTheContextItWasSignedIn(t *testing.T) {
+	ed, ml, err := GenerateHeadSeeds()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := NewHeadSigner(ed, ml)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sh, err := s.Sign(Head{Size: 3, Root: "ab", At: "2026-10-22T00:00:00Z"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	edPub, mlPub := s.Verifier().PublicKeys()
+	other, err := NewHeadVerifierIn("quilzo/audit-head/v1", edPub, mlPub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sh.KeyID = ""
+	if err := other.Verify(sh); err == nil {
+		t.Error("a head signed in this program's context verified in another's")
+	}
+	if err := s.Verifier().Verify(sh); err != nil {
+		t.Errorf("a head did not verify in its own context: %v", err)
+	}
+}

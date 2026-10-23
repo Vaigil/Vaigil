@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
+	"github.com/quilzo/vaigil/internal/audit"
 )
 
 func writer(t *testing.T) (string, *audit.Log, string) {

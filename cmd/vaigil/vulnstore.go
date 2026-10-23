@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/atomicfile"
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/vuln"
+	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/vuln"
 )
 
 // The vulnerability queue, kept in the store.
@@ -227,11 +227,11 @@ func vulnLoad(root string, args []string) error {
 		return err
 	}
 	if *advPath == "" && *invPath == "" {
-		return fmt.Errorf("usage: quilzo vuln load [--advisories FILE] " +
+		return fmt.Errorf("usage: vaigil vuln load [--advisories FILE] " +
 			"[--inventory FILE]")
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActPublish, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActAssess, auth.AreaSecurity); err != nil {
 		return err
 	}
 	detail := map[string]string{}
@@ -269,7 +269,7 @@ func vulnLoad(root string, args []string) error {
 	if *invPath != "" {
 		w.Human("%s%d component(s)%s stored\n", bold, components, reset)
 	}
-	w.Human("  %sreplaces what was there; quilzo vuln plan says what to "+
+	w.Human("  %sreplaces what was there; vaigil vuln plan says what to "+
 		"change%s\n", dim, reset)
 	return nil
 }
@@ -354,7 +354,7 @@ func vulnAccept(root string, args []string) error {
 		return err
 	}
 	if len(pos) != 2 {
-		return fmt.Errorf("usage: quilzo vuln accept CVE-ID " +
+		return fmt.Errorf("usage: vaigil vuln accept CVE-ID " +
 			"ECOSYSTEM:PACKAGE --owner WHO --until DATE --because \"...\"")
 	}
 	parsed, perr := time.Parse("2006-01-02", strings.TrimSpace(*until))
@@ -371,7 +371,7 @@ func vulnAccept(root string, args []string) error {
 		Owner:   strings.TrimSpace(*owner),
 		Because: strings.TrimSpace(*because),
 		Until:   parsed.UTC().Add(24*time.Hour - time.Second)}
-	if err := authorise(root, caller, auth.ActPublish, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActAssess, auth.AreaSecurity); err != nil {
 		return err
 	}
 	if err := recordAssessment(root, a, false); err != nil {
@@ -400,7 +400,7 @@ func vulnPlan(root string, args []string) error {
 	}
 	if len(v.Inventory) == 0 || len(v.Advisories) == 0 {
 		return fmt.Errorf("nothing is loaded, so there is nothing to plan " +
-			"and that is not a clean bill. quilzo vuln load --advisories " +
+			"and that is not a clean bill. vaigil vuln load --advisories " +
 			"FILE --inventory FILE")
 	}
 	ups := vuln.Upgrades(v.Live(), v.Advisories, at)

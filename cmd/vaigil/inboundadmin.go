@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/quilzo/quilzo/internal/admin"
-	"github.com/quilzo/quilzo/internal/inbound"
+	"github.com/quilzo/vaigil/internal/admin"
+	"github.com/quilzo/vaigil/internal/inbound"
 )
 
 var feedKindWords = map[string]string{

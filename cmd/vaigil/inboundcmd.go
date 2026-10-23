@@ -12,15 +12,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/fetch"
-	"github.com/quilzo/quilzo/internal/inbound"
-	"github.com/quilzo/quilzo/internal/ssf"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/fetch"
+	"github.com/quilzo/vaigil/internal/inbound"
+	"github.com/quilzo/vaigil/internal/ssf"
 )
 
 func inboundUsage() error {
-	return fmt.Errorf("usage: quilzo inbound list | status NAME | add okta NAME | " +
+	return fmt.Errorf("usage: vaigil inbound list | status NAME | add okta NAME | " +
 		"add webhook NAME --mapping ISSUER/STREAM [--github] | " +
 		"add ssf NAME --issuer URL --url https://YOUR-ADMIN [--alias okta] | " +
 		"connect NAME --client-id ID [--token-url URL] | verify NAME | " +
@@ -32,7 +32,7 @@ func inboundUsage() error {
 func signalsClient() *fetch.Client {
 	c := fetch.New()
 	c.Purpose = "signals"
-	c.UserAgent = "quilzo/1 (+shared signals receiver)"
+	c.UserAgent = "vaigil/1 (+shared signals receiver)"
 	return c
 }
 
@@ -72,7 +72,7 @@ func cmdInbound(root string, args []string) error {
 			return nil
 		}
 		if len(feeds) == 0 {
-			w.Human("  no feeds; quilzo inbound help says how to add one\n")
+			w.Human("  no feeds; vaigil inbound help says how to add one\n")
 		}
 		for _, n := range feedNames(feeds) {
 			f := feeds[n]
@@ -149,24 +149,24 @@ func inboundHelp() error {
   system reports something").
 
   Okta event hooks
-    quilzo inbound add okta okta
+    vaigil inbound add okta okta
     Then in Okta: Workflow, Event Hooks, Create: the URL it prints, the
     Authorization header with the secret it prints, and the events to send
     (sign-ins, lifecycle, sessions, MFA, risk). Okta verifies the address
     once; this answers.
 
   Anything that signs webhooks (Standard Webhooks, or GitHub)
-    quilzo source add billing.json --sample records.jsonl
-    quilzo inbound add webhook billing --mapping billing/admin
-    quilzo inbound add webhook github --mapping github/audit --github
+    vaigil source add billing.json --sample records.jsonl
+    vaigil inbound add webhook billing --mapping billing/admin
+    vaigil inbound add webhook github --mapping github/audit --github
 
   OpenID Shared Signals (Okta, Google, Jamf, any SSF 1.0 transmitter)
-    quilzo inbound add ssf okta-signals --issuer https://acme.okta.com \
+    vaigil inbound add ssf okta-signals --issuer https://acme.okta.com \
         --url https://admin.acme.example --alias okta
-    QUILZO_CONNECT_SECRET=... quilzo inbound connect okta-signals --client-id 0oa...
+    VAIGIL_CONNECT_SECRET=... vaigil inbound connect okta-signals --client-id 0oa...
     The client is one the transmitter issued with the ssf.manage and
     ssf.read scopes. connect asks for the stream and for a verification
-    event; quilzo inbound status shows when it arrived.
+    event; vaigil inbound status shows when it arrived.
 `)
 	return nil
 }
@@ -244,7 +244,7 @@ func makeFeed(root, kind, name string, opts map[string]string, by string) (inbou
 			f.Kind = inbound.GitHub
 		}
 		if opts["mapping"] == "" {
-			return f, nil, fmt.Errorf("a webhook's records need a mapping: --mapping ISSUER/STREAM (quilzo source list)")
+			return f, nil, fmt.Errorf("a webhook's records need a mapping: --mapping ISSUER/STREAM (vaigil source list)")
 		}
 		if _, err := findSource(root, opts["mapping"]); err != nil {
 			return f, nil, err
@@ -325,7 +325,7 @@ func inboundConnect(root, verb, name string, rest []string,
 	}
 	f, ok := m[name]
 	if !ok || f.Kind != inbound.SSF {
-		return fmt.Errorf("%q is not a shared signals feed (quilzo inbound list)", name)
+		return fmt.Errorf("%q is not a shared signals feed (vaigil inbound list)", name)
 	}
 	clientID, tokenURL := "", ""
 	for i := 0; i+1 < len(rest); i += 2 {
@@ -345,7 +345,7 @@ func inboundConnect(root, verb, name string, rest []string,
 	credName := feedSecretName(name) + "-client"
 	// The client secret is read from the environment the first time and kept
 	// sealed, so verify and remove can ask the transmitter again.
-	if v := os.Getenv("QUILZO_CONNECT_SECRET"); v != "" && clientID != "" {
+	if v := os.Getenv("VAIGIL_CONNECT_SECRET"); v != "" && clientID != "" {
 		if _, err := storeSecret(root, credName, clientID+"\n"+v); err != nil {
 			return err
 		}
@@ -353,7 +353,7 @@ func inboundConnect(root, verb, name string, rest []string,
 	}
 	cred := strings.SplitN(secrets[credName], "\n", 2)
 	if len(cred) != 2 {
-		return fmt.Errorf("no client to ask the transmitter with: give --client-id, with the secret in QUILZO_CONNECT_SECRET")
+		return fmt.Errorf("no client to ask the transmitter with: give --client-id, with the secret in VAIGIL_CONNECT_SECRET")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -379,7 +379,7 @@ func inboundConnect(root, verb, name string, rest []string,
 		if push == "" {
 			return fmt.Errorf("the push secret for %s is missing; remove and add the feed again", name)
 		}
-		s, err := t.CreateStream(ctx, h, token, f.Audience, "Bearer "+push, "Quilzo: "+name, ssf.Requested)
+		s, err := t.CreateStream(ctx, h, token, f.Audience, "Bearer "+push, "Vaigil: "+name, ssf.Requested)
 		if err != nil {
 			return err
 		}
@@ -399,7 +399,7 @@ func inboundConnect(root, verb, name string, rest []string,
 		_ = note("inbound.stream-created", name, map[string]string{"stream": s.ID})
 	}
 	if f.StreamID == "" {
-		return fmt.Errorf("%s has no stream yet; quilzo inbound connect %s makes one", name, name)
+		return fmt.Errorf("%s has no stream yet; vaigil inbound connect %s makes one", name, name)
 	}
 	state := randomState()
 	if err := changeFeed(root, name, func(x *inbound.Feed) error { x.State = inbound.Digest(state); return nil }); err != nil {
@@ -415,7 +415,7 @@ func inboundConnect(root, verb, name string, rest []string,
 		}
 		w.Human("the transmitter says the stream is %s\n", st)
 	}
-	w.Human("verification asked for; quilzo inbound status %s shows when it arrives\n", name)
+	w.Human("verification asked for; vaigil inbound status %s shows when it arrives\n", name)
 	return note("inbound.verify-requested", name, nil)
 }
 

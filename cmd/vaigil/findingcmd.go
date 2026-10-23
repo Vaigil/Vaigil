@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/finding"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/finding"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Deciding about a finding, and reading back what was decided.
@@ -58,7 +58,7 @@ func findingDecide(root string, args []string) error {
 	}
 	if len(pos) != 2 {
 		return fmt.Errorf(
-			"usage: quilzo finding decide ID STATE [--because ... --until ...]\n" +
+			"usage: vaigil finding decide ID STATE [--because ... --until ...]\n" +
 				"  states: open, triaged, accepted, fixed, stale, " +
 				"false-positive, benign")
 	}
@@ -80,11 +80,13 @@ func findingDecide(root string, args []string) error {
 	if err := d.Validate(); err != nil {
 		return err
 	}
-	// Authorised as a publish. Deciding a risk is acceptable is a statement
-	// the organisation stands behind, which is the same weight as putting
-	// something in front of the public — and a far heavier one than editing
-	// a draft.
-	if err := authorise(root, caller, auth.ActPublish, "/"); err != nil {
+	// An analyst triages. Accepting a risk takes a responder: deciding a
+	// risk is acceptable is a statement the organisation stands behind.
+	need := auth.ActTriage
+	if d.To == finding.Accepted {
+		need = auth.ActRespond
+	}
+	if err := authorise(root, caller, need, auth.AreaSecurity); err != nil {
 		return err
 	}
 	// Recorded before anything is printed. record() refuses a detail key
@@ -172,7 +174,7 @@ func findingList(root string, args []string) error {
 		return err
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActView, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActView, auth.AreaSecurity); err != nil {
 		return err
 	}
 	queue, err := loadQueue(root, time.Now().UTC())

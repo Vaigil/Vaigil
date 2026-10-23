@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/atomicfile"
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/vuln"
+	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/vuln"
 )
 
 // SSVC in the store: the decision table CERT/CC publishes, loaded from
@@ -141,12 +141,12 @@ func removeAssetTag(root string, caller *Caller, match string) error {
 
 func vulnTree(root string, args []string) error {
 	if len(args) != 1 {
-		return fmt.Errorf("usage: quilzo vuln ssvc-tree FILE\n" +
+		return fmt.Errorf("usage: vaigil vuln ssvc-tree FILE\n" +
 			"  the deployer decision table CERT/CC publishes as a CSV, in " +
 			"its SSVC repository under data/csv/ssvc")
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActPublish, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActAssess, auth.AreaSecurity); err != nil {
 		return err
 	}
 	b, err := readBounded(args[0], 1<<20)
@@ -170,7 +170,7 @@ func vulnTree(root string, args []string) error {
 	if !w.JSON(map[string]any{"rows": len(tree)}) {
 		w.Human("%sthe decision table is loaded%s: %d combinations\n", bold,
 			reset, len(tree))
-		w.Human("  %stag assets with quilzo vuln asset, or every decision "+
+		w.Human("  %stag assets with vaigil vuln asset, or every decision "+
 			"is a range%s\n", dim, reset)
 	}
 	return nil
@@ -187,11 +187,11 @@ func vulnAsset(root string, args []string) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return fmt.Errorf("usage: quilzo vuln asset ISSUER:VALUE|PREFIX* " +
+		return fmt.Errorf("usage: vaigil vuln asset ISSUER:VALUE|PREFIX* " +
 			"--exposure open --impact high --because \"…\"")
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActPublish, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActAssess, auth.AreaSecurity); err != nil {
 		return err
 	}
 	if *remove {

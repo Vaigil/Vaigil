@@ -1,16 +1,7 @@
-# CodeQL, with a toolchain it can actually build with.
-#
-# This was GitHub's default setup until August 2026, and it stopped working the
-# day go.mod moved to Go 1.27: CodeQL's autobuilder ships its own Go — 1.26.5 at
-# the time — and runs it with GOTOOLCHAIN=local, so it cannot fetch the newer
-# release the module requires. The failure reads as "we were unable to
-# automatically build your code", which is true and says nothing about why.
-#
-# Advanced setup fixes it by taking the build away from the autobuilder: Go is
-# installed first at the version go.mod asks for, the database is built in
-# manual mode from a plain `go build`, and CodeQL analyses what that produced.
-# The cost is a file to maintain; the benefit is that the toolchain is a
-# decision made here rather than whatever the scanner happened to bundle.
+# CodeQL, built with the Go release go.mod names: Go is installed first, the
+# database is built in manual mode from a plain `go build`, and CodeQL analyses
+# what that produced, rather than the toolchain the scanner bundles.
+
 name: CodeQL
 
 on:

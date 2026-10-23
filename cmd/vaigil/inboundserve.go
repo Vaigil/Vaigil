@@ -17,17 +17,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/atomicfile"
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/automate"
-	"github.com/quilzo/quilzo/internal/fetch"
-	"github.com/quilzo/quilzo/internal/inbound"
-	"github.com/quilzo/quilzo/internal/oidc"
-	"github.com/quilzo/quilzo/internal/source"
-	"github.com/quilzo/quilzo/internal/spool"
-	"github.com/quilzo/quilzo/internal/ssf"
-	"github.com/quilzo/quilzo/internal/telemetry"
-	"github.com/quilzo/quilzo/internal/upkeep"
+	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/automate"
+	"github.com/quilzo/vaigil/internal/fetch"
+	"github.com/quilzo/vaigil/internal/inbound"
+	"github.com/quilzo/vaigil/internal/oidc"
+	"github.com/quilzo/vaigil/internal/source"
+	"github.com/quilzo/vaigil/internal/spool"
+	"github.com/quilzo/vaigil/internal/ssf"
+	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/upkeep"
 )
 
 // Events pushed to the server, the moment they happen.
@@ -89,10 +89,10 @@ func detectAs(root string, sp *spool.Spool, name string) (int, error) {
 	return len(sum.New), nil
 }
 
-// detectJob runs the rules over Quilzo's own log on the server's timer.
+// detectJob runs the rules over Vaigil's own log on the server's timer.
 //
-// The rules about Quilzo itself, what agents did and the correlations
-// across them ran when somebody typed `quilzo detect run`, when a feed
+// The rules about Vaigil itself, what agents did and the correlations
+// across them ran when somebody typed `vaigil detect run`, when a feed
 // pushed events, or when scheduled collection brought some in. An
 // installation that governs agents and collects from nowhere ran none of
 // them, and nothing was checked in a quiet hour even where collection was
@@ -161,7 +161,7 @@ func changeFeed(root, name string, fn func(*inbound.Feed) error) error {
 	}
 	f, ok := m[name]
 	if !ok {
-		return fmt.Errorf("there is no feed %q (quilzo inbound list)", name)
+		return fmt.Errorf("there is no feed %q (vaigil inbound list)", name)
 	}
 	if err := fn(&f); err != nil {
 		return err
@@ -264,7 +264,7 @@ const queueCap = 10_000
 func newInboundServer(root string) *inboundServer {
 	c := fetch.New()
 	c.Purpose = "signals"
-	c.UserAgent = "quilzo/1 (+shared signals receiver)"
+	c.UserAgent = "vaigil/1 (+shared signals receiver)"
 	s := &inboundServer{root: root, now: time.Now, keyClient: c, receivers: map[string]cachedReceiver{},
 		rate: map[string]*rateWindow{}, work: make(chan struct{}, 1)}
 	if st, err := loadFeedStatus(root); err == nil {

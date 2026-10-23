@@ -5,7 +5,7 @@
 <p class="lead">People sign in through your organisation's identity provider: Okta,
   Microsoft Entra ID, Google Workspace or any other that speaks SAML 2.0 or OpenID
   Connect. The provider proves who somebody is; what they may do here is still
-  decided on <a href="/access">Access</a> and <a href="/provisioning">Provisioning</a>.</p>
+  decided on <a href="/people">People</a> and <a href="/provisioning">Provisioning</a>.</p>
 
 {{if .Unavailable}}<p class="notice bad">{{.Unavailable}}</p>{{else}}
 
@@ -17,7 +17,7 @@
     anybody in as anybody, so compare its fingerprint with the one your identity
     provider's admin console shows, and type it back to confirm.</p>
   <ul class="fp-list">{{range .Fingerprints}}<li><code>{{.}}</code></li>{{end}}</ul>
-  {{if .WantsSigned}}<p>The metadata asks for signed requests. Quilzo sends unsigned ones,
+  {{if .WantsSigned}}<p>The metadata asks for signed requests. Vaigil sends unsigned ones,
     so turn that requirement off for this application at the provider. Every response is
     still checked against the request this browser made, which a signature would add nothing to.</p>{{end}}
   <form method="post" action="/sso/act" class="card">
@@ -69,7 +69,7 @@
       {{range .Presets}}<option value="{{.Key}}">{{.Label}}</option>{{end}}
       <option value="">Another SAML 2.0 provider</option>
     </select>
-    <details id="where" class="help astable"><summary>Where to set Quilzo up in each<span class="chev">{{icon "expand_more"}}</span></summary>
+    <details id="where" class="help astable"><summary>Where to set Vaigil up in each<span class="chev">{{icon "expand_more"}}</span></summary>
       <ul class="where-list">{{range .Presets}}<li><strong>{{.Label}}</strong>: {{.Where}}</li>{{end}}</ul></details></div>
   <div class="field"><label for="sname">Name here {{template "req"}}</label>
     <input id="sname" name="name" required pattern="[a-z][a-z0-9\-]{0,39}" aria-describedby="sname-help">
@@ -99,6 +99,6 @@
 
 <h2>OpenID Connect</h2>
 <p>{{if .OIDC}}Signing in with {{if .OIDCLabel}}{{.OIDCLabel}}{{else}}your organisation's provider{{end}} is set up{{with .OIDCDomains}}, for {{.}}{{end}}.{{else}}Not set up.{{end}}
-  It is configured with <code>quilzo oidc configure</code>; see <a href="/integrations">Integrations</a>.</p>
+  It is configured with <code>vaigil oidc configure</code>.</p>
 {{end}}
 {{template "foot" .}}

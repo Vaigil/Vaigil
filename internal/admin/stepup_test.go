@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
+	"github.com/quilzo/vaigil/internal/auth"
 )
 
 // A sign-in a rule judged unlike its person reaches nothing but "confirm
@@ -42,25 +42,25 @@ func TestASteppedUpSessionReachesNothingUntilLetIn(t *testing.T) {
 	}
 	var session string
 	for _, c := range rec.Result().Cookies() {
-		if c.Name == "quilzo_token" {
+		if c.Name == "vaigil_token" {
 			session = c.Value
 		}
 	}
 	as := func(method, path, body string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest(method, path, strings.NewReader(body))
-		r.AddCookie(&http.Cookie{Name: "quilzo_token", Value: session})
+		r.AddCookie(&http.Cookie{Name: "vaigil_token", Value: session})
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		r.Header.Set("Sec-Fetch-Site", "same-origin")
 		w := httptest.NewRecorder()
 		srv.Handler().ServeHTTP(w, r)
 		return w
 	}
-	for _, path := range []string{"/", "/people", "/security/signins"} {
+	for _, path := range []string{"/today", "/people", "/security/signins"} {
 		if w := as(http.MethodGet, path, ""); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/signin/verify" {
 			t.Errorf("%s answered %d %q", path, w.Code, w.Header().Get("Location"))
 		}
 	}
-	if w := as(http.MethodPost, "/save", "name=index"); w.Code != http.StatusForbidden {
+	if w := as(http.MethodPost, "/people/grant", "principal=x&role=viewer&resource=/"); w.Code != http.StatusForbidden {
 		t.Errorf("a write answered %d", w.Code)
 	}
 	page := as(http.MethodGet, "/signin/verify", "")
@@ -78,7 +78,7 @@ func TestASteppedUpSessionReachesNothingUntilLetIn(t *testing.T) {
 		t.Fatal("no session is marked")
 	}
 	as(http.MethodPost, "/security/signins/act", "do=letin&session="+id)
-	if w := as(http.MethodGet, "/", ""); w.Code != http.StatusSeeOther {
+	if w := as(http.MethodGet, "/today", ""); w.Code != http.StatusSeeOther {
 		t.Error("the session let itself in")
 	}
 	// Another administrator sees her waiting, and lets her in.
@@ -87,7 +87,7 @@ func TestASteppedUpSessionReachesNothingUntilLetIn(t *testing.T) {
 		t.Error("the waiting session is not listed")
 	}
 	postForm(t, srv, "/security/signins/act", adminToken, "do=letin&session="+id)
-	if w := as(http.MethodGet, "/", ""); w.Code != http.StatusOK {
+	if w := as(http.MethodGet, "/today", ""); w.Code != http.StatusOK {
 		t.Errorf("let in, she still gets %d", w.Code)
 	}
 }
@@ -97,7 +97,7 @@ func TestASteppedUpSessionReachesNothingUntilLetIn(t *testing.T) {
 func TestASignInNobodyJudgedGoesStraightIn(t *testing.T) {
 	srv, token := setup(t)
 	srv.SignInRisk = func(SignInFacts) SignInVerdict { return SignInVerdict{} }
-	if w := get(t, srv, "/", token); w.Code != http.StatusOK {
+	if w := get(t, srv, "/today", token); w.Code != http.StatusOK {
 		t.Fatalf("/ answered %d", w.Code)
 	}
 	if body := get(t, srv, "/signin/verify", token).Body.String(); !strings.Contains(body, "nothing to confirm") {
@@ -132,7 +132,7 @@ func TestAStepUpThatCannotBeRecordedRefusesTheSignIn(t *testing.T) {
 		t.Fatalf("the sign-in went to %q", loc)
 	}
 	for _, c := range rec.Result().Cookies() {
-		if c.Name == "quilzo_token" && c.Value != "" && c.MaxAge > 0 {
+		if c.Name == "vaigil_token" && c.Value != "" && c.MaxAge > 0 {
 			t.Error("a session cookie was set")
 		}
 	}
@@ -163,7 +163,7 @@ func TestConfirmingASessionNeverUsesEmail(t *testing.T) {
 	}
 	as := func(method, path string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest(method, path, strings.NewReader(""))
-		r.AddCookie(&http.Cookie{Name: "quilzo_token", Value: secret})
+		r.AddCookie(&http.Cookie{Name: "vaigil_token", Value: secret})
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		r.Header.Set("Sec-Fetch-Site", "same-origin")
 		w := httptest.NewRecorder()
@@ -181,7 +181,7 @@ func TestConfirmingASessionNeverUsesEmail(t *testing.T) {
 	}
 	for i := 0; i < 3; i++ {
 		r := httptest.NewRequest(http.MethodPost, "/signin/passkey/verify", nil)
-		r.AddCookie(&http.Cookie{Name: "quilzo_token", Value: secret})
+		r.AddCookie(&http.Cookie{Name: "vaigil_token", Value: secret})
 		srv.stepUpFailed(r)
 	}
 	if len(signals) != 1 || signals[0] != "ada@example.com verification-failing" {
@@ -220,13 +220,13 @@ func TestASessionUsedSomewhereElseIsCaught(t *testing.T) {
 	srv.Handler().ServeHTTP(rec, req)
 	var session string
 	for _, c := range rec.Result().Cookies() {
-		if c.Name == "quilzo_token" {
+		if c.Name == "vaigil_token" {
 			session = c.Value
 		}
 	}
 	from := func(addr, agent string) *httptest.ResponseRecorder {
-		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.AddCookie(&http.Cookie{Name: "quilzo_token", Value: session})
+		r := httptest.NewRequest(http.MethodGet, "/today", nil)
+		r.AddCookie(&http.Cookie{Name: "vaigil_token", Value: session})
 		r.Header.Set("User-Agent", agent)
 		r.RemoteAddr = addr + ":5000"
 		w := httptest.NewRecorder()
@@ -251,7 +251,7 @@ func TestASessionUsedSomewhereElseIsCaught(t *testing.T) {
 	var reported []string
 	srv.Reported = func(who, sess string) { reported = append(reported, who) }
 	r := httptest.NewRequest(http.MethodPost, "/signin/verify/report", nil)
-	r.AddCookie(&http.Cookie{Name: "quilzo_token", Value: session})
+	r.AddCookie(&http.Cookie{Name: "vaigil_token", Value: session})
 	r.Header.Set("Sec-Fetch-Site", "same-origin")
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, r)
@@ -273,8 +273,8 @@ func TestASessionOnAnotherDeviceIsCaught(t *testing.T) {
 		return SessionContext{Device: "a script on another system", Country: "GB"}
 	}
 	srv.SessionMovedTo = func(m SessionMove) SignInVerdict { return SignInVerdict{StepUp: true, Reason: "moved"} }
-	r := httptest.NewRequest(http.MethodGet, "/", nil)
-	r.AddCookie(&http.Cookie{Name: "quilzo_token", Value: secret})
+	r := httptest.NewRequest(http.MethodGet, "/today", nil)
+	r.AddCookie(&http.Cookie{Name: "vaigil_token", Value: secret})
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, r)
 	if w.Code != http.StatusSeeOther {

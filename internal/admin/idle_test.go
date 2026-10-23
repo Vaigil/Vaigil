@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/config"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/config"
 )
 
 func withSettings(t *testing.T, srv *Server, values map[string]string) {
@@ -30,7 +30,7 @@ func sessionCookie(t *testing.T, srv *Server, token string) *http.Cookie {
 	t.Helper()
 	w := signInPost(srv, token)
 	for _, c := range w.Result().Cookies() {
-		if c.Name == "quilzo_token" && c.Value != "" {
+		if c.Name == "vaigil_token" && c.Value != "" {
 			return c
 		}
 	}
@@ -77,10 +77,10 @@ func TestASessionNobodyUsesEnds(t *testing.T) {
 	person := map[string]string{"Sec-Fetch-Mode": "navigate", "Sec-Fetch-User": "?1"}
 	itself := map[string]string{"Sec-Fetch-Mode": "navigate"}
 
-	if w := browse(srv, http.MethodGet, "/", c, person); w.Code != http.StatusOK {
+	if w := browse(srv, http.MethodGet, "/today", c, person); w.Code != http.StatusOK {
 		t.Fatalf("first use: %d", w.Code)
 	}
-	if body := browse(srv, http.MethodGet, "/", c, person).Body.String(); !strings.Contains(body, `name="quilzo-idle" content="600"`) {
+	if body := browse(srv, http.MethodGet, "/today", c, person).Body.String(); !strings.Contains(body, `name="vaigil-idle" content="600"`) {
 		t.Fatal("the page is not told the idle period, so it cannot warn")
 	}
 
@@ -89,7 +89,7 @@ func TestASessionNobodyUsesEnds(t *testing.T) {
 	srv.idle.mu.Lock()
 	srv.idle.last[srv.idle.anyID()] = time.Now().Add(-9 * time.Minute)
 	srv.idle.mu.Unlock()
-	if w := browse(srv, http.MethodGet, "/", c, itself); w.Code != http.StatusOK {
+	if w := browse(srv, http.MethodGet, "/today", c, itself); w.Code != http.StatusOK {
 		t.Fatalf("a refresh within the period: %d", w.Code)
 	}
 	if w := browse(srv, http.MethodPost, "/session/alive", c, nil); w.Code != http.StatusNoContent {
@@ -107,16 +107,16 @@ func TestASessionNobodyUsesEnds(t *testing.T) {
 	srv.idle.mu.Lock()
 	srv.idle.last[srv.idle.anyID()] = time.Now().Add(-11 * time.Minute)
 	srv.idle.mu.Unlock()
-	w := browse(srv, http.MethodGet, "/", c, itself)
+	w := browse(srv, http.MethodGet, "/today", c, itself)
 	if w.Code != http.StatusSeeOther || !strings.Contains(w.Header().Get("Location"), "e=idle") {
 		t.Fatalf("an idle session was not ended: %d %s", w.Code, w.Header().Get("Location"))
 	}
-	if w := browse(srv, http.MethodGet, "/", c, person); w.Code == http.StatusOK {
+	if w := browse(srv, http.MethodGet, "/today", c, person); w.Code == http.StatusOK {
 		t.Fatal("the ended session still works")
 	}
 
 	// A program holding a token in a header is not a browser left open.
-	if w := get(t, srv, "/", token); w.Code != http.StatusOK {
+	if w := get(t, srv, "/today", token); w.Code != http.StatusOK {
 		t.Fatalf("a bearer token was signed out for idling: %d", w.Code)
 	}
 }
@@ -134,10 +134,10 @@ func (c *idleClock) anyID() string {
 // with no settings at all.
 func TestWhoCanGrantAccessIsSignedOutSooner(t *testing.T) {
 	srv, token := tokenSignIn(t)
-	if err := srv.Policy.Grant(auth.Binding{Principal: "pat", Role: auth.RoleAuthor, Resource: "/"}); err != nil {
+	if err := srv.Policy.Grant(auth.Binding{Principal: "pat", Role: auth.RoleAnalyst, Resource: "/"}); err != nil {
 		t.Fatal(err)
 	}
-	pat, _, err := srv.Tokens.Issue("p", "pat", auth.RoleAuthor, "/", time.Hour, auth.RoleAdmin)
+	pat, _, err := srv.Tokens.Issue("p", "pat", auth.RoleAnalyst, "/", time.Hour, auth.RoleAdmin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,8 +156,8 @@ func TestWhoCanGrantAccessIsSignedOutSooner(t *testing.T) {
 		if c.settings != nil {
 			withSettings(t, srv, c.settings)
 		}
-		body := browse(srv, http.MethodGet, "/", sessionCookie(t, srv, c.token), person).Body.String()
-		if !strings.Contains(body, `name="quilzo-idle" `+c.want) || !strings.Contains(body, `name="quilzo-who"`) {
+		body := browse(srv, http.MethodGet, "/today", sessionCookie(t, srv, c.token), person).Body.String()
+		if !strings.Contains(body, `name="vaigil-idle" `+c.want) || !strings.Contains(body, `name="vaigil-who"`) {
 			t.Errorf("%v: wanted %s", c.settings, c.want)
 		}
 	}
@@ -170,12 +170,12 @@ func TestWhoCanGrantAccessIsSignedOutSooner(t *testing.T) {
 		ends  bool
 	}{{token, true}, {pat, false}} {
 		cookie := sessionCookie(t, srv, c.token)
-		browse(srv, http.MethodGet, "/", cookie, person)
+		browse(srv, http.MethodGet, "/today", cookie, person)
 		tok, _ := srv.Tokens.Authenticate(cookie.Value, time.Now())
 		srv.idle.mu.Lock()
 		srv.idle.last[tok.ID] = time.Now().Add(-16 * time.Minute)
 		srv.idle.mu.Unlock()
-		w := browse(srv, http.MethodGet, "/", cookie, person)
+		w := browse(srv, http.MethodGet, "/today", cookie, person)
 		if ended := strings.Contains(w.Header().Get("Location"), "e=idle"); ended != c.ends {
 			t.Errorf("%s after sixteen minutes: %d %s", tok.Principal, w.Code, w.Header().Get("Location"))
 		}

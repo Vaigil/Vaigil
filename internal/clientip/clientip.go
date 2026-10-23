@@ -2,17 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package clientip decides who a request came from, once, for everything
-// that keys on it: rate limits, sign-in placement, the audit log's source
-// handle, and the shield's blocks.
-//
-// It used to be decided six ways. The admin and the public site each read
-// X-Forwarded-For behind a yes/no setting, with Header.Get, which returns
-// only the first header line; the API, forms, SCIM and studio read the
-// connection. Behind a proxy that meant the limits keyed on the proxy (one
-// bucket for the whole internet), and where the header was believed it was
-// believed from anybody who could reach the port, so a caller chose their
-// own address. A block keyed one way and a signal keyed another would never
-// meet.
+// that keys on it: rate limits, lockout, sign-in placement and the audit
+// log's source handle.
 //
 // # The rule
 //
@@ -64,7 +55,7 @@ type Client struct {
 	// Internal marks a request every hop of which was a named proxy: one
 	// from inside, which nothing should block.
 	Internal bool
-	// Unverified marks a client the shield must not act on by its address
+	// Unverified marks a client nothing must act on by its address
 	// alone: a connection carrying a forwarded address from a peer that
 	// was not named as a proxy (it may be a CDN edge everybody shares), or
 	// an address forwarded by a proxy only assumed to be one because it is

@@ -25,7 +25,7 @@ func TestNoAuthorisationHookRefusesEverything(t *testing.T) {
 		func(map[string]any) (any, error) { return "the whole draft", nil })
 
 	r := call(t, s, "tools/call", callParams{
-		Name: "quilzo_read", Arguments: map[string]any{"operation": "peek"}})
+		Name: "vaigil_read", Arguments: map[string]any{"operation": "peek"}})
 	if r.Error == nil {
 		t.Fatal("an operation ran with no authorisation hook wired")
 	}
@@ -52,7 +52,7 @@ func TestARefusedOperationIsNotRetryable(t *testing.T) {
 		func(map[string]any) (any, error) { return "components", nil })
 
 	r := call(t, s, "tools/call", callParams{
-		Name: "quilzo_read", Arguments: map[string]any{"operation": "inventory"}})
+		Name: "vaigil_read", Arguments: map[string]any{"operation": "inventory"}})
 	if r.Error == nil {
 		t.Fatal("the hook refused and the operation ran anyway")
 	}
@@ -83,7 +83,7 @@ func TestTheHookRunsBeforeTheHandler(t *testing.T) {
 		})
 
 	call(t, s, "tools/call", callParams{
-		Name: "quilzo_read", Arguments: map[string]any{"operation": "peek"}})
+		Name: "vaigil_read", Arguments: map[string]any{"operation": "peek"}})
 	if ran {
 		t.Error("the handler ran despite the refusal, so it had already read " +
 			"whatever the gate was protecting")

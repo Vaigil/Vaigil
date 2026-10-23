@@ -8,9 +8,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/estate"
-	"github.com/quilzo/quilzo/internal/mcp"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/estate"
+	"github.com/quilzo/vaigil/internal/mcp"
 )
 
 // The estate, for an agent: in aggregate, and never by name.
@@ -24,7 +24,7 @@ import (
 // at all.
 func registerEstateOps(srv *mcp.Server, root string, caller *Caller) {
 	srv.Register(mcp.Operation{
-		Name: "estate_summary", NeedsRole: "admin",
+		Name: "estate_summary", NeedsRole: "admin", Area: auth.AreaSecurity,
 		Summary: "how many people are at each level of risk, where, and what " +
 			"could not be checked — numbers only, no names",
 		Detail: "Built from the company's tools as last read: bands, the " +

@@ -8,20 +8,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
+	"github.com/quilzo/vaigil/internal/auth"
 )
 
 // Keeping a long-running server's credentials current.
 //
-// The store is one directory shared by several processes: the admin, the
-// public site, and every CLI invocation. Each loaded the token file once at
-// startup, so revoking a credential through the admin left the site accepting
-// it until that process restarted — and "revoked" became a claim about a file
-// rather than a fact about a credential.
-//
-// Found by running two containers against one volume and revoking a token in
-// the first while the second kept answering 200. A single-process test cannot
-// see it, because there is only ever one copy of the store in memory.
+// The store is one directory shared by the server and every command-line
+// invocation, and a credential revoked by one has to stop working in the
+// other without a restart.
 //
 // A stat rather than a watch. fsnotify is a dependency this program does not
 // have, and a poll on a timer has a staleness window by construction. A stat

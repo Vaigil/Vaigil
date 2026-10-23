@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/quilzo/quilzo/internal/audit"
+	"github.com/quilzo/vaigil/internal/audit"
 )
 
 // No audit record names a Detail key the log will refuse.

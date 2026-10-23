@@ -53,7 +53,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/quilzo/quilzo/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/atomicfile"
 )
 
 // Kind is what shape of answer a question takes.

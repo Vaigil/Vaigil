@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/telemetry"
-	"github.com/quilzo/quilzo/internal/vuln"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/vuln"
 )
 
 // wireVulns gives the server three advisories against one library on two
@@ -186,33 +186,33 @@ func TestADecisionOnTheScreenIsAPersonsAndHasItsEdges(t *testing.T) {
 	}
 }
 
-func TestOnlyAnAdministratorSeesOrDecidesVulnerabilities(t *testing.T) {
+// An analyst reads the vulnerability queue and decides nothing in it:
+// deciding takes assess, which a vulnerability manager holds.
+func TestAnAnalystReadsVulnerabilitiesAndDecidesNone(t *testing.T) {
 	srv, _ := setup(t)
 	said := wireVulns(srv)
 	if err := srv.Policy.Grant(auth.Binding{Principal: "writer",
-		Role: auth.RoleAuthor, Resource: "/"}); err != nil {
+		Role: auth.RoleAnalyst, Resource: "/"}); err != nil {
 		t.Fatal(err)
 	}
-	secret, _, err := srv.Tokens.IssueSession("w", "writer", auth.RoleAuthor, "/",
+	secret, _, err := srv.Tokens.IssueSession("w", "writer", auth.RoleAnalyst, "/",
 		time.Hour, auth.RoleAdmin, auth.MethodPasskey)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, path := range []string{"/security/vulns", "/security/vuln/CVE-2026-1001"} {
-		w := get(t, srv, path, secret)
-		if body := w.Body.String(); w.Code == 200 ||
-			strings.Contains(body, "LAPTOP") || strings.Contains(body, "left-pad") {
-			t.Errorf("an author opened %s: %d", path, w.Code)
+		if w := get(t, srv, path, secret); w.Code != 200 {
+			t.Errorf("an analyst cannot read %s: %d", path, w.Code)
 		}
 	}
 	w := postForm(t, srv, "/security/vulns/act", secret, url.Values{
 		"do": {"fixed"}, "advisory": {"CVE-2026-1001"},
 		"component": {"npm:left-pad"}, "because": {"x"}}.Encode())
 	if strings.HasPrefix(w.Header().Get("Location"), "/security/vuln/") {
-		t.Error("an author's decision got as far as being considered")
+		t.Error("an analyst's decision got as far as being considered")
 	}
 	if len(*said) != 0 {
-		t.Error("an author decided a vulnerability does not apply")
+		t.Error("an analyst decided a vulnerability does not apply")
 	}
 }
 

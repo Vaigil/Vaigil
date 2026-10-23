@@ -13,20 +13,14 @@ import (
 // Article 34(3)(c): the public communication, when telling people one at a
 // time is not possible.
 //
-// # Why this belongs in a CMS and nowhere else
+// # Why it is a page for the site, and not sent from here
 //
-// Every incident-communication product builds a status page. This one already
-// publishes pages: content-addressed, hash-chained, with an accessibility
-// gate, a provenance gate and a two-person approval path in front of them.
-// The public communication is a page, and it goes through all of that.
-//
-// That is not a shortcut avoided. Article 34(3)(c) permits a public
-// communication only where the data subjects are informed "in an equally
-// effective manner", and a notice page that fails an accessibility check is
-// not equally effective for somebody reading it with a screen reader. Routing
-// it through the ordinary publish path is how the legal test is met, so
-// `notify publish` writes a draft and stops, and `quilzo publish` does what
-// it does for every other page.
+// Article 34(3)(c) permits a public communication only where the data
+// subjects are informed "in an equally effective manner", and a notice page
+// that fails an accessibility check is not equally effective for somebody
+// reading it with a screen reader. So `notify publish` writes the page's
+// fields to a file and stops, and the site the people were told about
+// publishes it through the same checks as every other page.
 //
 // # What a public notice must never contain
 //
@@ -56,7 +50,7 @@ func PageFields() []string {
 		"published"}
 }
 
-// Page renders a notice as a page for the content store.
+// Page renders a notice as the fields of a page for a site.
 func (n Notice) Page(at time.Time) (map[string]any, error) {
 	if leaked := n.Leaks(); leaked != "" {
 		return nil, fmt.Errorf(

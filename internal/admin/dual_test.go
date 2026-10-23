@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/config"
-	"github.com/quilzo/quilzo/internal/dual"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/config"
+	"github.com/quilzo/vaigil/internal/dual"
 )
 
 // On the People screen, making somebody an administrator waits for a
@@ -66,12 +66,12 @@ func TestAWeakerSettingOnTheScreenTakesTwo(t *testing.T) {
 	srv.Settings = &Settings{
 		Load: func() (*config.Config, error) { return config.Parse(saved) },
 		Save: func(c *config.Config) error { b, err := c.Bytes(); saved = b; return err }}
-	weaken := url.Values{"key": {"publish.require_a11y"}, "value": {"false"}, "reason": {"a migration"}}.Encode()
+	weaken := url.Values{"key": {"siem.stream.reveal"}, "value": {"true"}, "reason": {"the SIEM holds names already"}}.Encode()
 	if w := postForm(t, srv, "/settings/save", editor, weaken); w.Code != http.StatusSeeOther {
 		t.Fatalf("alone: %d", w.Code)
 	}
 	cfg, _ := srv.Settings.Load()
-	if cfg.Bool("publish.require_a11y") {
+	if !cfg.Bool("siem.stream.reveal") {
 		t.Fatal("the only administrator could not weaken a setting")
 	}
 	saved = []byte("{}")
@@ -79,7 +79,7 @@ func TestAWeakerSettingOnTheScreenTakesTwo(t *testing.T) {
 		t.Fatal(err)
 	}
 	postForm(t, srv, "/settings/save", editor, weaken)
-	if cfg, _ := srv.Settings.Load(); !cfg.Bool("publish.require_a11y") {
+	if cfg, _ := srv.Settings.Load(); cfg.Bool("siem.stream.reveal") {
 		t.Fatal("a weaker setting took effect on one administrator's word")
 	}
 	pend, _ := srv.Dual.Store.Pending(time.Now())
@@ -88,7 +88,7 @@ func TestAWeakerSettingOnTheScreenTakesTwo(t *testing.T) {
 	}
 	lee, _, _ := srv.Tokens.IssueSession("lee", "lee", auth.RoleAdmin, "/", time.Hour, auth.RoleAdmin, auth.MethodPasskey)
 	postForm(t, srv, "/people/pending", lee, url.Values{"id": {pend[0].ID}, "do": {"approve"}}.Encode())
-	if cfg, _ := srv.Settings.Load(); cfg.Bool("publish.require_a11y") {
+	if cfg, _ := srv.Settings.Load(); !cfg.Bool("siem.stream.reveal") {
 		t.Fatal("approved, and the setting did not change")
 	}
 }

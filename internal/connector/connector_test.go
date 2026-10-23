@@ -716,13 +716,13 @@ func TestAHeaderNameWithALineBreakIsRefused(t *testing.T) {
 func TestBasicAuthSendsTheNamedUser(t *testing.T) {
 	s := serve(t, func(w http.ResponseWriter, r *http.Request) {
 		user, pass, ok := r.BasicAuth()
-		if !ok || user != "quilzo" || pass != "s3cret" {
+		if !ok || user != "vaigil" || pass != "s3cret" {
 			t.Errorf("basic auth was %q/%q (%v)", user, pass, ok)
 		}
 		w.Write(page(nil, nil))
 	})
 	m := people()
-	m.Auth = Auth{Kind: Basic, Secret: "kandji-token", User: "quilzo"}
+	m.Auth = Auth{Kind: Basic, Secret: "kandji-token", User: "vaigil"}
 	if _, err := Run(context.Background(), m, "devices", dialTo(t, s),
 		secrets(), State{}, noSleep); err != nil {
 		t.Fatal(err)

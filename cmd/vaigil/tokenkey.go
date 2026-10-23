@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/atomicfile"
-	"github.com/quilzo/quilzo/internal/dpop"
+	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/dpop"
 )
 
 // A program's own key, for tokens bound to it (see internal/dpop). The key
@@ -33,11 +33,11 @@ type privateJWK struct {
 	D   string `json:"d"`
 }
 
-// tokenKeygen is `quilzo token keygen FILE`: a P-256 key in FILE, readable
+// tokenKeygen is `vaigil token keygen FILE`: a P-256 key in FILE, readable
 // by its owner only, and its public half in FILE.pub.
 func tokenKeygen(args []string) error {
 	if len(args) != 1 {
-		return errors.New("usage: quilzo token keygen FILE")
+		return errors.New("usage: vaigil token keygen FILE")
 	}
 	if _, err := os.Stat(args[0]); err == nil {
 		return fmt.Errorf("%s exists; a key is not overwritten", args[0])
@@ -67,7 +67,7 @@ func tokenKeygen(args []string) error {
 	}
 	w.Human("wrote %s (the key, keep it with the program) and %s.pub (its public half)\n", args[0], args[0])
 	w.Human("  thumbprint %s\n", thumb)
-	w.Human("  %sbind a token to it: quilzo token issue NAME --principal WHO --key %s.pub%s\n", dim, args[0], reset)
+	w.Human("  %sbind a token to it: vaigil token issue NAME --principal WHO --key %s.pub%s\n", dim, args[0], reset)
 	return nil
 }
 
@@ -79,7 +79,7 @@ func readKey(path string) (*ecdsa.PrivateKey, error) {
 	}
 	var k privateJWK
 	if err := json.Unmarshal(raw, &k); err != nil || k.Kty != "EC" || k.Crv != "P-256" || k.D == "" {
-		return nil, fmt.Errorf("%s is not a P-256 key made by quilzo token keygen", path)
+		return nil, fmt.Errorf("%s is not a P-256 key made by vaigil token keygen", path)
 	}
 	num := func(s string) (*big.Int, error) {
 		b, err := base64.RawURLEncoding.DecodeString(s)
@@ -115,11 +115,11 @@ func publicKeyThumbprint(path string) (string, error) {
 	return dpop.Thumbprint(raw)
 }
 
-// tokenProof is `quilzo token proof --key FILE --url URL [--method M]
+// tokenProof is `vaigil token proof --key FILE --url URL [--method M]
 // [--presenting T]`: one DPoP proof, for a script calling with curl.
 func tokenProof(args []string) error {
 	fs := flag.NewFlagSet("token proof", flag.ContinueOnError)
-	keyFile := fs.String("key", "", "the key file from quilzo token keygen")
+	keyFile := fs.String("key", "", "the key file from vaigil token keygen")
 	url := fs.String("url", "", "the address the request goes to, such as https://admin.example/mcp")
 	method := fs.String("method", "POST", "the request's method")
 	token := fs.String("presenting", "", "the token the request presents; empty for an exchange")
@@ -127,7 +127,7 @@ func tokenProof(args []string) error {
 		return err
 	}
 	if *keyFile == "" || *url == "" {
-		return errors.New("usage: quilzo token proof --key FILE --url URL [--method POST] [--presenting TOKEN]")
+		return errors.New("usage: vaigil token proof --key FILE --url URL [--method POST] [--presenting TOKEN]")
 	}
 	key, err := readKey(*keyFile)
 	if err != nil {

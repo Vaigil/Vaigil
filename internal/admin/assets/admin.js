@@ -1,4 +1,4 @@
-// Quilzo admin: the one script.
+// Vaigil admin: the one script.
 //
 // Everything here is an addition. Every screen works with it switched off,
 // because a browser that blocks it, a policy that forbids it, or a person who
@@ -299,10 +299,10 @@
   // again with their passkey without leaving the page, so nothing on it
   // is lost. Only the person the page was theirs carries on with it.
   (function () {
-    var meta = document.querySelector('meta[name="quilzo-idle"]');
+    var meta = document.querySelector('meta[name="vaigil-idle"]');
     var idle = meta ? parseInt(meta.content, 10) * 1000 : 0;
     if (!(idle > 0)) return;
-    var whoMeta = document.querySelector('meta[name="quilzo-who"]');
+    var whoMeta = document.querySelector('meta[name="vaigil-who"]');
     var who = whoMeta ? whoMeta.content : "";
     var told = Date.now(), used = told, warning = null, ended = false;
     function close() {

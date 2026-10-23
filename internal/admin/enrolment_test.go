@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/enrol"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/enrol"
 )
 
 // enrol runs the ceremony an enrolment page runs, with the link's secret.
@@ -78,7 +78,7 @@ func TestALinkAddsOnePasskeyForThePersonItNames(t *testing.T) {
 		t.Fatalf("signing in with the enrolled passkey: %d %s", w.Code, w.Body)
 	}
 	session := cookieFrom(w)
-	if g := get(t, srv, "/", session); g.Code != http.StatusOK {
+	if g := get(t, srv, "/today", session); g.Code != http.StatusOK {
 		t.Errorf("the passkey's session does not reach the admin: %d", g.Code)
 	}
 }
@@ -87,20 +87,12 @@ func TestALinkAddsOnePasskeyForThePersonItNames(t *testing.T) {
 // while the admin is locked down.
 func TestALinkThatNamesNothingOpensNothing(t *testing.T) {
 	srv := enrolling(t)
-	w := get(t, srv, "/enrol/qzenrol_made-up", "")
+	w := get(t, srv, "/enrol/vgenrol_made-up", "")
 	if w.Code != http.StatusNotFound || strings.Contains(w.Body.String(), "dana") {
 		t.Errorf("a made-up link: %d", w.Code)
 	}
-	if w := postJSON(t, srv, "/enrol/challenge", "", map[string]any{"secret": "qzenrol_made-up"}); w.Code != http.StatusNotFound {
+	if w := postJSON(t, srv, "/enrol/challenge", "", map[string]any{"secret": "vgenrol_made-up"}); w.Code != http.StatusNotFound {
 		t.Errorf("a made-up link was given a challenge: %d", w.Code)
-	}
-	secret, _, err := srv.Enrol.Issue("dana", "editor", time.Hour, time.Now())
-	if err != nil {
-		t.Fatal(err)
-	}
-	srv.EnrolBlocked = func(time.Time) string { return "the admin is locked down" }
-	if w := postJSON(t, srv, "/enrol/challenge", "", map[string]any{"secret": secret}); w.Code != http.StatusServiceUnavailable {
-		t.Errorf("a link worked during a lockdown: %d", w.Code)
 	}
 }
 
@@ -108,7 +100,7 @@ func TestALinkThatNamesNothingOpensNothing(t *testing.T) {
 // another's: the key would be bound to whoever the second link names.
 func TestAChallengeFromOneLinkDoesNotFinishAnother(t *testing.T) {
 	srv := enrolling(t)
-	if err := srv.Policy.Grant(auth.Binding{Principal: "erin", Role: auth.RoleAuthor, Resource: "/"}); err != nil {
+	if err := srv.Policy.Grant(auth.Binding{Principal: "erin", Role: auth.RoleAnalyst, Resource: "/"}); err != nil {
 		t.Fatal(err)
 	}
 	danaLink, _, _ := srv.Enrol.Issue("dana", "editor", time.Hour, time.Now())
@@ -136,7 +128,7 @@ func TestAChallengeFromOneLinkDoesNotFinishAnother(t *testing.T) {
 func TestTheLinkIsGivenFromThePeopleScreen(t *testing.T) {
 	srv2, admin := fullyWired(t)
 	srv2.Enrol = &enrol.Store{Path: filepath.Join(t.TempDir(), "enrolments.json")}
-	if err := srv2.Policy.Grant(auth.Binding{Principal: "dana", Role: auth.RoleAuthor, Resource: "/"}); err != nil {
+	if err := srv2.Policy.Grant(auth.Binding{Principal: "dana", Role: auth.RoleAnalyst, Resource: "/"}); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(get(t, srv2, "/people", admin).Body.String(), "/people/enrol") {

@@ -11,10 +11,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/quilzo/quilzo/internal/atomicfile"
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/detect"
+	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/detect"
 )
 
 // The starter pack, installed as files.
@@ -58,12 +58,12 @@ func detectPack(root string, args []string) error {
 			w.Human("  %s%-36s%s %s%s\n", bold, r.ID, reset, r.Title, note)
 		}
 		w.Human("\n  %s%d rule(s), and correlations across platforms. "+
-			"quilzo detect pack install copies them into the rules "+
+			"vaigil detect pack install copies them into the rules "+
 			"directory, where they are yours to tune%s\n", dim, len(rows), reset)
 		return nil
 	}
 	if args[0] != "install" {
-		return fmt.Errorf("usage: quilzo detect pack [list | install " +
+		return fmt.Errorf("usage: vaigil detect pack [list | install " +
 			"[--rules DIR]]")
 	}
 	fs := flag.NewFlagSet("install", flag.ContinueOnError)
@@ -72,7 +72,7 @@ func detectPack(root string, args []string) error {
 		return err
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActTune, auth.AreaSecurity); err != nil {
 		return err
 	}
 	dir := *rulesAt
@@ -95,7 +95,7 @@ func detectPack(root string, args []string) error {
 	}
 	w.Human("%s%d file(s) added%s to %s; %d already there and left alone\n",
 		bold, added, reset, dir, kept)
-	w.Human("  %sthey run on the next quilzo detect run. A rule for a "+
+	w.Human("  %sthey run on the next vaigil detect run. A rule for a "+
 		"platform you do not collect matches nothing and costs nothing%s\n",
 		dim, reset)
 	return nil
@@ -127,9 +127,9 @@ func installPack(dir string) (added, kept int, err error) {
 
 // ensureRules gives a store the shipped rules when it has none of its own.
 //
-// The rules about Quilzo itself (an administrator made, break-glass used,
+// The rules about Vaigil itself (an administrator made, break-glass used,
 // the audit log moved, a setting weakened, an agent allowed to publish)
-// used to run only after somebody learned to type `quilzo detect pack
+// used to run only after somebody learned to type `vaigil detect pack
 // install`, so an installation set up the obvious way watched nothing,
 // while the page about watching itself said it read its log continuously.
 // A store with no rules directory now starts with the pack, copied as

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/xmldsig"
+	"github.com/quilzo/vaigil/internal/xmldsig"
 )
 
 // Responses shaped as Okta, Entra ID, Keycloak and Google shape theirs,

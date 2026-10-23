@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Known is the mapping for each platform most estates already have.

@@ -3,19 +3,12 @@
 
 // Package telemetry is the event a detection reads and a log arrives as.
 //
-// # Why this is not the content store
+// # Why it is not in the audit chain
 //
-// internal/form already makes this argument once, about form submissions, and
-// every word of it applies here twice over:
-//
-//	A submission is personal data. Somebody has a right to have it erased,
-//	and an append-only merkle store cannot erase anything.
-//
-// Telemetry is that, plus volume. The content store verifies a SHA-256 on
-// every read and takes the ref lock on every write, which is exactly right for
-// a page somebody publishes and absurd for a million authentication events an
-// hour. So events live in their own store, and what goes in the audit chain is
-// the *evidence about* them — which detection fired, who triaged it, what they
+// An event is personal data, which somebody has a right to have erased, and an
+// append-only chain cannot erase anything; and there are a million
+// authentication events an hour. So events live in their own store, and what
+// goes in the audit chain is the *evidence about* them — which detection fired, who triaged it, what they
 // concluded — because that is the part whose integrity anybody will later be
 // asked to prove.
 //

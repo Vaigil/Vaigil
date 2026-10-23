@@ -28,7 +28,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/atomicfile"
 )
 
 // MaxLife is the longest a link may wait to be used.
@@ -36,7 +36,7 @@ const MaxLife = 24 * time.Hour
 
 // Prefix marks an enrolment secret, so one pasted somewhere it does not
 // belong is recognisable for what it is.
-const Prefix = "qzenrol_"
+const Prefix = "vgenrol_"
 
 // ErrNoLink is a secret that names no live link: unknown, used, ended or
 // replaced. Which of those is not said, to whoever presented it.

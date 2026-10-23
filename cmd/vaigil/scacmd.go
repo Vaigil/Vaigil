@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/sca"
+	"github.com/quilzo/vaigil/internal/sca"
 )
 
 // Which dependencies are affected, and which of those anybody can fix.

@@ -12,15 +12,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/clientip"
-	"github.com/quilzo/quilzo/internal/throttle"
+	"github.com/quilzo/vaigil/internal/clientip"
+	"github.com/quilzo/vaigil/internal/throttle"
 )
 
 // Every setting, in one table.
 //
 // A table rather than scattered constants for the same reason the privilege
 // table is one: a knob nobody can find is a knob nobody can audit, and
-// `quilzo config list` has to be able to print all of them. Adding a setting
+// `vaigil config list` has to be able to print all of them. Adding a setting
 // anywhere else in the program is a setting that does not appear here, and a
 // test refuses that.
 //
@@ -90,21 +90,6 @@ var settings = []Setting{
 			"reported.",
 	},
 
-	// -- content -------------------------------------------------------------
-	{
-		Key: "content.review.every", Kind: Duration, Default: "8760h",
-		Summary:  "how long a page may go unchecked before it is listed as due",
-		Controls: []string{"CM-3"},
-		Why: "A year. The history says when a page was last edited, which is a " +
-			"different question: a page nobody has edited in three years is " +
-			"either perfectly accurate or badly out of date, and nothing in " +
-			"the history says which. This is the interval after which somebody " +
-			"is asked to look. A page can name its own; this is the answer for " +
-			"every page that does not.\n" +
-			"Listing a page as due changes nothing about it and blocks nothing. " +
-			"It is a question put to a person, not a gate.",
-	},
-
 	// -- tokens ---------------------------------------------------------------
 	{
 		Key: "token.ttl.default", Kind: Duration, Default: "168h",
@@ -129,26 +114,6 @@ var settings = []Setting{
 			"is longer than most people stay in a role"),
 	},
 	{
-		Key: "token.proof_for_risky", Kind: Bool, Default: "true",
-		Summary:  "from another machine, risky acts need a key-bound token or a short one",
-		Controls: []string{"IA-5", "SC-23"},
-		Why: "A bearer token works for whoever holds a copy. Through the agent " +
-			"interface, the MCP gateway and A2A, publishing, rolling back, " +
-			"granting, managing tokens and agents and installing need a token " +
-			"bound to the program's key and proved on each request (DPoP), or " +
-			"one that lasts an hour or less: an app's consented token or a CI " +
-			"job's token. A session exchanged from a token counts as that " +
-			"token does, so exchanging a copied long-lived token gets round " +
-			"nothing. Reading and drafting take a bearer token, as most " +
-			"clients send.",
-		Weaker: func(v string) (bool, string) {
-			if b, err := strconv.ParseBool(v); err == nil && !b {
-				return true, "a long-lived bearer token copied from a log or a crash dump can publish and administer from anywhere"
-			}
-			return false, ""
-		},
-	},
-	{
 		Key: "token.api.ttl.default", Kind: Duration, Default: "1h",
 		Summary: "default life of a token scoped for API use",
 		Why: "Short, because an API token is issued to a program that can ask " +
@@ -161,7 +126,7 @@ var settings = []Setting{
 	// -- admin sessions ---------------------------------------------------------
 	{
 		Key: "session.max", Kind: Duration, Default: "8h",
-		Summary:  "the longest a sign-in to the admin lasts before signing in again",
+		Summary:  "the longest a sign-in to the console lasts before signing in again",
 		Controls: []string{"AC-12", "IA-11"},
 		Params:   []string{"ac-12_odp"},
 		Why: "Eight hours: a working day. Whatever signed somebody in — a token, a " +
@@ -173,238 +138,24 @@ var settings = []Setting{
 	},
 	{
 		Key: "session.idle", Kind: Duration, Default: "1h",
-		Summary:  "sign out of the admin after this long with nobody using the page",
+		Summary:  "sign out of the console after this long with nobody using the page",
 		Controls: []string{"AC-2(5)", "AC-11", "AC-12"},
 		Params:   []string{"ac-02.05_odp"},
 		Why: "An hour, the most NIST SP 800-63B-4 allows at AAL2, and fifteen minutes " +
 			"for anybody who can grant access. The page reports that somebody is " +
-			"typing, scrolling or clicking, so a person writing a long page is not " +
+			"typing, scrolling or clicking, so a person writing a long note is not " +
 			"signed out; it warns a minute before, keeps them signed in if they " +
 			"answer, and afterwards lets them sign in again with their passkey " +
 			"without leaving the page. Between five minutes and an hour.",
 	},
 
-	// -- the HTTP API ---------------------------------------------------------
-	{
-		Key: "api.rate.per_minute", Kind: Int, Default: "120",
-		Summary:  "requests per minute per token",
-		Controls: []string{"SC-5"},
-		Why: "Enough for a site build to read every page and its items; not " +
-			"enough for one credential to be the load. Raise it for a busy " +
-			"integration, and prefer raising it to turning it off.",
-		Weaker: atMost(6000, "%s a minute is high enough that one token can "+
-			"saturate the server, which is a denial of service with a "+
-			"credential attached"),
-	},
-	{
-		Key: "api.rate.burst", Kind: Int, Default: "20",
-		Summary: "how far a client may run ahead of the steady rate",
-		Why: "A client fetching a listing and then its items in parallel is " +
-			"behaving normally and should not be punished for it.",
-	},
-	{
-		Key: "api.page.max", Kind: Int, Default: "100",
-		Summary: "the largest page size a listing will answer",
-		Why: "Refused rather than clamped when a client asks for more, so a " +
-			"client asking for a thousand does not receive a hundred and " +
-			"believe it has everything.",
-		Weaker: atMost(1000, "a page of %s items is a large response one "+
-			"request can ask for repeatedly"),
-	},
-	{
-		Key: "api.body.max_bytes", Kind: Int, Default: "2097152",
-		Summary: "the largest request body a write will read",
-		Why: "Two megabytes. A page is text; anything larger is a mistake " +
-			"or a probe.\n\nThis said one megabyte and the code enforced " +
-			"two, because nothing read the setting — so the documentation " +
-			"promised a tighter limit than existed and an operator who set " +
-			"it tighter still got two.",
-		Weaker: atMost(16*1024*1024, "%s bytes of request body per call is "+
-			"memory an unauthenticated-until-parsed request can ask for"),
-	},
-
-	// -- gates ----------------------------------------------------------------
-	{
-		Key: "publish.require_a11y", Kind: Bool, Default: "true",
-		Summary:  "block publishing on accessibility failures",
-		Controls: []string{"SI-10"},
-		Why: "ATAG Part B asks that an authoring tool help authors produce " +
-			"accessible content, and a report printed after publishing helps " +
-			"nobody. This is the setting behind --no-a11y-check; turning it " +
-			"off here is the same decision made once instead of per command.",
-		Weaker: offIsWeaker("inaccessible content publishes without anything " +
-			"stopping it, which is a legal exposure in most of the markets " +
-			"this will be sold in"),
-	},
-	{
-		Key: "publish.require_types", Kind: Bool, Default: "true",
-		Summary:  "content must satisfy its bound type before it is stored",
-		Controls: []string{"SI-10"},
-		OWASP:    "A03:2025 Injection",
-		Why: "The store is immutable, so an invalid page that lands in it is " +
-			"in the history for good.",
-		Weaker: offIsWeaker("unvalidated content is stored permanently"),
-	},
-	{
-		Key: "review.required_approvals", Kind: Int, Default: "0",
-		Summary:  "people who must approve a draft before it publishes",
-		Controls: []string{"AC-5", "CM-3"},
-		Why: "Zero means no four-eyes requirement, which is right for a " +
-			"single-author site and wrong for a regulated one. Two is the " +
-			"usual answer where separation of duties is required; authors " +
-			"cannot approve their own work at any setting.",
-		// Raising it is stronger, lowering it to zero is the default. Nothing
-		// to mark.
-	},
-
-	// -- the public site ------------------------------------------------------
-	{
-		Key: "chatbot.questions.per_hour", Kind: Int, Default: "120",
-		Summary:  "how many questions a visitor may ask a chatbot in an hour, at a steady pace",
-		Controls: []string{"SC-5"},
-		Why: "One every thirty seconds on average, after the burst below: a person in a " +
-			"conversation is never held back, and a script asking on repeat is. Counted " +
-			"per signed-in member, or per address for visitors who are not, so an office " +
-			"behind one address shares it — raise it for a site whose visitors are mostly " +
-			"behind one network. The model budget on the Models screen is what caps the cost.",
-		Weaker: atMost(1200, "%s questions an hour per visitor lets one script spend a "+
-			"model budget quickly"),
-	},
-	{
-		Key: "chatbot.questions.burst", Kind: Int, Default: "20",
-		Summary:  "how many questions a visitor may ask at once before the hourly pace applies",
-		Controls: []string{"SC-5"},
-		Why: "Twenty: enough for a conversation that comes in a rush of follow-ups, " +
-			"without letting a script spend an hour's allowance in a second.",
-		Weaker: atMost(200, "a burst of %s questions lets one script spend a model "+
-			"budget in seconds"),
-	},
-	{
-		Key: "site.webmcp", Kind: Bool, Default: "true",
-		Summary: "mark the site's search, chatbots and forms as tools a visitor's browser agent can use",
-		Why: "WebMCP: attributes on the forms the site already has, saying what " +
-			"each does and what each field means, so an agent acting for a " +
-			"visitor uses the form instead of guessing from the page. Search " +
-			"and chatbots may be run by the agent; a form that sends anything " +
-			"is filled in by it and submitted by the visitor; forms with a " +
-			"sensitive field, and account forms, are not offered. Browsers " +
-			"that do not know the attributes ignore them.",
-	},
-	{
-		Key: "site.webmcp_trial", Kind: Text, Default: "",
-		Summary: "Chrome's WebMCP origin trial token, until WebMCP is on by default",
-		Why: "Chrome runs WebMCP in an origin trial from Chrome 149. Register " +
-			"this site's origin at developer.chrome.com/origintrials and " +
-			"paste the token here; it is sent as an Origin-Trial header on " +
-			"the site's pages. Empty sends nothing, and the attributes still " +
-			"work wherever WebMCP is switched on.",
-	},
-	{
-		Key: "site.csp.mode", Kind: Text, Default: "enforce",
-		Summary:  "enforce | report-only | off",
-		Controls: []string{"SC-18"},
-		OWASP:    "A03:2025 Injection",
-		Why: "A Content-Security-Policy is the control that turns a content " +
-			"injection into a blocked request instead of script execution. " +
-			"report-only is for the week you are working out what your " +
-			"content actually references; off is for when something else in " +
-			"front is setting the header.",
-		Weaker: func(v string) (bool, string) {
-			switch v {
-			case "off":
-				return true, "no Content-Security-Policy is sent, so an " +
-					"injected script runs"
-			case "report-only":
-				return true, "the policy is reported and not enforced, so an " +
-					"injected script still runs — this is a migration state, " +
-					"not a destination"
-			}
-			return false, ""
-		},
-	},
-	{
-		Key: "site.csp.extra_img", Kind: List, Default: "",
-		Summary: "extra hosts permitted in img-src",
-		Why: "Generated policies come from what the content references. This " +
-			"is for hosts that are referenced by something the generator " +
-			"cannot see, such as markup inside a rich text field.",
-	},
-	{
-		Key: "site.csp.extra_frame", Kind: List, Default: "",
-		Summary: "extra hosts permitted in frame-src",
-		Why: "Embeds the generator cannot see. It reads URL fields and finds " +
-			"a YouTube link; it cannot read the inside of a rich text field " +
-			"and find an iframe somebody pasted there. Naming the host here " +
-			"is narrower than widening frame-src to everything, which is the " +
-			"other way people solve this.",
-	},
-	{
-		Key: "site.name", Kind: Text, Default: "",
-		Summary: "what this site is called, for templates and for install",
-		Why: "It was a flag on `quilzo site` and nothing else, so it existed " +
-			"only inside the process serving the site. Everything else that " +
-			"renders a page — the accessibility gate, the preview, the static " +
-			"and IPFS exports — rendered it blank, which means each of them " +
-			"was working on a document readers never receive. A template that " +
-			"prints the name in a link produced an empty link and failed the " +
-			"gate on every page. The name belongs to the site, so it is kept " +
-			"with the site; the flag still overrides it for one run.",
-	},
-	{
-		Key: "site.icon", Kind: Text, Default: "",
-		Summary: "the media library id of the picture used as this site's icon",
-		Why: "A published site had no icon: every page's request for " +
-			"/favicon.ico was a 404, a browser tab showed a blank square, and " +
-			"the manifest offered an installed site nothing to put on its " +
-			"tile. One picture from the media library — a square PNG of 512 " +
-			"pixels suits every place it is shown — linked from every page, " +
-			"declared in the manifest at its real size, and served at " +
-			"/favicon.ico. A value that names no picture in the library is " +
-			"ignored, and the site has no icon, as before.",
-	},
-	{
-		Key: "site.members", Kind: Text, Default: "off",
-		Summary: "accounts for the site's visitors: off, open, or invite",
-		Why: "A site could publish to everybody and be edited by its staff, " +
-			"and nobody in between could have an account — the first thing a " +
-			"community, a course or an app needs. open lets anybody make one; " +
-			"invite needs a code from `quilzo member invite`. Accounts sign in " +
-			"with passkeys, need site.base_url on HTTPS (or localhost), and keep " +
-			"a name and the passkeys, nothing else. Anything but open or invite " +
-			"is off, so a typo does not open sign-up to the world.",
-	},
-	{
-		Key: "site.icon_initial", Kind: Bool, Default: "false",
-		Summary: "the icon is the site name's first letter, so it is set in that letter's place",
-		Why: "A site whose icon is its initial — a Q for Quilzo — drew the " +
-			"icon and then the whole name beside it, which spells the letter " +
-			"twice. With this on, the header sets the icon as the first letter " +
-			"and the rest of the name after it, and a screen reader is given " +
-			"the whole name.",
-	},
-	{
-		Key: "site.trusted_proxy", Kind: Bool, Default: "false",
-		Summary: "the public site is behind a proxy on this machine or a private network",
-		Why: "Who a visitor is, for every limit, the audit log and the " +
-			"shield. Behind a reverse proxy the connection is the proxy's for " +
-			"everybody, so a limit keyed on it is one bucket for the whole " +
-			"internet and a block of it blocks the site.\n\n" +
-			"With this on and network.trusted_proxies empty, a forwarded " +
-			"address is believed from a connection on the inside -- " +
-			"loopback, a private network, carrier-grade NAT -- which is " +
-			"where a reverse proxy usually is and where nobody on the " +
-			"internet can connect from. Name the proxies in " +
-			"network.trusted_proxies instead to believe only them.\n\n" +
-			"Off by default, because X-Forwarded-For is a header anybody can " +
-			"write: believed from anybody, it lets every caller choose their " +
-			"own address, which is every limit and every block switched off.",
-	},
+	// -- the console and the network it is on ---------------------------------
 	{
 		Key: "admin.trusted_proxy", Kind: Bool, Default: "false",
-		Summary: "the admin is behind a proxy on this machine or a private network",
+		Summary: "the console is behind a proxy on this machine or a private network",
 		Why: "Who is signing in, and from where: for the rate limits, for " +
-			"placing a sign-in, and for the shield. Behind a reverse proxy " +
-			"the connection is the proxy's for everybody.\n\n" +
+			"lockout and for placing a sign-in. Behind a reverse proxy the " +
+			"connection is the proxy's for everybody.\n\n" +
 			"With this on and network.trusted_proxies empty, a forwarded " +
 			"address is believed from a connection on the inside (loopback, " +
 			"a private network); name the proxies in network.trusted_proxies " +
@@ -415,16 +166,15 @@ var settings = []Setting{
 	{
 		Key: "network.trusted_proxies", Kind: List, Default: "",
 		Summary: "the proxies whose forwarded addresses are believed, as ranges or addresses",
-		Why: "The one rule for who a request came from, on the admin and the " +
-			"public site alike. A forwarded address is believed only when the " +
+		Why: "The one rule for who a request came from, on the console and " +
+			"the feeds alike. A forwarded address is believed only when the " +
 			"connection comes from one of these; the header is then read from " +
 			"the right, past the proxies, and the first address that is not a " +
 			"proxy is the client. Anything unreadable before that point is " +
 			"an unknown client, never a guess.\n\n" +
 			"Name what is actually in front: 10.0.0.5, or 10.0.0.0/8 for a " +
 			"cluster, or a CDN's published ranges. Empty means no proxy, " +
-			"unless site.trusted_proxy or admin.trusted_proxy says it is on " +
-			"the inside.",
+			"unless admin.trusted_proxy says it is on the inside.",
 		Weaker: func(v string) (bool, string) {
 			for _, p := range strings.Split(v, ",") {
 				pfx, err := clientip.ParseProxy(strings.TrimSpace(p))
@@ -442,244 +192,31 @@ var settings = []Setting{
 	},
 	{
 		Key: "admin.base_url", Kind: Text, Default: "",
-		Summary: "where people and programs reach the admin, e.g. https://admin.example.com",
-		Why: "The agent interface's address, and the name of the authorization " +
-			"server apps connect through. An app finds where to send somebody " +
-			"to sign in from metadata that names this address, and every token " +
-			"it is given is bound to it, so it has to be the address the app " +
-			"actually reaches: taken from each request's Host header instead, " +
-			"anybody could have the metadata name an address of their choosing. " +
-			"https, or http to this machine for trying it out; an origin with " +
-			"no path.",
-	},
-	{
-		Key: "agents.openshell_listen", Kind: Text, Default: "",
-		Summary: "an address on this machine an OpenShell sandbox can reach, e.g. 172.17.0.1",
-		Why: "An agent's program running in OpenShell reaches its run's services (the agent " +
-			"interface, the model, the proxy) here. Each listens on its own port for the " +
-			"length of one run and answers only that run's credential. An address every " +
-			"interface answers on (0.0.0.0) is refused: name the one the sandboxes use.",
-	},
-	{
-		Key: "agents.openshell_reach", Kind: Text, Default: "",
-		Summary: "the name an OpenShell sandbox uses for that address, e.g. host.openshell.internal",
-		Why: "Written into each sandbox's network policy as the only place it may connect, " +
-			"so its program reaches the outside only through the run's own proxy.",
-	},
-	{
-		Key: "agents.earned_autonomy", Kind: Bool, Default: "true",
-		Summary:  "a model-driven agent acts at what its evaluations earned",
-		Controls: []string{"AC-6", "CA-7"},
-		Why: "A manifest says the most an agent may do; whether a model driving " +
-			"it should be trusted that far is what its evaluations measure. On, " +
-			"a run where a model chooses acts at the lower of the two: proposing " +
-			"until an evaluation with planted instructions shows it does the task " +
-			"every time and is not steered, drafting after that, publishing (with " +
-			"a person approving) after a larger one, and back to proposing the " +
-			"moment it follows a planted instruction. Off, the manifest alone " +
-			"decides, which is the locked-down-or-fully-trusted choice agents are " +
-			"abandoned over.",
-		Weaker: offIsWeaker("a model drives an agent at the autonomy its manifest declares, whatever its evaluations show"),
-	},
-	{
-		Key: "a2a.tasks", Kind: Bool, Default: "false",
-		Summary:  "let other agents hand tasks to this store's agents over A2A 1.0, at /a2a on the admin",
-		Controls: []string{"AC-17", "AC-3"},
-		Why: "Another vendor's agent sends a message; one of this store's agents runs with it " +
-			"as its goal, under its manifest narrowed by the credential that sent it, and the " +
-			"run is the task. The same tokens and app connections as the agent interface, which " +
-			"must be on too; once admin.base_url is set, the public agent card names the address.",
-		Weaker: func(v string) (bool, string) {
-			if b, err := strconv.ParseBool(v); err == nil && b {
-				return true, "other agents can start this store's agents at /a2a; every message still needs a token, and every run is checked and recorded"
-			}
-			return false, ""
-		},
-	},
-	{
-		Key: "mcp.remote", Kind: Bool, Default: "false",
-		Summary:  "serve the agent interface (MCP) at /mcp on the admin",
-		Controls: []string{"AC-17", "AC-3"},
-		Why: "The agent interface is how agents and AI apps, wherever they run, " +
-			"read and change what Quilzo holds: the same operations, gates and " +
-			"audit log as the command line, reached over HTTP with a bearer " +
-			"token. Off by default because a door reached from outside is a " +
-			"decision. On, it takes Quilzo's own tokens, and, once admin.base_url " +
-			"is set, tokens apps get through OAuth with a person's consent.",
-		Weaker: func(v string) (bool, string) {
-			if b, err := strconv.ParseBool(v); err == nil && b {
-				return true, "the agent interface answers at /mcp; every call still needs a token and is checked and recorded"
-			}
-			return false, ""
-		},
-	},
-	{
-		Key: "today.brief", Kind: Bool, Default: "true",
-		Summary: "write a few sentences at the top of Today with the configured model",
-		Why: "Today lists what waits for each person and counts what is happening. " +
-			"The brief says what matters most in a few sentences. The model is " +
-			"given counts, kinds of decision and agents' names, never anything " +
-			"somebody else wrote, and never writes a figure: each one is put in " +
-			"here, as a link to its records. It is written once a day per person, " +
-			"again when the figures change, and charged to that person's budget. " +
-			"Nothing is written while no model is set up.",
-	},
-	{
-		Key: "today.ask", Kind: Bool, Default: "true",
-		Summary: "let people ask Today a question and keep the answer as a view",
-		Why: "Somebody who may use the store's models asks in their own words, and " +
-			"the answer is cards Quilzo draws: a figure, a table, bars, what is " +
-			"waiting, agent runs. The model is told the collections they may read, " +
-			"by their fields, and chooses the cards; it never sees a record, and " +
-			"every value is read from what they may open. Charged to their budget. " +
-			"Nothing is asked while no model is set up.",
-	},
-	{
-		Key: "models.remote", Kind: Bool, Default: "false",
-		Summary:  "serve the model gateway at /v1 on the admin, for agents built anywhere",
-		Controls: []string{"AC-17", "AC-3"},
-		Why: "Agents built with any framework talk to their model in OpenAI's or " +
-			"Anthropic's shape. On, the admin answers both at /v1 through the " +
-			"model gateway: the provider's key stays here, and every call is " +
-			"charged to the person whose Quilzo token it carries, against their " +
-			"budget, through the privacy guard, on the ledger and in the audit " +
-			"log. Naming one of this store's agents as the model brings its " +
-			"memory. Off by default because a door reached from outside that " +
-			"spends money is a decision.",
-		Weaker: func(v string) (bool, string) {
-			if b, err := strconv.ParseBool(v); err == nil && b {
-				return true, "the model gateway answers at /v1; every call still needs a token that may draft, and is budgeted and recorded"
-			}
-			return false, ""
-		},
+		Summary: "where people and programs reach the console, e.g. https://vaigil.example.com",
+		Why: "The address an enrolment link names, and the one a feed tells " +
+			"the system pushing to it. Taken from each request's Host header " +
+			"instead, anybody could have a link name an address of their " +
+			"choosing. https, or http to this machine for trying it out; an " +
+			"origin with no path.",
 	},
 	{
 		Key: "admin.behind_tls_proxy", Kind: Bool, Default: "false",
-		Summary: "the admin is served over HTTPS by something in front of it",
-		Why: "Whether the session cookie is marked Secure. It was decided by " +
-			"r.TLS != nil, which is correct when this process terminates TLS " +
-			"itself and false in the deployment almost everybody actually " +
-			"has: a reverse proxy speaking HTTPS to the browser and plain " +
-			"HTTP to this. The cookie carries the API token, and without " +
-			"Secure a browser will send it over a plain-HTTP request to the " +
-			"same host -- so one mixed-content link or one downgraded " +
-			"request leaks a working credential.\n\n" +
+		Summary: "the console is served over HTTPS by something in front of it",
+		Why: "Whether the session cookie is marked Secure. Behind a reverse " +
+			"proxy speaking HTTPS to the browser and plain HTTP to this, the " +
+			"connection alone cannot say so. The cookie carries the session, " +
+			"and without Secure a browser will send it over a plain-HTTP " +
+			"request to the same host -- so one mixed-content link or one " +
+			"downgraded request leaks a working credential.\n\n" +
 			"An operator setting rather than a header, because the header " +
 			"that would answer this is X-Forwarded-Proto and anybody can " +
 			"write it. internal/httpsig already refuses to trust it and says " +
 			"why. Trusting it here to decide whether a credential may travel " +
 			"in clear would be the same mistake with a worse consequence, so " +
 			"the deployment says once, deliberately, what it is.\n\n" +
-			"Leave it off when the admin is on loopback, which is the " +
+			"Leave it off when the console is on loopback, which is the " +
 			"default: a Secure cookie over plain HTTP is dropped by the " +
 			"browser, and sign-in would stop working.",
-	}, {
-		Key: "site.base_url", Kind: Text, Default: "",
-		Summary: "where this site is served from, e.g. https://example.com",
-		Why: "The same story as site.name, one setting later. It was a flag " +
-			"on `quilzo site` and nowhere else, so every other thing that " +
-			"renders this site had no idea where it lives: a static copy went " +
-			"out with no sitemap at all and a robots.txt that advertised " +
-			"none, because both need an absolute address and the address was " +
-			"in a process that had already exited. An absolute URL has to be " +
-			"where the site actually is, so it belongs with the site; the " +
-			"flag still overrides it for one run. http and https only — this " +
-			"value is published to crawlers.",
-	},
-	{
-		Key: "site.feed", Kind: Text, Default: "",
-		Summary: "the listing published as a feed at /feed.xml and /feed.json",
-		Why: "A CMS with an article starter and a journal in every example " +
-			"published no feed of any kind, which is the one thing a journal " +
-			"is expected to have. Naming a listing rather than switching a " +
-			"feature on, because which things belong in a feed is a decision: " +
-			"a listing already says what it selects, in what order, with what " +
-			"limit, and which fields are public — so a feed cannot show more " +
-			"than the pages do. Empty means no feed is served, which is " +
-			"honest; an empty feed document claims the site publishes nothing.",
-	},
-	{
-		Key: "site.catalogue", Kind: Text, Default: "",
-		Summary: "which listing is served at /catalogue.json for shopping agents",
-		Why: "The endpoint that serves it has existed since the catalogue " +
-			"work landed and nothing set this, so it answered 404 on every " +
-			"install — a feature that was written, tested and unreachable. " +
-			"Named in configuration rather than chosen by the request, " +
-			"because a caller that could pick the listing would be able to " +
-			"select from every one declared, including the ones a page " +
-			"embeds behind a filter somebody assumed was private. Empty " +
-			"means no feed, which is the right default: a shop publishes " +
-			"one on purpose.",
-	},
-	{
-		Key: "ucp.catalogue", Kind: Bool, Default: "false",
-		Summary: "serve the catalogue listing to shopping agents over UCP, at " +
-			"/.well-known/ucp and /ucp/catalog/",
-		Why: "The Universal Commerce Protocol is how shopping agents search a " +
-			"shop and look products up. On, the site answers its catalog search, " +
-			"lookup and product operations over the listing site.catalogue names " +
-			"— the same products and prices as /catalogue.json, read the same " +
-			"way, so nothing becomes public that was not. Reads only: no carts, " +
-			"checkout or orders, which need a buyer, delivery and a payment " +
-			"provider this program does not have; an agent buys from the " +
-			"product's page. Off by default because publishing to agents is a " +
-			"shop's decision. Needs site.base_url to be the site's https address.",
-	},
-	{
-		Key: "ucp.requests.per_hour", Kind: Int, Default: "600",
-		Summary:  "how many UCP catalogue requests one address may make in an hour, after a burst of a tenth of that",
-		Controls: []string{"SC-5"},
-		Why: "Ten a minute on average, sixty at once: an agent paging through " +
-			"a search is never held back, and a script reading the whole shop " +
-			"on repeat is. Counted per address, so platforms behind one address " +
-			"share it — raise it for a shop that a large platform reads often.",
-		Weaker: atMost(6000, "%s catalogue requests an hour lets one address "+
-			"read a large catalogue many times over"),
-	},
-	{
-		Key: "marking.levels", Kind: Text, Default: "",
-		Summary: "classification levels this deployment uses, lowest first",
-		Why: "Empty means this deployment does not mark, which is the " +
-			"default and is most of them.\n\nThe levels are the " +
-			"deployment's own, lowest first, because the program never needs " +
-			"to know what the words mean — only which of two is higher, and " +
-			"you said. An installation on OFFICIAL and OFFICIAL-SENSITIVE " +
-			"works exactly as one on SECRET does.\n\nNo vocabulary ships " +
-			"with this program. Shipping one would be shipping a copy of " +
-			"somebody's controlled register that goes stale, and a marking " +
-			"accepted because the copy is out of date is worse than one " +
-			"refused.",
-	},
-	{
-		Key: "marking.banner", Kind: Text, Default: "",
-		Summary: "the marking this deployment carries as a whole",
-		Why: "Rendered at the top and bottom of every page — both, because a " +
-			"banner at the top of a long page is one a reader scrolled past " +
-			"before reaching the part that matters.\n\nIt is also the " +
-			"ceiling. A page marked above it is refused at publish, which is " +
-			"the control that matters: everything else here is placement, " +
-			"and this is spillage. Without it the page renders, the banner " +
-			"says the site's level, and the content underneath is higher " +
-			"than the banner claims.",
-	},
-	{
-		Key: "marking.controls", Kind: Text, Default: "",
-		Summary: "control markings this deployment uses, comma-separated",
-		Why: "From the deployment's own register. A banner containing a " +
-			"marking this program does not recognise is refused rather than " +
-			"rendered: a banner is read by people who act on it.",
-	},
-	{
-		Key: "approval.required_humans", Kind: Text, Default: "0",
-		Summary: "how many approvals must come from people, not machines",
-		Why: "Two-person integrity, as an environment that uses the phrase " +
-			"means it. approval.required counts distinct approvers and does " +
-			"not ask what they are, so a policy of two is satisfied by two " +
-			"service accounts — a nightly import approved by the importer " +
-			"and the deploy account meets 'two approvals' and has been seen " +
-			"by nobody.\n\nZero leaves the behaviour unchanged. Set to " +
-			"two, nothing publishes without two people, and the machines can " +
-			"hold as many credentials as they like.",
 	},
 	{
 		Key: "passkey.require_hardware", Kind: Bool, Default: "false",
@@ -709,326 +246,34 @@ var settings = []Setting{
 			"issued keys are ever enrolled.",
 	},
 	{
-		Key: "browser.path", Kind: Text, Default: "",
-		Summary: "a Chromium on this machine for agents' browsers, instead of the pinned one",
-		Why: "An agent's browser is the Chrome for Testing build this release pins, fetched " +
-			"once by quilzo browser install and checked against its SHA-256. A machine that " +
-			"cannot download it names a Chromium of its own here, as an absolute path; the " +
-			"browser is still run in the agent's box and driven the same way, but nothing " +
-			"checks what it is, so it should be one the operator installed on purpose.",
-	},
-	{
-		Key: "browser.sessions", Kind: Int, Default: "2",
-		Summary: "how many agents' browsers may run at once on this machine",
-		Why: "Each agent's browser is a Chromium in a box of its own: a few hundred megabytes, " +
-			"and a core while a page loads. A run that would start one more waits for one to " +
-			"finish, for as long as its budget lets it, rather than slowing every run here down. " +
-			"Raise it on a machine with the memory for more.",
-	},
-	{
-		Key: "agent.reviewer", Kind: Text, Default: "",
-		Summary: "a second model every action is offered to before it runs, by route name",
-		Why: "It sees the goal and the action and nothing of what the agent saw, so " +
-			"nothing a page planted can reach it. It can let an action through or stop " +
-			"the run with its reason for a person to read and continue from — never " +
-			"widen, never rewrite. It is asked through the route named and no other, " +
-			"never a fallback, so it is a second model only when that route is one: " +
-			"name a route other than the one the agents try first, preferably another " +
-			"provider's. It is the last defence, not the only one, and it costs one " +
-			"more model call per action: empty means none.",
-	},
-	{
-		Key: "cell.backend", Kind: Text, Default: "",
-		Summary: "the microVM desktop cells are driven through: firecracker or cloud-hypervisor (experimental)",
-		Why: "A cell is a whole virtual machine, and the binary that runs one is the " +
-			"operator's to install: this program drives it over its socket and adds no " +
-			"boundary of its own. The binary runs as this program's user, without " +
-			"Firecracker's jailer, and the helper inside the image is the operator's to " +
-			"build. Empty means no desktop cells, and an agent offered one is told it is " +
-			"not held rather than given a browser in its place.",
-	},
-	{
-		Key: "cell.binary", Kind: Text, Default: "",
-		Summary: "the absolute path of the microVM binary a cell runs",
-		Why: "Absolute, because a relative path is read differently by every working " +
-			"directory this program runs from.",
-	},
-	{
-		Key: "cell.snapshot", Kind: Text, Default: "",
-		Summary: "the warm snapshot a session's cell is restored from",
-		Why: "A desktop takes minutes to boot and milliseconds to restore; a session " +
-			"steps into one that was already warm, made by the operator with the " +
-			"microVM's own snapshot of an image holding an X server, the accessibility " +
-			"tree and the apps.",
-	},
-	{
-		Key: "cell.memory", Kind: Text, Default: "",
-		Summary: "the memory file of that snapshot, where the maker keeps it apart",
-		Why: "Firecracker names two files for a snapshot; Cloud Hypervisor keeps one. " +
-			"Empty means the maker that needs one file.",
-	},
-	{
-		Key: "cell.vsock", Kind: Text, Default: "",
-		Summary: "the Unix socket the warm snapshot's vsock binds, to reach the helper in the cell",
-		Why: "The vsock device is part of the snapshot: a restore binds the path it was " +
-			"warmed with, so this names that path rather than choosing one. One cell runs " +
-			"at a time on a machine for the same reason.",
-	},
-	{
-		Key: "browser.cache", Kind: Bool, Default: "false",
-		Summary: "whether a browser flow that worked is replayed without a model call",
-		Why: "A remembered step goes through every check a decided one does — the manifest, " +
-			"the breaker, ask-first — and is confirmed by the page that follows it, falling " +
-			"back to the model the moment the page is not the one remembered. What it changes " +
-			"is only who answers, and that is why it waits for a decision here: a step that " +
-			"runs without the model is a step somebody should have decided to have. The one " +
-			"action never remembered is signing in.",
-	},
-	{
 		Key: "network.mode", Kind: Text, Default: "open",
 		Summary: "whether this deployment may reach the network: open or offline",
 		Why: "offline refuses every connection that would leave this host, " +
-			"before a packet is sent, and names the feature that wanted it. " +
-			"That is what an isolated deployment needs and could not have: " +
-			"the program's network use was spread across six places with no " +
-			"list of them, so 'what would this connect to' was answered by " +
-			"reading all of it.\n\nLoopback is still permitted, because a " +
+			"before a packet is sent, and names the feature that wanted it, " +
+			"which is what an isolated deployment needs.\n\nLoopback is " +
+			"still permitted, because a " +
 			"connection that does not leave the host is not egress and a " +
-			"local model or identity provider is normal here. `quilzo " +
+			"local model or identity provider is normal here. `vaigil " +
 			"network` prints every purpose, whether it is permitted, and " +
 			"what stops working without it.",
 	},
 	{
 		Key: "security.contact", Kind: Text, Default: "",
-		Summary: "where to report a vulnerability in this site",
-		Why: "Publishes RFC 9116 at /.well-known/security.txt, which is the " +
-			"first place a researcher and every automated scanner looks. A " +
-			"finder with a working exploit and no way to report it gives up, " +
-			"posts it, or sells it, and two of those are worse for the site " +
-			"than being told.\n\nA mailto:, https: or tel: URI; several may " +
-			"be given, comma-separated. Empty publishes no file rather than " +
-			"an empty one — a security.txt with nothing in it answers the " +
-			"scanner that went looking and tells the person nothing.",
-	},
-	{
-		Key: "security.expires", Kind: Text, Default: "",
-		Summary: "when the security contact stops being trustworthy, YYYY-MM-DD",
-		Why: "RFC 9116 requires it, and the requirement is the point: a " +
-			"contact nobody has confirmed in three years is an address that " +
-			"may reach nobody, and a finder deserves to know which they are " +
-			"looking at. A year from now if unset.",
-	},
-	{
-		Key: "security.policy", Kind: Text, Default: "",
-		Summary: "URL of this site's vulnerability disclosure policy",
-		Why: "What a finder can expect: how long you take, what you ask of " +
-			"them, whether there is a reward. Optional, and worth writing — " +
-			"a policy is what turns a report into a process rather than a " +
-			"surprise.",
-	},
-	{
-		Key: "security.acknowledgments", Kind: Text, Default: "",
-		Summary: "URL of a page thanking people who have reported problems",
-		Why: "Optional, and the cheapest thing a site does for the people " +
-			"who tell it about its own faults.",
-	},
-	{
-		Key: "security.encryption", Kind: Text, Default: "",
-		Summary: "URL of a public key for encrypted reports",
-		Why: "Optional. A report may itself be the exploit, and a finder who " +
-			"has to send that in cleartext is being asked to take a risk on " +
-			"the site's behalf.",
-	},
-	{
-		Key: "licence.permits", Kind: Text, Default: "",
-		Summary: "automated uses this site allows, comma-separated",
-		Why: "Publishes machine-readable crawl terms as RSL at " +
-			"/license.xml and TDMRep at /.well-known/tdmrep.json, and points " +
-			"robots.txt at both. The vocabulary is search, train, " +
-			"ai-summarize and none, and they are separate grants on purpose: " +
-			"from 15 September 2026 Cloudflare stops treating search " +
-			"indexing and AI training as one permission by default, and a " +
-			"site publishing a single undivided answer is answering a " +
-			"question that has become two. Empty means no terms are " +
-			"published at all — which is the honest default, because a " +
-			"licence file asserting terms nobody chose is worse than none: " +
-			"a crawler will honour it and the operator never agreed to it.",
-	},
-	{
-		Key: "licence.prohibits", Kind: Text, Default: "",
-		Summary: "automated uses this site refuses, comma-separated",
-		Why: "The same vocabulary as licence.permits, for what is refused. " +
-			"Stating a refusal explicitly is the point: enforcement depends " +
-			"on crawlers choosing to honour it, exactly as robots.txt " +
-			"always has, but 'we never said they could' becomes a document " +
-			"with a date rather than an argument afterwards. A use named in " +
-			"both is refused rather than allowed, and the site refuses to " +
-			"start instead, because terms that contradict themselves are " +
-			"worse than terms nobody published.",
-	},
-	{
-		Key: "fediverse.handle", Kind: Text, Default: "",
-		Summary: "the local part of this site's fediverse address",
-		Why: "Setting it publishes an actor at /@ and makes the site " +
-			"followable from Mastodon and everything else speaking " +
-			"ActivityPub: somebody searches @handle@yourdomain and gets your " +
-			"posts in their timeline. Lower-case letters, digits and " +
-			"underscores only, because it becomes the local part of an " +
-			"address people type. Empty means the site does not federate, " +
-			"which is where every deployment starts — an actor id is stored " +
-			"permanently by remote servers and cannot be withdrawn once they " +
-			"have it, so publishing one is a commitment rather than a " +
-			"setting. A signing key is required as well; `quilzo fediverse " +
-			"init` makes one.",
-	},
-	{
-		Key: "fediverse.summary", Kind: Text, Default: "",
-		Summary: "the profile description remote servers show",
-		Why: "Shown beside the site's name wherever somebody is deciding " +
-			"whether to follow, which is the only place this text appears. " +
-			"Empty is fine and shows nothing rather than a placeholder.",
-	},
-	{
-		Key: "crawl.price", Kind: Text, Default: "",
-		Summary: "what a refused automated use costs, as \"USD 0.005\"",
-		Why: "Turns the published terms from a declaration into a refusal " +
-			"with a price. A crawler that identifies itself with a Web Bot " +
-			"Auth signature and asks for a use licence.prohibits names is " +
-			"answered 402 Payment Required with this in a crawler-price " +
-			"header, which is what AI crawlers already read. Empty refuses " +
-			"the use outright with 403 instead, which is a different answer " +
-			"and is sent as one: 402 advertises a price, and advertising one " +
-			"that does not exist is worse than refusing. Nothing here takes a " +
-			"payment — the price and the contact are published and the " +
-			"settlement happens elsewhere, because a process holding a card " +
-			"needs a threat model this one does not have.",
-	},
-	{
-		Key: "crawl.keys", Kind: Text, Default: "",
-		Summary: "crawlers this site can identify: name:keyid:publickey, " +
-			"comma-separated",
-		Why: "Identity is proved, never inferred. A User-Agent is a string " +
-			"anybody can type, so refusing traffic on one is unreliable " +
-			"against a crawler that wants the content and harmful to a reader " +
-			"whose browser happens to match. These are Ed25519 public keys, " +
-			"and a request is only identified when its RFC 9421 signature " +
-			"verifies against one of them. Keys are configured rather than " +
-			"fetched from a URL in the request being verified, because a " +
-			"verifier that resolves keys by following a link fetches whatever " +
-			"an attacker names, on the one path that runs before anybody is " +
-			"authenticated. Empty means no crawler can be identified, so " +
-			"every request is served and the terms stay a declaration.",
-	},
-	{
-		Key: "licence.attribution", Kind: Text, Default: "",
-		Summary: "the URL a crawler should credit",
-		Why: "Carried in the RSL document so attribution is a machine- " +
-			"readable term rather than a sentence in a footer somebody has " +
-			"to read and act on. Empty means none is asked for.",
-	},
-	{
-		Key: "licence.contact", Kind: Text, Default: "",
-		Summary: "where to ask about terms this licence refuses",
-		Why: "The part that makes a refusal a negotiation rather than a " +
-			"wall. A crawler told no with nowhere to ask has one option, " +
-			"which is to take it anyway or leave; one given an address has " +
-			"a second. Empty is allowed and means there is no route back.",
-	},
-	{
-		Key: "licence.standard", Kind: Text, Default: "",
-		Summary: "a well-known licence this content is under, if one applies",
-		Why: "Named in the RSL document as a legal term — for example a " +
-			"Creative Commons identifier. Separate from the machine-use " +
-			"grants above because they answer different questions: what a " +
-			"crawler may do with the content, and what licence the content " +
-			"itself carries. Empty means no standard licence is claimed.",
-	},
-	{
-		Key: "share.form", Kind: Text, Default: "",
-		Summary: "the form a share from the operating system lands in",
-		Why: "Registers this site in the phone's share sheet. When somebody " +
-			"shares a link or some text to it, the platform sends a plain " +
-			"multipart form POST — no client script anywhere in the path, " +
-			"which is what makes this the one deep OS integration that fits " +
-			"an interface serving no JavaScript. A share becomes a " +
-			"submission rather than content, because it arrives " +
-			"unauthenticated and a submission already has a retention " +
-			"period and a privacy notice. Empty means no share target is " +
-			"declared.",
-	},
-	{
-		Key: "share.title_field", Kind: Text, Default: "",
-		Summary: "which form field the shared title maps onto",
-		Why: "Named rather than assumed, so a form already used for " +
-			"enquiries does not have to be renamed to receive shares.",
-	},
-	{
-		Key: "share.text_field", Kind: Text, Default: "",
-		Summary: "which form field the shared text maps onto",
-		Why: "As above. A share carries at most a title, a text and a url, " +
-			"and a form with a required field none of those reach would " +
-			"refuse every share — which is checked at startup rather than " +
-			"discovered from somebody's phone weeks later.",
-	},
-	{
-		Key: "share.url_field", Kind: Text, Default: "",
-		Summary: "which form field the shared URL maps onto",
-		Why: "The link, when the share carries one — sharing a page from a " +
-			"browser sends its address here and its title separately. Leave " +
-			"this empty for a form with nowhere sensible to put a URL: an " +
-			"unmapped value is dropped rather than appended to another " +
-			"field, because a link silently concatenated onto a message is a " +
-			"submission somebody has to unpick by hand.",
-	},
-	{
-		Key: "guardrail.kind", Kind: Text, Default: "",
-		Summary:  "lakera | model-armor | generic, or empty for none",
-		Controls: []string{"SI-4", "SI-10"},
-		Why: "An outside classifier asked about a chatbot's knowledge as it is indexed, and " +
-			"about visitors' questions, after Quilzo's own checks: Lakera Guard, Google " +
-			"Cloud Model Armor, or a classifier served on this network (generic: POST " +
-			"{\"text\"}, answering {\"flagged\"}), such as Llama Prompt Guard 2. What it " +
-			"flags in the knowledge is left out, and a flagged question is counted as an " +
-			"injection attempt; nothing is refused on its word alone. It fails open: when " +
-			"it does not answer, the text stays as Quilzo's own checks left it and the miss " +
-			"is counted. Its key is QUILZO_GUARDRAIL_KEY, never a setting; without one it " +
-			"must be on this network.",
-	},
-	{
-		Key: "guardrail.url", Kind: Text, Default: "",
-		Summary: "the guardrail's address; empty is Lakera Guard's own",
-		Why: "Model Armor's address names the project, location and template " +
-			"(…/templates/T:sanitizeUserPrompt); a generic classifier's is wherever it is served.",
-	},
-	{
-		Key: "telemetry.otlp_endpoint", Kind: Text, Default: "",
-		Summary: "an OpenTelemetry collector to send agent traces to",
-		Why: "Observability for agent runs: which step took the time, where " +
-			"the refusals fell, how a delegated run nests inside the one that " +
-			"asked for it. The audit log records what happened; a trace " +
-			"records its shape, which is the question somebody has at three " +
-			"in the morning. Empty means no traces are sent and nothing is " +
-			"encoded. OTLP over HTTP with the JSON encoding, so there is no " +
-			"SDK in the binary.",
-	},
-	{
-		Key: "telemetry.allow_remote", Kind: Bool, Default: "false",
-		Summary: "permit a collector that is not on this machine or network",
-		Why: "Traces from an agent run carry the names of pages it read and " +
-			"the content types it was scoped to. Sending them to a hosted " +
-			"observability vendor is a disclosure, and it should be a " +
-			"sentence somebody typed rather than a consequence of pasting a " +
-			"URL. Loopback and private addresses need no flag.",
+		Summary: "where the security team is reached, as mailto:, https: or tel: URIs",
+		Why: "The first mailto: address is who an automation tells when it " +
+			"acts, so a rule that disabled an account or ended a session is " +
+			"never a surprise to the people answering for it. Several may be " +
+			"given, comma-separated.",
 	},
 	{
 		Key: "siem.stream.url", Kind: Text, Default: "",
 		Summary:  "a SIEM to push the audit log to as it is written",
 		Controls: []string{"AU-4(1)", "AU-6(4)", "AU-9(2)"},
-		Why: "The audit log kept where Quilzo cannot reach it, so a person who " +
+		Why: "The audit log kept where this program cannot reach it, so a person who " +
 			"takes the store over cannot take the record of it too. Batches of " +
 			"OCSF, each following the last, carrying a signed tree head and an " +
 			"HTTP message signature, so the receiver can prove nothing was " +
-			"dropped or changed. Empty sends nothing; quilzo siem exports by hand.",
+			"dropped or changed. Empty sends nothing; vaigil siem exports by hand.",
 	},
 	{
 		Key: "siem.stream.allow_remote", Kind: Bool, Default: "false",
@@ -1046,179 +291,6 @@ var settings = []Setting{
 			"holds the log's key can turn back into names. Revealing them " +
 			"hands every name to the receiving system and to whoever can read it.",
 		Weaker: onIsWeaker("people's names leave in the audit stream"),
-	},
-	{
-		Key: "telemetry.timeout", Kind: Duration, Default: "5s",
-		Summary: "how long one trace export may take",
-		Why: "Telemetry must not outlive the thing it describes. There is no " +
-			"queue and no retry: an export that fails is reported and " +
-			"dropped, because a buffer that grows until the process dies has " +
-			"made the outage worse rather than more observable.",
-	},
-	{
-		Key: "site.agent_card", Kind: Bool, Default: "false",
-		Summary: "publish an A2A agent card at /.well-known/agent-card.json",
-		Why: "Discovery is for strangers, so the card cannot be behind " +
-			"authentication — which means publishing one tells the internet " +
-			"which agents this store runs, what content they may read and " +
-			"what they may do. That is a deliberate statement, not a default. " +
-			"Off until an operator turns it on, the same rule the catalogue " +
-			"feed follows. What it carries beyond A2A itself is the " +
-			"governance the protocol cannot express: per-skill capabilities, " +
-			"scope, budget, delegation and where the record of what happened " +
-			"lives.",
-	},
-	{
-		Key: "site.provider", Kind: Text, Default: "",
-		Summary: "the organisation running this deployment, for the agent card",
-		Why: "A2A's provider field. Named separately from site.name because " +
-			"the site and the organisation behind it are frequently not the " +
-			"same, and a caller deciding whether to delegate work wants the " +
-			"second one.",
-	},
-	{
-		Key: "site.provider_url", Kind: Text, Default: "",
-		Summary: "the provider's own site, for the agent card",
-		Why: "Theirs, not this project's. A card that pointed at quilzo's " +
-			"homepage would be attributing somebody else's deployment to us.",
-	},
-	{
-		Key: "site.docs_url", Kind: Text, Default: "",
-		Summary: "documentation for this deployment's agents, for the agent card",
-		Why: "A2A's documentationUrl. Optional, and omitted from the card " +
-			"when unset rather than pointed at a page that does not exist.",
-	},
-	{
-		Key: "site.hsts", Kind: Duration, Default: "0s",
-		Summary:  "Strict-Transport-Security max-age; 0 disables the header",
-		Controls: []string{"SC-8", "SC-23"},
-		Why: "Off by default because this server is usually behind something " +
-			"that terminates TLS and should set it there, and because a " +
-			"wrongly-set HSTS on a host that later needs plain HTTP is not " +
-			"quickly undone. Set it here when this process is the edge.",
-	},
-
-	// -- the admin interface --------------------------------------------------
-	//
-	// "admin.nav" was here, choosing between a top bar and a side column. The
-	// reason it is gone rather than defaulted: supporting both meant the
-	// navigation was rendered twice into every page so CSS could hide one, and
-	// the top arrangement could not draw the group headings for want of room.
-	// One arrangement is one copy in the document and one thing to keep
-	// accessible. Removing a key is a change an operator sees — `config set
-	// admin.nav left` now fails as unknown rather than being quietly ignored,
-	// which is the honest failure of the two.
-
-	{
-		Key: "admin.brand.name", Kind: Text, Default: "",
-		Summary: "what this interface calls itself; empty is Quilzo",
-		Why: "An agency running this for a client, or a company running it for " +
-			"its own staff, is showing the interface to people who have no " +
-			"relationship with this project and no reason to wonder what " +
-			"Quilzo is. Changing the name changes nothing about what any " +
-			"control does — it is the label, not the behaviour.",
-	},
-	{
-		Key: "admin.brand.colour", Kind: Text, Default: "",
-		Summary: "the accent, as a hex colour like #0b6fa4; empty keeps the palette",
-		Why: "Three or six hex digits after a #, and nothing else. This value " +
-			"lands inside a style attribute on the interface's root element, " +
-			"so it is matched against a pattern rather than cleaned: a " +
-			"sanitiser is a promise about every future CSS grammar. rgb(), a " +
-			"named colour and var() are all refused for that reason and not " +
-			"because they would look wrong. The accent applies alongside the " +
-			"built-in palette rather than replacing it, so the AAA contrast " +
-			"the interface was built for is not something a brand can drop " +
-			"below by accident.",
-	},
-	{
-		Key: "admin.brand.mark", Kind: Text, Default: "",
-		Summary: "one character shown in place of the built-in logo",
-		Why: "One character rather than an image file. An uploaded logo is " +
-			"bytes this origin then serves, and the interface's policy allows " +
-			"images from 'self' — so it would be a way to place chosen bytes " +
-			"at a URL inside the origin that the interface itself trusts. A " +
-			"letter cannot be a payload.",
-	},
-
-	// -- media ----------------------------------------------------------------
-	{
-		Key: "media.max_width", Kind: Int, Default: "2400",
-		Summary: "widest an uploaded image is stored at; 0 keeps the original",
-		Why: "A six-thousand-pixel photograph shown in an eight-hundred-pixel " +
-			"column is the actual page weight, and no codec recovers it. 2400 " +
-			"is generous for a hero image on a high-density display and still " +
-			"a fraction of what a modern camera produces.",
-	},
-	{
-		Key: "media.max_height", Kind: Int, Default: "2400",
-		Summary: "tallest an uploaded image is stored at; 0 keeps the original",
-		Why: "The other dimension, so a very tall image is bounded too. " +
-			"Aspect ratio is always preserved.",
-	},
-	{
-		Key: "media.jpeg_quality", Kind: Int, Default: "82",
-		Summary: "JPEG quality when an image is re-encoded",
-		Why: "82 is where most viewers stop being able to tell and the file is " +
-			"roughly half the size of 95. Raise it for photography, lower it " +
-			"for thumbnails.",
-	},
-	{
-		Key: "media.webp", Kind: Bool, Default: "false",
-		Summary: "convert to WebP when an external encoder is available",
-		Why: "Off because it depends on cwebp being installed, and a setting " +
-			"that silently does nothing is worse than one that is off. Neither " +
-			"WebP nor AVIF is in Go's standard library, so this cannot be done " +
-			"in-process without a dependency this program does not have. " +
-			"Metadata stripping and resizing happen either way, and between " +
-			"them they are usually the larger saving.",
-	},
-	{
-		Key: "media.strip_metadata", Kind: Bool, Default: "true",
-		Summary:  "remove EXIF and other embedded metadata from images",
-		Controls: []string{"SI-12", "PM-30"},
-		Why: "A photograph from a phone carries GPS coordinates, a device " +
-			"serial number, and often a full-size embedded thumbnail that " +
-			"survives cropping. Publishing an author's home address alongside " +
-			"their article is a worse failure than serving a file that is 20% " +
-			"too large, and it is the one nobody notices.",
-		Weaker: offIsWeaker("uploaded photographs keep their GPS coordinates " +
-			"and device identifiers, which are then published"),
-	},
-
-	// -- extensions -----------------------------------------------------------
-	{
-		Key: "ext.enabled", Kind: Bool, Default: "false",
-		Summary:  "run extensions",
-		Controls: []string{"CM-7", "SI-7"},
-		Why: "Off until somebody turns it on. An extension is third-party " +
-			"code running beside the content store, and the honest default " +
-			"for that is not-running.",
-	},
-	{
-		Key: "ext.timeout", Kind: Duration, Default: "5s",
-		Summary: "how long an extension may take before it is killed",
-		Why: "An extension that hangs must not hang a publish. The operation " +
-			"continues without it and the failure is recorded.",
-		Weaker: atMostDur(60*time.Second, "an extension may hold an operation "+
-			"for %s, which is long enough to be a denial of service by "+
-			"accident"),
-	},
-	{
-		Key: "ext.max_output_bytes", Kind: Int, Default: "1048576",
-		Summary: "the largest response an extension may return",
-		Why:     "Bounded, because the extension chooses how much to send back.",
-	},
-	{
-		Key: "ext.require_pinned", Kind: Bool, Default: "true",
-		Summary:  "extensions must match a recorded hash",
-		Controls: []string{"SI-7", "CM-14"},
-		OWASP:    "A08:2025 Software and Data Integrity Failures",
-		Why: "The binary that runs is the binary that was reviewed. Without " +
-			"this, replacing the file on disk replaces the code with no " +
-			"record and no signal.",
-		Weaker: offIsWeaker("an extension binary can be swapped on disk and " +
-			"will run without anybody being told"),
 	},
 }
 

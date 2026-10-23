@@ -10,13 +10,13 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/atomicfile"
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/spool"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/spool"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
-// Quilzo watching itself.
+// Vaigil watching itself.
 //
 // Every security-relevant thing this program does is already in its audit
 // log: failed sign-ins past the threshold, tokens issued, access granted,
@@ -24,7 +24,7 @@ import (
 // that log answered questions somebody thought to ask. It now goes into the
 // event store under its own source, so the detection rules — the same
 // engine, the same queue, the same incidents as every other platform's
-// logs — read it continuously, and a rule pack ships for it (quilzo.*).
+// logs — read it continuously, and a rule pack ships for it (vaigil.*).
 //
 // This is the application-layer intrusion detection OWASP's AppSensor
 // describes: detection points inside the application, where the context
@@ -34,10 +34,10 @@ import (
 // its outcome and resource, the kind of actor, and the few details a rule
 // needs. The principal is the pseudonym the log already stores.
 
-// SelfSource is the source Quilzo's own audit records are stored under.
-const SelfSource = "quilzo/audit"
+// SelfSource is the source Vaigil's own audit records are stored under.
+const SelfSource = "vaigil/audit"
 
-// selfDetail are the audit details a rule about Quilzo may read. Others are
+// selfDetail are the audit details a rule about Vaigil may read. Others are
 // left out: they are either free text somebody typed, or not needed.
 var selfDetail = []string{"role", "surface", "failures", "setting", "to",
 	"autonomy", "agent", "reason", "conversation"}
@@ -100,7 +100,7 @@ func storeSelfEvents(root string, sp *spool.Spool, now time.Time) ([]telemetry.E
 		ev := telemetry.Event{Time: at, Received: now,
 			Class: telemetry.ClassAPIActivity, Disposition: disposition,
 			Source: SelfSource, Message: e.Action,
-			Actor: telemetry.ID{Issuer: "quilzo", Value: e.Principal},
+			Actor: telemetry.ID{Issuer: "vaigil", Value: e.Principal},
 			Raw:   raw}
 		if _, aerr := sp.Append(ev); aerr != nil {
 			return stored, aerr

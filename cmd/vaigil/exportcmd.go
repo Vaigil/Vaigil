@@ -12,208 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/collection"
-	"github.com/quilzo/quilzo/internal/export"
-	"github.com/quilzo/quilzo/internal/out"
-	"github.com/quilzo/quilzo/internal/seo"
-	"github.com/quilzo/quilzo/internal/siem"
-	"github.com/quilzo/quilzo/internal/site"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/out"
+	"github.com/quilzo/vaigil/internal/siem"
 )
-
-func cmdExport(root string, args []string) error {
-	pos, flags := leadingArgs(args, 1)
-	fs := flag.NewFlagSet("export", flag.ContinueOnError)
-	dir := fs.String("to", "export", "directory to write into")
-	ref := fs.String("ref", site.RefLive, "which ref to export")
-	baseURL := fs.String("base-url", "", "the site's absolute origin")
-	name := fs.String("name", "", "the site's name")
-	force := fs.Bool("force", false, "write into a directory that is not empty")
-	licence := fs.String("licence", "",
-		"SPDX URI the deposit is under (ro-crate requires one)")
-	publisher := fs.String("publisher", "", "who is depositing (ro-crate)")
-	if err := fs.Parse(flags); err != nil {
-		return err
-	}
-	format := export.Format("markdown")
-	if len(pos) == 1 {
-		format = export.Format(pos[0])
-	}
-
-	s, err := open(root)
-	if err != nil {
-		return err
-	}
-	pages, err := site.PagesAt(s, *ref)
-	if err != nil {
-		return err
-	}
-	caller := resolveCaller(root, flagToken)
-	if err := everyPage(root, caller, pages); err != nil {
-		return err
-	}
-
-	head := s.GetRef(*ref)
-
-	// The collections too. Leaving these out was a silent data loss in every
-	// format: the demo shop exported a catalogue page and none of its twelve
-	// products, and nothing said so because the count printed was of pages.
-	colls := map[string][]export.Record{}
-	records := 0
-	tree := ""
-	if head != "" {
-		c, err := s.GetCommit(head)
-		if err != nil {
-			return err
-		}
-		tree = c.Tree
-	}
-	if tree != "" {
-		names, err := collection.Names(s, tree)
-		if err != nil {
-			return err
-		}
-		// Every collection is in the export, so every one must be the
-		// caller's to read: access is given per collection, and a check on
-		// "/" does not see a deny on one.
-		for _, name := range names {
-			if err := authorise(root, caller, auth.ActView, auth.DataResource(name)); err != nil {
-				return fmt.Errorf("the export holds every collection, and %s is not yours to read: %w", name, err)
-			}
-		}
-		for _, name := range names {
-			// Paged to the end, not one page of it. A listing has a maximum
-			// limit, so taking a single page would export the first thousand
-			// products of a larger catalogue and report success — the same
-			// shape of failure as exporting none of them.
-			for offset := 0; ; {
-				rows, total, err := collection.List(s, tree, name,
-					collection.Query{
-						Limit: collection.MaxLimit, Offset: offset, Sort: "id"})
-				if err != nil {
-					return err
-				}
-				for _, r := range rows {
-					colls[name] = append(colls[name], export.Record{
-						ID: r.ID, Fields: r.Fields,
-						Created: r.Created, Updated: r.Updated,
-					})
-				}
-				offset += len(rows)
-				records += len(rows)
-				if len(rows) == 0 || offset >= total {
-					if offset != total {
-						return errBlocked{fmt.Errorf(
-							"%s holds %d records but only %d could be read; "+
-								"exporting now would drop the rest silently",
-							name, total, offset)}
-					}
-					break
-				}
-			}
-		}
-	}
-	changed, err := seo.LastChanged(s, head, 5000)
-	if err != nil {
-		// A missing history costs the dates, not the export. Refusing to
-		// export because one derived field could not be computed would be the
-		// wrong trade for the one command people run when they are leaving.
-		changed = nil
-		w.Human("  %scould not read history, so change dates are omitted%s\n",
-			yellow, reset)
-	}
-
-	var redirects []export.Redirect
-	if rf, err := os.ReadFile("redirects.json"); err == nil {
-		var file struct {
-			Redirects []seo.Redirect `json:"redirects"`
-		}
-		if json.Unmarshal(rf, &file) == nil {
-			for _, r := range file.Redirects {
-				redirects = append(redirects, export.Redirect{
-					From: r.From, To: r.To, Permanent: r.Permanent, Note: r.Note})
-			}
-		}
-	}
-
-	// The deployment's marking, on every exported file. An export is the copy
-	// that ends up on removable media or in somebody's home directory, and a
-	// file with no marking does not look like one whose marking was lost.
-	banner := ""
-	if cfg, cerr := loadConfig(root); cerr == nil {
-		if p, perr := markingFrom(cfg); perr != nil {
-			return errBlocked{perr}
-		} else if p != nil {
-			banner = p.Banner
-		}
-	}
-
-	files, err := export.Export(format, export.Site{
-		Banner: banner,
-		Pages:  pages, Name: *name, BaseURL: *baseURL,
-		Changed: changed, Redirects: redirects, Collections: colls,
-		Licence: *licence, Publisher: *publisher, Commit: head,
-	}, time.Now())
-	if err != nil {
-		return errBlocked{err}
-	}
-
-	// Refuse to write into a directory that already has something in it. An
-	// export that half-overwrites a previous one produces a directory that is
-	// neither, and the person finds out when they try to load it.
-	if entries, err := os.ReadDir(*dir); err == nil && len(entries) > 0 && !*force {
-		return errBlocked{fmt.Errorf(
-			"%s already contains %d entries; pass --force to write into it anyway",
-			*dir, len(entries))}
-	}
-
-	for _, f := range files {
-		path, err := containedPath(*dir, f.Path)
-		if err != nil {
-			return err
-		}
-		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-			return err
-		}
-		if err := os.WriteFile(path, f.Body, 0o600); err != nil {
-			return err
-		}
-	}
-
-	record(root, audit.Record{
-		Action: "export", Resource: "/" + *ref, Outcome: audit.Success,
-		Principal: caller.Name, Kind: caller.Kind, Model: caller.Model, Verified: caller.Verified,
-		Detail: map[string]string{
-			"format": string(format), "pages": fmt.Sprintf("%d", len(pages)),
-			"records": fmt.Sprintf("%d", records),
-			"files":   fmt.Sprintf("%d", len(files)), "to": *dir,
-		},
-	})
-
-	if w.JSON(map[string]any{
-		"format": format, "pages": len(pages), "records": records,
-		"collections": len(colls), "files": len(files), "to": *dir,
-	}) {
-		return nil
-	}
-	// Records counted out loud, beside the pages. The count is what tells
-	// somebody the catalogue came with them.
-	w.Human("%s%d page(s)%s and %s%d record(s)%s in %d collection(s) as %s into %s%s%s\n",
-		bold, len(pages), reset, bold, records, reset, len(colls),
-		format, bold, *dir, reset)
-	for _, f := range files {
-		w.Human("  %s%s%s\n", dim, f.Path, reset)
-	}
-	w.Human("\n  %severything here is a plain file; README.md says how to load "+
-		"it elsewhere%s\n", dim, reset)
-	if format == export.ROCrate {
-		w.Human("  %sthe crate lists a sha256 per file: it says these bytes "+
-			"were published,\n  not that their content is correct%s\n",
-			dim, reset)
-	}
-	return nil
-}
 
 func cmdSiem(root string, args []string) error {
 	pos, flags := leadingArgs(args, 1)
@@ -304,14 +106,14 @@ func cmdSiem(root string, args []string) error {
 			yellow, reset)
 	} else if format == siem.Format("jsonl") {
 		fmt.Fprintf(os.Stderr, "  %senvelope in %s — verify with "+
-			"`quilzo siem verify`%s\n", dim, *envelopePath, reset)
+			"`vaigil siem verify`%s\n", dim, *envelopePath, reset)
 	} else {
 		// An OCSF or CEF record carries its event's hash and not the event,
 		// so it cannot be recomputed; saying "verify with" here sent people
 		// to a check that reported their untouched export as altered.
 		fmt.Fprintf(os.Stderr, "  %senvelope in %s — it lists every event's hash in order, as the export\n"+
-			"  carries them (%s); a JSON Lines export (quilzo siem jsonl) carries each event\n"+
-			"  whole, and is the one `quilzo siem verify` can check%s\n",
+			"  carries them (%s); a JSON Lines export (vaigil siem jsonl) carries each event\n"+
+			"  whole, and is the one `vaigil siem verify` can check%s\n",
 			dim, *envelopePath, hashWhere(format), reset)
 	}
 	return nil
@@ -354,7 +156,7 @@ func cmdSiemVerify(root string, args []string) error {
 	}
 	if len(pos) != 1 || *envelopePath == "" {
 		return fmt.Errorf(
-			"usage: quilzo siem verify EXPORT.jsonl --envelope envelope.json")
+			"usage: vaigil siem verify EXPORT.jsonl --envelope envelope.json")
 	}
 
 	raw, err := os.ReadFile(pos[0])
@@ -372,7 +174,7 @@ func cmdSiemVerify(root string, args []string) error {
 		}
 		return fmt.Errorf("%s is %s %s export, which carries each event's hash (%s) and not the event, "+
 			"so it cannot be recomputed here. Compare those hashes, in order, with the envelope's; "+
-			"for an export this can verify, use quilzo siem jsonl", pos[0], article, f,
+			"for an export this can verify, use vaigil siem jsonl", pos[0], article, f,
 			hashWhere(siem.Format(strings.ToLower(f))))
 	}
 	var events []audit.Event
@@ -427,7 +229,7 @@ func cmdSiemVerify(root string, args []string) error {
 
 // containedPath joins a name onto a directory and refuses to leave it.
 //
-// `quilzo ipfs write` has done this since it was written, and its comment
+// `vaigil ipfs write` has done this since it was written, and its comment
 // predicted this exact defect: "Page names are validated on write, so this
 // cannot currently escape — and 'cannot currently' is exactly the phrase that
 // stops being true after somebody relaxes a rule somewhere else."

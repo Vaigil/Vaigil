@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
+	"github.com/quilzo/vaigil/internal/auth"
 )
 
 // Each role gets what it needs to do its job, and nothing above it.
@@ -27,24 +27,17 @@ import (
 // which roles it is for — which is the point.
 func TestEachRoleReachesItsOwnWorkAndNoMore(t *testing.T) {
 	// What each role should be able to open. Cumulative: the ladder means a
-	// publisher gets everything an author gets, so each row lists only what
+	// responder gets everything an analyst gets, so each row lists only what
 	// that rung adds.
 	adds := map[auth.Role][]string{
-		// "/docs" was here. The manual is published at DocsBase now, so there
-		// is no screen to reach and no role that could be refused it.
-		auth.RoleReader: {
-			"/", "/records", "/types", "/media", "/languages",
-			"/review", "/publishing", "/history", "/transfer",
-			"/provenance", "/playground", "/profile",
+		auth.RoleViewer: {
+			"/today", "/approvals", "/findings", "/security/cases", "/security/risk",
+			"/security/indicators", "/security/detections", "/security/automations",
+			"/security/feeds", "/security/vulns", "/passkeys", "/profile", "/start", "/find",
 		},
-		auth.RoleAuthor:    {"/assist", "/settings", "/assistants", "/decisions", "/analytics", "/experiments", "/personalise"},
-		auth.RolePublisher: {},
-		auth.RoleAdmin: {
-			"/security", "/security/scan", "/security/policy",
-			"/security/inventory", "/security/integrity", "/security/agents",
-			"/security/events", "/findings", "/models",
-			"/logs", "/people", "/access", "/integrations",
-		},
+		auth.RoleAnalyst:   {"/security/events", "/security/hunt", "/security/signins"},
+		auth.RoleResponder: {},
+		auth.RoleAdmin:     {"/workforce", "/people", "/provisioning", "/sso", "/settings", "/logs"},
 	}
 
 	// Everything, so "and no more" can be checked rather than assumed.
@@ -54,7 +47,7 @@ func TestEachRoleReachesItsOwnWorkAndNoMore(t *testing.T) {
 	}
 
 	ladder := []auth.Role{
-		auth.RoleReader, auth.RoleAuthor, auth.RolePublisher, auth.RoleAdmin,
+		auth.RoleViewer, auth.RoleAnalyst, auth.RoleResponder, auth.RoleAdmin,
 	}
 	for i, role := range ladder {
 		want := map[string]bool{}
@@ -89,7 +82,7 @@ func TestEachRoleReachesItsOwnWorkAndNoMore(t *testing.T) {
 // administrative screens worth going after.
 func TestTheNavigationOffersNothingThatWouldBeRefused(t *testing.T) {
 	for _, role := range []auth.Role{
-		auth.RoleReader, auth.RoleAuthor, auth.RolePublisher, auth.RoleAdmin,
+		auth.RoleViewer, auth.RoleAnalyst, auth.RoleResponder, auth.RoleAdmin,
 	} {
 		t.Run(string(role), func(t *testing.T) {
 			srv, token := asRole(t, role)
@@ -113,84 +106,34 @@ func TestTheNavigationOffersNothingThatWouldBeRefused(t *testing.T) {
 	}
 }
 
-// A reader cannot write, by any route.
+// A viewer cannot write, by any route.
 //
 // Checked against the write endpoints rather than the screens, because the
 // screens hiding a button is presentation and the handler refusing is the
 // control. A product that only hides the button has no control at all.
 func TestAReaderIsRefusedByEveryWriteEndpoint(t *testing.T) {
-	srv, token := asRole(t, auth.RoleReader)
+	srv, token := asRole(t, auth.RoleViewer)
 
 	writes := []string{
-		"/save", "/publish", "/rollback",
-		"/types/save", "/types/delete", "/types/bind", "/types/field/remove",
-		"/records/save", "/records/delete",
-		"/media/upload", "/media/delete",
-		"/publishing/promote", "/publishing/environment",
-		"/publishing/schedule", "/publishing/lock/release",
-		"/languages/add", "/languages/translated",
-		"/integrations/webhook", "/integrations/extension", "/integrations/siem",
-		"/transfer/import", "/transfer/starter",
-		"/assist/accept",
-		"/people/grant", "/people/revoke", "/sessions/revoke",
-		"/settings/save", "/security/verify", "/page/delete",
+		"/findings/decide", "/security/cases/act", "/security/automations/act",
+		"/security/detections/act", "/security/feeds/act", "/security/indicators/act",
+		"/security/vulns/act", "/security/signins/act", "/security/signins/unlock",
+		"/workforce/sync", "/workforce/reminders/act",
+		"/people/grant", "/people/revoke", "/people/enrol", "/people/pending",
+		"/sessions/revoke", "/sso/act", "/provisioning/act", "/settings/save",
 	}
 	sort.Strings(writes)
 
 	for _, path := range writes {
 		w := post(t, srv, path, token)
 		if w.Code == http.StatusOK || w.Code == http.StatusSeeOther {
-			t.Errorf("a reader posted to %s and was not refused (%d)",
+			t.Errorf("a viewer posted to %s and was not refused (%d)",
 				path, w.Code)
 		}
 	}
 }
 
-// asRole builds a server and a credential for one rung of the ladder.
-func asRole(t *testing.T, role auth.Role) (*Server, string) {
-	t.Helper()
-	srv, _ := fullyWired(t)
-
-	pol := &auth.Policy{}
-	if err := pol.Grant(auth.Binding{
-		Principal: "someone", Role: role, Resource: "/"}); err != nil {
-		t.Fatal(err)
-	}
-	ts := &auth.TokenStore{}
-	secret, _, err := ts.IssueSession("test", "someone", role, "/", time.Hour, role, auth.MethodPasskey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	srv.Policy, srv.Tokens = pol, ts
-	return srv, secret
-}
-
-// post makes a state-changing request the way a browser would.
-//
-// Sec-Fetch-Site is set because the CSRF middleware refuses anything without
-// it, and a test that got 403 from the middleware would pass while telling us
-// nothing about the permission underneath.
-func post(t *testing.T, srv *Server, path, token string) *httptest.ResponseRecorder {
-	t.Helper()
-	req := httptest.NewRequest(http.MethodPost, path,
-		strings.NewReader("name=x&type=x&page=x&key=x&id=x&to=dark"))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Sec-Fetch-Site", "same-origin")
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-	w := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(w, req)
-	return w
-}
-
 // A read-only token cannot write, whatever its principal may do.
-//
-// It could. `--read-only` was enforced in internal/api, the one surface that
-// reads the token object directly; this one resolved a token into a name and a
-// role and discarded the scope, so a read-only token held by an admin saved
-// pages and published them through the interface most people use. Found by
-// checking a claim in the README against the running program.
 func TestAReadOnlyTokenCannotWriteThroughTheInterface(t *testing.T) {
 	srv, _ := setup(t)
 
@@ -213,15 +156,15 @@ func TestAReadOnlyTokenCannotWriteThroughTheInterface(t *testing.T) {
 	srv.MFAFrom = time.Now().Add(time.Hour)
 
 	// Reading is what it is for.
-	if w := get(t, srv, "/", secret); w.Code != http.StatusOK {
+	if w := get(t, srv, "/today", secret); w.Code != http.StatusOK {
 		t.Fatalf("a read-only token could not read: %d", w.Code)
 	}
 
 	// Writing is what it is not for. Every one of these is an action an admin
 	// may take and this credential may not.
 	for _, path := range []string{
-		"/save", "/publish", "/rollback", "/records/save", "/types/save",
-		"/people/grant", "/settings/save", "/page/delete",
+		"/people/grant", "/settings/save", "/findings/decide",
+		"/security/cases/act", "/security/automations/act",
 	} {
 		w := post(t, srv, path, secret)
 		if w.Code != http.StatusForbidden {
@@ -230,8 +173,8 @@ func TestAReadOnlyTokenCannotWriteThroughTheInterface(t *testing.T) {
 		}
 	}
 
-	// And the refusal says which of the five possible reasons it was.
-	w := post(t, srv, "/save", secret)
+	// And the refusal says why.
+	w := post(t, srv, "/people/grant", secret)
 	if !strings.Contains(w.Body.String(), "read-only") {
 		t.Error("the refusal does not say the token is read-only, so somebody " +
 			"will go asking for a wider role they already have")
@@ -240,36 +183,28 @@ func TestAReadOnlyTokenCannotWriteThroughTheInterface(t *testing.T) {
 
 // A narrow token stays narrow in the browser, too.
 //
-// This is a regression test for a privilege escalation that was live: the
-// interface resolved a token, kept its role for the "Signed in as … (role)"
-// label, and then made every authorisation decision by asking the policy about
-// the *principal*. So a credential deliberately issued `--role reader` to an
-// administrator was refused a publish on the command line and could, through
-// this interface, POST /people/grant and make anybody an administrator.
-//
-// The README offers `--role reader` as the way to make a read-only credential
-// out of an admin's authority, and the security policy lists "a token performs
-// an action outside its scope" as a vulnerability. Both were true of the
-// interface most people use.
+// Every decision asks about the credential as well as the person: a token
+// issued `--role viewer` to an administrator reads, and grants nobody
+// anything.
 func TestANarrowTokenCannotEscalateThroughTheInterface(t *testing.T) {
 	srv, _ := setup(t)
 
 	// "editor" is an admin in the policy. This token is not.
-	reader, _, err := srv.Tokens.IssueSession("ci", "editor", auth.RoleReader, "/",
+	reader, _, err := srv.Tokens.IssueSession("ci", "editor", auth.RoleViewer, "/",
 		time.Hour, auth.RoleAdmin, auth.MethodPasskey)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Reading is what a reader may do.
-	if w := get(t, srv, "/", reader); w.Code != http.StatusOK {
-		t.Fatalf("a reader token could not read the pages screen: %d", w.Code)
+	// Reading is what a viewer may do.
+	if w := get(t, srv, "/today", reader); w.Code != http.StatusOK {
+		t.Fatalf("a viewer token could not read Today: %d", w.Code)
 	}
 
 	// Everything above reading is not, whatever the principal holds.
-	for _, path := range []string{"/people", "/access"} {
+	for _, path := range []string{"/people", "/settings"} {
 		if w := get(t, srv, path, reader); w.Code != http.StatusForbidden {
-			t.Errorf("GET %s with a reader token gave %d, want 403 — the "+
+			t.Errorf("GET %s with a viewer token gave %d, want 403 — the "+
 				"screen is an administration screen and the credential is "+
 				"not an administrator's", path, w.Code)
 		}
@@ -290,33 +225,31 @@ func TestANarrowTokenCannotEscalateThroughTheInterface(t *testing.T) {
 	srv.Handler().ServeHTTP(w, req)
 
 	if w.Code == http.StatusSeeOther {
-		t.Error("a reader token was allowed to grant a role")
+		t.Error("a viewer token was allowed to grant a role")
 	}
 	for _, b := range srv.Policy.Snapshot() {
 		if b.Principal == "mallory" {
-			t.Fatalf("a reader token granted %s the %s role — the policy was "+
+			t.Fatalf("a viewer token granted %s the %s role — the policy was "+
 				"asked about the person and never about the credential",
 				b.Principal, b.Role)
 		}
 	}
 }
 
-// The subtree a token is issued for is honoured here as well.
-//
-// `token issue --on /blog` was stored on the token, printed in the token list,
-// and then dropped: the interface never copied Resource onto the identity it
-// built, so the flag restricted the command line and nothing else.
-func TestATokenScopedToASubtreeDoesNotReachTheWholeStore(t *testing.T) {
+// The area a token is issued for is honoured here as well: a token for the
+// security area works the queue and administers nothing.
+func TestATokenScopedToAnAreaDoesNotReachTheWholeStore(t *testing.T) {
 	srv, _ := setup(t)
 
-	scoped, _, err := srv.Tokens.IssueSession("blog-bot", "editor", auth.RoleAdmin,
-		"/blog", time.Hour, auth.RoleAdmin, auth.MethodPasskey)
+	scoped, _, err := srv.Tokens.IssueSession("soc-bot", "editor", auth.RoleAdmin,
+		auth.AreaSecurity, time.Hour, auth.RoleAdmin, auth.MethodPasskey)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The administration screens are at the root, which /blog does not cover.
+	// The administration screens are asked about the root, which the
+	// security area does not cover.
 	if w := get(t, srv, "/people", scoped); w.Code != http.StatusForbidden {
-		t.Errorf("a token scoped to /blog reached /people with %d, want 403",
+		t.Errorf("a token scoped to the security area reached /people with %d, want 403",
 			w.Code)
 	}
 }

@@ -16,10 +16,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/fetch"
-	"github.com/quilzo/quilzo/internal/saml"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/fetch"
+	"github.com/quilzo/vaigil/internal/saml"
 )
 
 // SAML identity providers, one file each under saml/. See internal/saml for
@@ -81,7 +81,7 @@ func samlFetch(addr string) ([]byte, error) {
 	}
 	c := fetch.New()
 	c.Purpose = "sso"
-	c.UserAgent = "quilzo/1 (+saml metadata)"
+	c.UserAgent = "vaigil/1 (+saml metadata)"
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	res, err := c.Get(ctx, addr)
@@ -95,7 +95,7 @@ func samlFetch(addr string) ([]byte, error) {
 }
 
 func samlUsage() error {
-	return fmt.Errorf("usage: quilzo saml list | show NAME | metadata NAME | presets | " +
+	return fmt.Errorf("usage: vaigil saml list | show NAME | metadata NAME | presets | " +
 		"add NAME --metadata FILE|URL --url https://YOUR-ADMIN [--preset okta] " +
 		"[--domain d] [--required] [--fingerprint SHA256] | remove NAME")
 }
@@ -115,7 +115,7 @@ func cmdSAML(root string, args []string) error {
 			return nil
 		}
 		if len(all) == 0 {
-			w.Human("no SAML identity provider is set up\n  %squilzo saml add NAME --metadata FILE --url https://YOUR-ADMIN%s\n", dim, reset)
+			w.Human("no SAML identity provider is set up\n  %svaigil saml add NAME --metadata FILE --url https://YOUR-ADMIN%s\n", dim, reset)
 			return nil
 		}
 		for _, c := range all {
@@ -260,7 +260,7 @@ func samlAdd(root string, args []string) (*saml.Config, error) {
 		c.Label, c.MFAContexts, c.MFAAttribute, c.MFAValues, c.NameIDFormat =
 			p.Label, p.MFAContexts, p.MFAAttribute, p.MFAValues, p.NameIDFormat
 	} else if *preset != "" {
-		return nil, fmt.Errorf("%q is not a preset; quilzo saml presets lists them", *preset)
+		return nil, fmt.Errorf("%q is not a preset; vaigil saml presets lists them", *preset)
 	}
 	if *label != "" {
 		c.Label = *label
@@ -303,7 +303,7 @@ func samlAdd(root string, args []string) (*saml.Config, error) {
 		return nil, fmt.Errorf("%s is already set up; add --replace to change it", name)
 	}
 	if m.WantsSignedRequests {
-		w.Human("%snote: the metadata asks for signed requests; Quilzo sends unsigned ones, so turn "+
+		w.Human("%snote: the metadata asks for signed requests; Vaigil sends unsigned ones, so turn "+
 			"that requirement off for this application at the provider%s\n", dim, reset)
 	}
 	c.Added, c.AddedBy = time.Now().Unix(), resolveCaller(root, "").Name

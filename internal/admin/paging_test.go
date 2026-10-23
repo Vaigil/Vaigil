@@ -174,7 +174,7 @@ func TestTurningThePageKeepsTheFilter(t *testing.T) {
 		t.Errorf("the query does not join onto ?from=N: %q", p.Query)
 	}
 	// Nothing else set means nothing to join.
-	if q := paginate(httptest.NewRequest("GET", "/", nil), 10, 50).Query; q != "" {
+	if q := paginate(httptest.NewRequest("GET", "/today", nil), 10, 50).Query; q != "" {
 		t.Errorf("an unfiltered list carries %q", q)
 	}
 }

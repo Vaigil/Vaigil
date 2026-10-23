@@ -22,57 +22,71 @@ func withJob(t *testing.T, p *Policy, who, job string) {
 	}
 }
 
-// A job is its area and nothing else.
+// A job is its bindings and nothing else: an engineer tunes and reads the
+// queue, and decides no finding and grants nobody anything.
 func TestAJobCoversItsAreaAndNothingElse(t *testing.T) {
 	p := &Policy{}
-	withJob(t, p, "sam", "analyst")
+	withJob(t, p, "sam", "engineer")
 	for _, ok := range []struct {
 		act Action
 		res string
-	}{{ActGrant, AreaSecurity}, {ActView, AreaSecurity}, {ActGrant, AreaLog}} {
+	}{{ActTune, AreaSecurity}, {ActView, AreaSecurity}} {
 		if !p.Evaluate("sam", ok.act, ok.res).Allowed {
-			t.Errorf("an analyst cannot %s on %s", ok.act, ok.res)
+			t.Errorf("an engineer cannot %s on %s", ok.act, ok.res)
 		}
 	}
 	for _, no := range []struct {
 		act Action
 		res string
-	}{{ActView, "/"}, {ActView, "/index"}, {ActEditDraft, "/blog/post"},
-		{ActGrant, "/"}, {ActToken, "/"}, {ActGrant, AreaCompliance}, {ActEditDraft, AreaInbox}} {
+	}{{ActTriage, AreaSecurity}, {ActApprove, AreaSecurity}, {ActAssess, AreaSecurity},
+		{ActView, AreaLog}, {ActGrant, "/"}, {ActToken, "/"}} {
 		if p.Evaluate("sam", no.act, no.res).Allowed {
-			t.Errorf("an analyst may %s on %s", no.act, no.res)
+			t.Errorf("an engineer may %s on %s", no.act, no.res)
 		}
 	}
-	if p.Anywhere("sam", ActEditDraft) || p.Anywhere("sam", ActView) {
-		t.Error("an analyst's area grant reads as somewhere in the site's content")
-	}
 
-	withJob(t, p, "lee", "support")
-	if !p.Evaluate("lee", ActEditDraft, AreaInbox).Allowed || !p.Evaluate("lee", ActEditDraft, AreaBoards).Allowed {
-		t.Error("support cannot answer the inbox or moderate boards")
+	withJob(t, p, "lee", "vuln-manager")
+	if !p.Evaluate("lee", ActAssess, AreaSecurity).Allowed || !p.Evaluate("lee", ActView, AreaSecurity).Allowed {
+		t.Error("a vulnerability manager cannot decide vulnerabilities or read the queue")
 	}
-	if p.Evaluate("lee", ActGrant, AreaInbox).Allowed || p.Evaluate("lee", ActEditDraft, "/index").Allowed {
-		t.Error("support holds more than it was given")
+	if p.Evaluate("lee", ActTune, AreaSecurity).Allowed || p.Evaluate("lee", ActTriage, AreaSecurity).Allowed {
+		t.Error("a vulnerability manager holds more than it was given")
 	}
 }
 
-// A whole-site administrator covers every area.
-func TestAWholeSiteRoleCoversEveryArea(t *testing.T) {
+// A role over everything covers the security area, and the ladder decides
+// how far: a viewer reads, an analyst triages, a responder acts and
+// approves, and only an administrator grants.
+func TestTheLadderCoversTheSecurityArea(t *testing.T) {
 	p := &Policy{}
-	_ = p.Grant(Binding{Principal: "ada", Role: RoleAdmin, Resource: "/"})
-	_ = p.Grant(Binding{Principal: "bo", Role: RoleAuthor, Resource: "/"})
-	for _, area := range []string{AreaSecurity, AreaCompliance, AreaLog, AreaInbox, AreaBoards} {
-		if !p.Evaluate("ada", ActGrant, area).Allowed {
-			t.Errorf("a site administrator cannot reach %s", area)
+	for _, r := range Roles {
+		_ = p.Grant(Binding{Principal: string(r), Role: r, Resource: "/"})
+	}
+	for _, c := range []struct {
+		who  Role
+		may  []Action
+		mayn []Action
+	}{
+		{RoleViewer, []Action{ActView}, []Action{ActTriage, ActRespond, ActApprove, ActTune, ActAssess, ActGrant}},
+		{RoleAnalyst, []Action{ActView, ActTriage}, []Action{ActRespond, ActApprove, ActTune, ActAssess, ActGrant}},
+		{RoleResponder, []Action{ActView, ActTriage, ActRespond, ActApprove}, []Action{ActTune, ActAssess, ActGrant}},
+		{RoleAdmin, []Action{ActView, ActTriage, ActRespond, ActApprove, ActTune, ActAssess, ActGrant}, nil},
+	} {
+		for _, a := range c.may {
+			if !p.Evaluate(string(c.who), a, AreaSecurity).Allowed {
+				t.Errorf("a %s cannot %s", c.who, a)
+			}
 		}
-		if p.Evaluate("bo", ActGrant, area).Allowed {
-			t.Errorf("an author reached %s as an administrator", area)
+		for _, a := range c.mayn {
+			if p.Evaluate(string(c.who), a, AreaSecurity).Allowed {
+				t.Errorf("a %s may %s", c.who, a)
+			}
 		}
 	}
-	// And a deny on the site denies the areas with it.
-	_ = p.Grant(Binding{Principal: "ada", Role: RoleAdmin, Resource: "/", Deny: true})
-	if p.Evaluate("ada", ActGrant, AreaSecurity).Allowed {
-		t.Error("a deny on the whole site left an area open")
+	// And a deny on everything denies the area with it.
+	_ = p.Grant(Binding{Principal: "admin", Role: RoleAdmin, Resource: "/", Deny: true})
+	if p.Evaluate("admin", ActGrant, AreaSecurity).Allowed {
+		t.Error("a deny on everything left the area open")
 	}
 }
 
@@ -89,52 +103,48 @@ func TestAGrantEndsWhenItExpires(t *testing.T) {
 		t.Error("a grant that has not expired does not work")
 	}
 	// An expired deny no longer denies.
-	_ = p.Grant(Binding{Principal: "di", Role: RoleReader, Resource: "/", Deny: true,
+	_ = p.Grant(Binding{Principal: "di", Role: RoleViewer, Resource: "/", Deny: true,
 		Expires: time.Now().Add(-time.Minute).Unix()})
 	if !p.Evaluate("di", ActView, AreaSecurity).Allowed {
 		t.Error("an expired deny still denies")
 	}
 }
 
-// Security operations, the posture and the audit log are reached from the
-// whole site only as administrator. A reader over the site reads pages, not
-// where the defences are thin; somebody who should read those is granted
-// the area itself.
-func TestAWholeSiteRoleBelowAdministratorDoesNotReachTheGuardedAreas(t *testing.T) {
+// The audit log is reached from everything only as administrator. A viewer
+// reads the queue, not the record of who did what; somebody who should read
+// it is granted the area itself, and an auditor's access ends.
+func TestAWholeRoleBelowAdministratorDoesNotReachTheLog(t *testing.T) {
 	p := &Policy{}
-	for _, r := range []Role{RoleReader, RoleAuthor, RolePublisher} {
+	for _, r := range []Role{RoleViewer, RoleAnalyst, RoleResponder} {
 		_ = p.Grant(Binding{Principal: string(r), Role: r, Resource: "/"})
-		for _, area := range []string{AreaSecurity, AreaCompliance, AreaLog, AreaLog + "/2026"} {
+		for _, area := range []string{AreaLog, AreaLog + "/2026"} {
 			if d := p.Evaluate(string(r), ActView, area); d.Allowed {
-				t.Errorf("a %s over the site reads %s: %s", r, area, d.Reason)
+				t.Errorf("a %s over everything reads %s: %s", r, area, d.Reason)
 			}
 		}
-		for _, area := range []string{AreaInbox, AreaBoards} {
-			if !p.Evaluate(string(r), ActView, area).Allowed {
-				t.Errorf("a %s over the site lost %s, which is not guarded", r, area)
-			}
-		}
-		if !p.Evaluate(string(r), ActView, "/index").Allowed {
-			t.Errorf("a %s over the site cannot read a page", r)
+		if !p.Evaluate(string(r), ActView, AreaSecurity).Allowed {
+			t.Errorf("a %s over everything cannot read the queue", r)
 		}
 	}
-	// Granted the area, a reader reads it and does nothing else there.
 	withJob(t, p, "aud", "auditor")
-	if !p.Evaluate("aud", ActView, AreaLog).Allowed || !p.Evaluate("aud", ActView, AreaCompliance).Allowed {
-		t.Error("an auditor cannot read the log and the posture")
+	if !p.Evaluate("aud", ActView, AreaLog).Allowed || !p.Evaluate("aud", ActView, AreaSecurity).Allowed {
+		t.Error("an auditor cannot read the log and the queue")
 	}
 	for _, c := range []struct {
 		act Action
 		on  string
-	}{{ActGrant, AreaCompliance}, {ActEditDraft, AreaLog}, {ActView, AreaSecurity}, {ActView, "/index"}} {
+	}{{ActTriage, AreaSecurity}, {ActTriage, AreaLog}, {ActGrant, "/"}} {
 		if p.Evaluate("aud", c.act, c.on).Allowed {
 			t.Errorf("an auditor may %s on %s", c.act, c.on)
 		}
 	}
-	// A deny over the site still covers the guarded areas: suspension
-	// must outrank a grant on the area itself.
-	_ = p.Grant(Binding{Principal: "aud", Role: RoleReader, Resource: "/", Deny: true})
+	if j, _ := JobNamed("auditor"); !j.Ends {
+		t.Error("an auditor's access does not end by itself")
+	}
+	// A deny over everything still covers the log: suspension must
+	// outrank a grant on the area itself.
+	_ = p.Grant(Binding{Principal: "aud", Role: RoleViewer, Resource: "/", Deny: true})
 	if p.Evaluate("aud", ActView, AreaLog).Allowed {
-		t.Error("a deny over the site left a guarded area open")
+		t.Error("a deny over everything left the log open")
 	}
 }

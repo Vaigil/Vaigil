@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/quilzo/quilzo/internal/audit"
+	"github.com/quilzo/vaigil/internal/audit"
 )
 
 // The key that signs audit heads, and the file that publishes its public half.
@@ -122,7 +122,7 @@ func writePublishedKeys(root string, s *audit.HeadSigner) error {
 		MLDSA:   base64.StdEncoding.EncodeToString(ml),
 		Note: "Public keys for this site's audit heads. Copy this anywhere; " +
 			"nothing in it is secret. A head verifies only if both signatures " +
-			"do — see quilzo auditlog verify-head.",
+			"do — see vaigil auditlog verify-head.",
 	}, "", "  ")
 	if err != nil {
 		return err
@@ -143,7 +143,7 @@ func writePublishedKeys(root string, s *audit.HeadSigner) error {
 func auditVerifyHead(root string, args []string) error {
 	if len(args) < 1 {
 		return fmt.Errorf(
-			"usage: quilzo auditlog verify-head <head.json> [--keys head.pub.json]")
+			"usage: vaigil auditlog verify-head <head.json> [--keys head.pub.json]")
 	}
 	headPath := args[0]
 	keysPath := headKeysPath(root)
@@ -197,6 +197,6 @@ func auditVerifyHead(root string, args []string) error {
 		dim, sh.KeyID, reset)
 	w.Human("\n  %sthis says the head came from that key. Whether it describes\n"+
 		"  the log you hold is a separate question:%s\n", dim, reset)
-	w.Human("    %squilzo auditlog consistency%s\n", dim, reset)
+	w.Human("    %svaigil auditlog consistency%s\n", dim, reset)
 	return nil
 }

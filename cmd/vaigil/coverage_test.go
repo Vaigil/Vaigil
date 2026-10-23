@@ -50,104 +50,6 @@ type surfaces struct {
 }
 
 var coverage = map[string]surfaces{
-	// -- content, on all three surfaces ---------------------------------------
-	"add":     {GUI: "/page/", MCP: []string{"write_page", "read_page", "list_pages"}},
-	"diff":    {GUI: "/", MCP: []string{"diff"}},
-	"publish": {GUI: "/publish", MCP: []string{"publish"}},
-	"fediverse": {
-		Why: "the whole command is three actions an operator takes once at " +
-			"setup — make a key, name a handle, look at a count — and the " +
-			"count is on the publishing screen already. A screen for it would " +
-			"be a screen nobody opens twice.",
-		NoMCP: "it writes the signing key that speaks for the site to every " +
-			"follower, and reads a list of people who read this site. " +
-			"Neither belongs on the interface a model can reach.",
-	},
-	"provenance": {GUI: "/provenance", MCP: []string{"check_provenance"}},
-	"a11y":       {GUI: "/page/", MCP: []string{"check_accessibility"}},
-	"records":    {GUI: "/records", MCP: []string{"list_records", "list_collections"}},
-	"record":     {GUI: "/records", MCP: []string{"write_record"}},
-	"type":       {GUI: "/types", MCP: []string{"list_types"}},
-	"types":      {GUI: "/types", MCP: []string{"list_types"}},
-	"media":      {GUI: "/media", MCP: []string{"list_media"}},
-	// A connector author's tool, run while writing the connector — before
-	// there is anything for a screen to show or an agent to ask about. It
-	// reads a file and prints what is wrong with it.
-	// A decision goes in the audit chain and is replayed from it. The screen
-	// comes with the stored register; the agent surface deliberately does
-	// not come at all.
-	// Conversation, built so that what was said stays said.
-	"room": {
-		Why: "the reading surface is the thing this is for and it arrives " +
-			"with the client; the terminal commands are how it is driven " +
-			"and tested in the meantime",
-		NoMCP: "a model with a tool here could post as a person, edit what " +
-			"somebody is recorded as having said, or take words down; the " +
-			"author field would stop meaning anything",
-	},
-
-	// A codec for screen content, and what sharing one costs.
-	"screen": {
-		Why: "it is arithmetic over a synthetic frame; the screen arrives " +
-			"with the sharing this is for, and there is nothing here for " +
-			"one to show in the meantime",
-		NoMCP: "it takes no input and holds no state, so a tool would be a " +
-			"way to ask a model to read a table that is already printed",
-	},
-
-	// Marks on a shared screen, anchored to content rather than pixels.
-	"annotate": {
-		Why: "it draws on a frame this build has no way to capture yet; " +
-			"the screen arrives with the sharing, and until then the " +
-			"demonstration is the terminal one",
-		NoMCP: "a tool here would let a model draw on somebody else's " +
-			"screen and sign it with their name, which is the one thing a " +
-			"mark has to be trusted about",
-	},
-
-	// Group key agreement for a call, demonstrated end to end.
-	"call": {
-		Why: "it runs the protocol against identities generated for the " +
-			"run; a real call's keys arrive with the calling, and until " +
-			"then the demonstration is the terminal one",
-		NoMCP: "the keys here are the ones that decide who can hear a " +
-			"call, and a tool would put a model on the inside of that " +
-			"decision",
-	},
-
-	// Who is in a call, who may speak, and which controls are real.
-	"huddle": {
-		Why: "it runs a call against identities generated for the run; " +
-			"the screen for this arrives with the calling, and the point " +
-			"it makes — which controls hold and which are requests — is " +
-			"one a table can make in a terminal",
-		NoMCP: "admitting, ejecting and muting are the decisions that " +
-			"settle who can hear a private conversation, and a tool would " +
-			"put a model on the inside of them",
-	},
-
-	// The AI note-taker, which is a participant rather than plumbing.
-	"scribe": {
-		Why: "it runs a call against identities generated for the run; " +
-			"what it has to say — which faculties are lawful, and who has " +
-			"to agree before anybody is recorded — is a table, and a " +
-			"table reads in a terminal",
-		NoMCP: "this decides whether a conversation may be recorded and " +
-			"what may be inferred from it, and a tool would let a model " +
-			"answer that question about itself",
-	},
-
-	// What the assistant does after a call, and what stops it.
-	"errand": {
-		Why: "it carries errands against a manifest and a performer built " +
-			"for the run; the screen for this is the one that shows " +
-			"somebody a task with their name on it, and that arrives with " +
-			"the tasks",
-		NoMCP: "this is the layer that decides whether an agent may act " +
-			"on what it heard and who it may tell, and a tool would let a " +
-			"model answer that about itself",
-	},
-
 	// Work tracking, and the argument for four states.
 	"work": {
 		Why: "it builds a board for the run to show what a team's extra " +
@@ -159,16 +61,6 @@ var coverage = map[string]surfaces{
 			"keep with people",
 	},
 
-	// Automation whose books have to add up.
-	"flow": {
-		Why: "it builds a flow and a week of runs to show three failures " +
-			"that are invisible elsewhere; the flows people run arrive " +
-			"with the running, and the ledger is a table",
-		NoMCP: "a model that could define a flow could define one whose " +
-			"filter drops everything, and the whole point here is that " +
-			"dropping is a decision somebody signs",
-	},
-
 	// Detection rules in the open standard, compiled and reported on.
 	"sigma": {
 		Why: "it reads rule files from a path and prints what came " +
@@ -177,17 +69,6 @@ var coverage = map[string]surfaces{
 		NoMCP: "a model that could import rules could import one whose " +
 			"exclusion clause it wrote, and a detection nobody reviewed " +
 			"is the failure this package refuses at every other step",
-	},
-
-	// What a detection has to survive before it reaches anybody.
-	"proving": {
-		Why: "it runs a candidate through the rings against telemetry " +
-			"built for the run; the estate people promote from arrives " +
-			"with the detections, and the gates are an argument a " +
-			"terminal can make",
-		NoMCP: "this is the layer that decides whether a detection " +
-			"reaches anybody, and a model on the inside of it could " +
-			"promote the rule it wrote",
 	},
 
 	// Any scanner's findings, and what the scanner left out.
@@ -221,36 +102,9 @@ var coverage = map[string]surfaces{
 			"never closes",
 	},
 
-	// Who has to be told about an incident, and what starts the clock.
-	// Quilzo's own flaws, and whether the binary is itself.
-	"self": {GUI: "/security/inventory", MCP: []string{"inventory"}},
-	// What Quilzo is doing to protect itself.
-	"fleet": {GUI: "/fleet",
-		NoMCP: "a map of every agent and what it reaches is an administrator's; an agent " +
-			"reading the fleet is the reconnaissance the map is there to show"},
-	"memory": {GUI: "/memory",
-		NoMCP: "what an agent remembers about somebody is theirs to see and remove, " +
-			"and an agent forgetting or confirming its own memory is the thing the " +
-			"held state exists to stop"},
-	"apps": {GUI: "/apps",
-		NoMCP: "which apps may act as people through the agent interface, and " +
-			"ending a connection, are a person's decisions: an app connected " +
-			"through the interface must not be able to let in others or keep " +
-			"itself connected"},
-	"shield": {GUI: "/security/shield", MCP: []string{"shield_status"},
-		Why: "an agent reads what is in force and what the playbooks did; " +
-			"lifting, blocking, holding and every playbook change are a " +
-			"person's, so a page an agent reads cannot steer what Quilzo " +
-			"refuses or lets in",
-	},
 	"pending": {GUI: "/people",
 		NoMCP: "every change waiting here makes somebody more powerful or hides what they did; " +
 			"a model proposing or approving one is a model deciding who may do what"},
-	"policy": {GUI: "/security/parameters", MCP: []string{"policy_status"},
-		Why: "an agent reads which parameters are declared and whether each " +
-			"is met; proposing and approving them is two administrators', " +
-			"never a model's, because the policy is the floor under the controls",
-	},
 	"incident": {GUI: "/security/cases", MCP: []string{"incident_status"},
 		Why: "an agent reads which clocks are running and which nobody " +
 			"has started; the decisions that start them are a person's",
@@ -275,36 +129,6 @@ var coverage = map[string]surfaces{
 		NoMCP: "a mapping decides what an event means, and a model " +
 			"editing one could make a stream of failures look like a " +
 			"quiet day",
-	},
-
-	// What a situation can hand somebody that a grant did not.
-	"standing": {
-		Why: "it prints this program's own register of situational " +
-			"authority; where that authority is exercised is the call, " +
-			"the incident or the board, each of which has its own screen",
-		NoMCP: "this is the table that says which powers survive their " +
-			"situation, and a model editing it would be reclassifying an " +
-			"escalation as contained",
-	},
-
-	// Which part holds what, and where the line belongs.
-	"boundary": {
-		Why: "it prints this program's own architecture and the " +
-			"credentials collecting each source costs; the screen that " +
-			"matters here is whether the separation is in force, which " +
-			"internal/logd already answers where it is enforced",
-		NoMCP: "this table is how somebody decides where to run the " +
-			"collector, and a model editing it would be reclassifying a " +
-			"credential that reads an estate as one that reads a log",
-	},
-
-	// End-to-end media encryption, and what it costs on the wire.
-	"sframe": {
-		Why: "it is arithmetic and a self-check over a library; the screen " +
-			"arrives with the calls the library is for, and there is " +
-			"nothing here for one to show in the meantime",
-		NoMCP: "it takes no input and holds no state, so a tool would be a " +
-			"way to ask a model to read a table that is already printed",
 	},
 
 	// What a code scanner found, and the part it left undone.
@@ -337,46 +161,6 @@ var coverage = map[string]surfaces{
 		NoMCP: "this register says which third parties hold credentials in " +
 			"this estate and what each can reach, which is the shape of a " +
 			"target list; a model with a tool here has it too",
-	},
-
-	// What an auditor is given, and what they can check without us.
-	"engagement": {
-		Why: "the deliverable is a file the auditor takes away and " +
-			"verifies on their own machine; a screen showing it here would " +
-			"be this organisation reading its own package back to itself",
-		NoMCP: "granting an outside firm access to this organisation's " +
-			"evidence is a commercial decision with a contract behind it, " +
-			"and Engagement.Validate refuses a model for that reason",
-	},
-
-	// The group's structure, and every control measured across it.
-	"entity": {
-		Why: "the structure is a file somebody maintains and the report " +
-			"reads it; the screen arrives with the stored register, where " +
-			"the per-company breakdown belongs next to every other finding",
-		NoMCP: "whether a parent's evidence is in scope for a subsidiary's " +
-			"examination is a question about two audits and a contract; " +
-			"Reliance.Validate refuses a model for that reason",
-	},
-
-	// Framework requirements, and which controls bear on them.
-	"framework": {
-		Why: "a crosswalk is read and argued about rather than clicked " +
-			"through, which is most of what is wrong with the screens " +
-			"that do offer it; the screen arrives with the stored register",
-		NoMCP: "proposing a crosswalk is a good use of a model and " +
-			"asserting that a control answers a regulator's clause is not; " +
-			"Mapping.Validate refuses an AI author for that reason",
-	},
-
-	// Controls and the evidence that they operated over a period.
-	"assurance": {
-		Why: "it reads a control file and an evidence log and reports what " +
-			"a period can be spoken to; the screen arrives with the stored " +
-			"register, alongside every other kind of finding",
-		NoMCP: "evidence going to an auditor carries the organisation's " +
-			"word, and Evidence.Validate refuses a model as the attester " +
-			"for that reason",
 	},
 
 	// The vulnerability queue, read from an inventory and a set of
@@ -478,37 +262,6 @@ var coverage = map[string]surfaces{
 			"what it did, and a hold it can lift is not a hold",
 	},
 
-	// A register of secrets and their hiding places, kept as a file the
-	// operator holds rather than in the store the web process serves.
-	"canary": {
-		Why: "the register is the most useful file an attacker inside the " +
-			"estate could read; it does not go in the store a web process " +
-			"can reach, so there is nothing for a screen to render",
-		NoMCP: "handing a model the list of canaries and where they are " +
-			"planted is handing it the one file that defeats all of them",
-	},
-
-	// A site's chatbots. The agent surface builds and tests; it does not
-	// publish and it does not decide what a public one may do.
-	"assistant": {
-		GUI: "/assistants",
-		MCP: []string{"list_assistants", "ask_assistant", "declare_assistant"},
-	},
-
-	"inbox": {
-		GUI: "/inbox",
-		NoMCP: "these are conversations visitors asked to have with a " +
-			"person, and what they wrote is theirs; a model is given one " +
-			"only as a suggested reply that a person reads before anything " +
-			"is sent",
-	},
-
-	"board": {
-		GUI: "/boards",
-		NoMCP: "what members wrote is theirs, and approving or deleting it " +
-			"is a judgement about somebody's words that a person makes",
-	},
-
 	"automate": {
 		GUI: "/security/automations",
 		NoMCP: "rules decide what is done to people's sessions and accounts; " +
@@ -519,67 +272,10 @@ var coverage = map[string]surfaces{
 		NoMCP: "a feed decides whose word reaches the automations; adding one, " +
 			"or handing a transmitter a stream, is a person's decision",
 	},
-	"geo": {
-		GUI: "/security/signins",
-		NoMCP: "where sign-ins are said to come from decides which of them are " +
-			"stepped up; a model must not be able to name a network an office",
-	},
-	"spend": {
-		Why:   "mandates are granted where the agent is declared and run; the approvals screen shows each payment that waits",
-		NoMCP: "letting an agent spend money is a person's decision on a surface no agent drives",
-	},
-	"evolve": {
-		Why: "a search is started and watched in the terminal, like a research " +
-			"run, and its journal and programs are files in the store",
-		NoMCP: "a search spends model budget and runs programs in the box, " +
-			"and the programs and evaluator are files an operator chose. " +
-			"Letting an agent start one is a decision that comes with the " +
-			"research integration, made once, not a default of this surface",
-	},
-	"trust": {
-		Why:   "a trust is declared with the repository it admits, in the same terminal as the workflow that uses it",
-		NoMCP: "which other issuers' jobs get tokens here is granting access, an administrator's to decide",
-	},
 	"scim": {
 		GUI: "/provisioning",
 		NoMCP: "provisioning decides who holds which role, and its token " +
 			"is a credential; both are an administrator's to handle",
-	},
-
-	"member": {
-		GUI: "/members",
-		NoMCP: "who has an account on the site is personal data, and " +
-			"disabling, deleting or inviting somebody is an access decision " +
-			"a person makes",
-	},
-
-	"personalise": {
-		GUI: "/personalise",
-		NoMCP: "a rule changes what visitors see on a page, which is a " +
-			"publish; reading the rules is on the Personalisation screen and " +
-			"in the site's own declarations",
-	},
-
-	"experiment": {
-		GUI: "/experiments",
-		MCP: []string{"experiment_report"},
-	},
-
-	"analytics": {
-		GUI: "/analytics",
-		MCP: []string{"site_analytics"},
-	},
-
-	"decide": {
-		GUI: "/decisions",
-		MCP: []string{"list_deciders", "decide"},
-	},
-
-	"gateway": {
-		GUI: "/models",
-		NoMCP: "a route decides where prompts go, and an agent that could " +
-			"add one could send everything visitors type to an address of " +
-			"its choosing",
 	},
 
 	"finding": {
@@ -617,168 +313,25 @@ var coverage = map[string]surfaces{
 			"the proposals and changes neither: one that could quieten a " +
 			"detection could quieten the one that would have caught it"},
 
-	"telemetry": {
-		Why: "it checks a file a connector produced, at the point where " +
-			"there is no connector yet and nothing in the store to look at",
-		NoMCP: "an agent reading unvalidated telemetry is the thing the " +
-			"validation exists to prevent",
-	},
-	"env":      {GUI: "/publishing", MCP: []string{"pipeline_status"}},
-	"schedule": {GUI: "/publishing", MCP: []string{"pipeline_status"}},
-	"lang":     {GUI: "/languages", MCP: []string{"check_translations"}},
-	"scan":     {GUI: "/security/scan", MCP: []string{"scan_content"}},
-	"verify":   {GUI: "/security/integrity", MCP: []string{"verify_store"}},
 	"approvals": {GUI: "/approvals",
 		NoMCP: "what waits is decided by a person, and an app reading the queue " +
 			"of approvals is a model reading what it and others are waiting to " +
 			"have approved; the machine interface answers none of it either"},
-	"transfer": {GUI: "/transfer",
-		NoMCP: "a transfer manifest names the people accountable for moving " +
-			"content between networks, and an agent that could write one " +
-			"could name somebody who never approved anything"},
-	"marking": {GUI: "/security",
-		NoMCP: "a classification scheme is the boundary a marked deployment " +
-			"is built on, and a model that could read it could tell you " +
-			"which level a page sits under — the same reason network is off " +
-			"this surface"},
-	"network": {GUI: "/security",
+	"network": {GUI: "/settings",
 		NoMCP: "what this deployment may connect to is the boundary an " +
 			"isolated network is built on, and a model that could read it " +
 			"could tell you which purpose is still permitted — a shape of " +
 			"reconnaissance this surface should not answer"},
-	"compliance": {GUI: "/security/inventory", MCP: []string{"inventory", "site_report", "control_implementation"}},
-	"agents":     {GUI: "/security/agents", MCP: []string{"agent_activity"}},
-	"eval":       {GUI: "/agents/evals", MCP: []string{"eval_results"}},
-	"agent": {GUI: "/agents",
-		NoMCP: "declares what a model may do. An agent that can write an " +
-			"agent manifest can write itself a wider one, which turns every " +
-			"other capability boundary into a suggestion — this is the same " +
-			"reason auth and token are off this surface, and it is the more " +
-			"important instance of it"},
-	"agent template": {Why: "archetypes of this store's own — a kind " +
-		"somebody wrote, which `quilzo agent new --kind` knows the minute " +
-		"it is saved",
-		NoMCP: "writing an archetype shapes every agent made from it, which " +
-			"is an administrator's decision on the machine the store is on"},
-	"integrations": {GUI: "/integrations",
-		NoMCP: "a model reaching other people's systems through a list a " +
-			"model can edit is the loop this whole design exists to keep open"},
-	"integration": {GUI: "/integrations",
-		NoMCP: "the singular spelling of the same command"},
-	"rights": {GUI: "/media",
-		NoMCP: "what a model would do with it is edit the expiry that stops " +
-			"its own picture publishing, which is the gate rather than a field"},
-	"brand": {GUI: "/publishing",
-		NoMCP: "the rules deciding what this business may claim. A model that " +
-			"can edit them can delete the one standing between its own copy " +
-			"and the public, which is the gate rather than a setting"},
-	"peer": {GUI: "/transfer",
-		NoMCP: "pairs this store with another and adopts what it sent. A " +
-			"model that can add a peer can name one it controls and then " +
-			"adopt it, which is a write endpoint assembled out of two reads"},
-	"export":   {GUI: "/transfer", MCP: []string{"export_site"}},
-	"ipfs":     {GUI: "/decentralised", MCP: []string{"content_id"}},
-	"form":     {GUI: "/forms", NoMCP: "submissions are what members of the public typed; an agent that can read the postbag is a data breach with a tool call"},
-	"forms":    {GUI: "/forms", NoMCP: "as form"},
-	"listing":  {GUI: "/listings", MCP: []string{"run_listing"}},
-	"listings": {GUI: "/listings", MCP: []string{"run_listing"}},
-	"terms":    {GUI: "/structure", MCP: []string{"list_terms"}},
-	"taxonomy": {GUI: "/structure", MCP: []string{"list_terms"}},
-	"menu":     {GUI: "/structure", MCP: []string{"list_menus"}},
-	"menus":    {GUI: "/structure", MCP: []string{"list_menus"}},
 
-	// -- in the interface, and off the agent surface on purpose ---------------
-	"rollback": {GUI: "/rollback",
-		NoMCP: "moves what the public sees to a different commit. Publishing " +
-			"forward runs every gate; rolling back runs none, because the " +
-			"target already passed them once — which makes it the cheapest " +
-			"way for an agent to serve old content and the one operation " +
-			"where a person should be looking at the screen"},
-	"log":      {GUI: "/history", NoMCP: "the diff and pipeline status answer what an agent needs; a full commit walk is a large amount of context for a question nobody asked"},
-	"review":   {GUI: "/review", NoMCP: "is the human decision point; an agent has diff and check_accessibility, which are its two halves"},
-	"posture":  {GUI: "/security", NoMCP: "is a list of exactly where this deployment's defences are thin, which is a target list"},
-	"auditlog": {GUI: "/logs", NoMCP: "holds who did what, pseudonymously; agent_activity gives an agent its own record without handing it everybody else's"},
+	"auditlog": {GUI: "/logs", NoMCP: "holds who did what across everybody, pseudonymously; an agent is not handed everybody's record"},
 	"config":   {GUI: "/settings", NoMCP: "changes the security floors. An agent that can widen a limit can widen the limit that was stopping it"},
 	"auth":     {GUI: "/people", NoMCP: "grants roles. Nothing that decides who may do what belongs on this surface"},
 	"token":    {GUI: "/people", NoMCP: "mints credentials, for the same reason"},
-	"oidc":     {GUI: "/integrations", NoMCP: "points sign-in at an identity provider; changing it changes who can become an administrator"},
+	"oidc":     {GUI: "/sso", NoMCP: "points sign-in at an identity provider; changing it changes who can become an administrator"},
 	"saml":     {GUI: "/sso", NoMCP: "trusts an identity provider's key, and whoever holds that key can sign anybody in as anybody; that is a person's decision, made by checking a fingerprint"},
-	"ext":      {GUI: "/integrations", NoMCP: "registers a process this store executes. Arbitrary code execution, reached by asking"},
-	"research": {GUI: "/research", MCP: []string{"research_projects", "research_project", "research_search",
-		"research_cite", "research_run", "research_claim", "research_write", "research_ideas"}},
-	"feature": {GUI: "/make", NoMCP: "installing a feature is a person's decision, one or two of " +
-		"them; a model may draft a package, and checking one is the command line's and the screen's"},
-	"webhook": {GUI: "/integrations", NoMCP: "adds an outbound destination for content, which is exfiltration with a configuration screen"},
-	"vault":   {GUI: "/security/integrity", NoMCP: "handles key material"},
-	"browser": {Why: "a one-time download an operator makes, and a status line; which browser a run " +
-		"used is on the run's page",
-		NoMCP: "fetches and installs a program this store then runs"},
-	"cell": {Why: "whether this machine can run a desktop cell; a cell is driven by the " +
-		"operator's microVM binary over its socket, and nothing about one is " +
-		"changeable from a screen",
-		NoMCP: "drives a microVM on the machine it runs on; there is nothing to reach " +
-			"from another one"},
-	"desktop": {Why: "the person's own desktop, under their consent; the weakest " +
-		"isolation of all the tiers and deliberately last, off for runs by " +
-		"design, with nothing a screen changes",
-		NoMCP: "a person's consent dialog on the machine their desktop is on; it " +
-			"cannot be reached or answered from another one"},
-	"secret": {Why: "a credential is given on standard input, where no browser history, " +
-		"screen or form field holds it on the way",
-		NoMCP: "keeps credentials; an agent that could set one could set the one it is about to be handed"},
-	"siem":   {GUI: "/integrations", NoMCP: "exports the audit log and can be asked to reveal identifiers"},
-	"csp":    {GUI: "/security/policy", NoMCP: "is derived from published content and read on a screen; there is nothing an agent does with it"},
-	"lock":   {GUI: "/publishing", NoMCP: "is a courtesy between people about who is mid-edit, and an agent is not one of them"},
-	"import": {GUI: "/transfer", NoMCP: "reads a file from disk this process was handed; there is no path by which an agent supplies one"},
-	"demo": {GUI: "/transfer",
-		NoMCP: "installs a whole application over an empty store, including " +
-			"content types and a template; an agent that could do this could " +
-			"replace a site with a demonstration of one"},
-	"template": {GUI: "/design",
-		NoMCP: "writes the markup every page renders through, and adopts " +
-			"markup from a file. Both are changes to what the public sees on " +
-			"every page at once, which is not a thing to reach by asking"},
-	"templates": {GUI: "/design", NoMCP: "as template"},
-	"section": {GUI: "/sections",
-		NoMCP: "adds, moves and removes the blocks a page is built from. An " +
-			"agent already writes pages through save_page, which is the same " +
-			"change stated as content rather than as a sequence of moves"},
-	"sections": {GUI: "/sections", NoMCP: "as section"},
-	"find":     {GUI: "/find", MCP: []string{"find", "search_pages", "similar_pages"}},
-	"move": {
-		Why: "a rename that carries a page's children, the references naming " +
-			"them and the menu entries pointing at them. The browser has no " +
-			"screen for it yet: doing it there means showing what would move " +
-			"before it moves, and a confirmation that lists forty pages is a " +
-			"screen to design rather than a button to add",
-		NoMCP: "renaming content is how a site's addresses change, and a " +
-			"model doing it on its own turns every link anybody has saved " +
-			"into a 404 — with the audit record attributing it to whoever " +
-			"was holding the credential"},
-	"links": {GUI: "/page/",
-		Why: "shown on the page it is about — a list of what points at this " +
-			"page belongs beside the thing somebody is about to change, not " +
-			"on a screen they would have to think to open",
-		NoMCP: "a model asking what points at a page is asking to read the " +
-			"whole reference graph one question at a time; read_page and " +
-			"list_pages already give it the same answer in one call"},
-	"checked": {GUI: "/", MCP: []string{"list_checked"},
-		Why: "shown as a column on the pages list, where somebody is already " +
-			"looking, rather than as another entry in a navigation this " +
-			"release has been trying to shorten"},
-	"note": {GUI: "/notes", MCP: []string{"list_notes"},
-		Why: "the remarks people leave on a draft"},
-	"notes": {GUI: "/notes", MCP: []string{"list_notes"},
-		Why: "as note"},
-	"theme": {GUI: "/design",
-		NoMCP: "changes the colours, type and spacing of every page. An agent " +
-			"that can set a palette can set an unreadable one, and the " +
-			"contrast gate is a floor rather than a substitute for somebody " +
-			"looking at it"},
-	"assist":    {GUI: "/assist", NoMCP: "asks a model to write a site, and this surface is already being driven by one"},
-	"anchor":    {GUI: "/security/integrity", NoMCP: "submits to an external calendar and costs real time; verify_store answers the question an agent has"},
-	"timestamp": {GUI: "/security/integrity", NoMCP: "as anchor"},
-	"stamp":     {GUI: "/security/integrity", NoMCP: "as anchor"},
+	"vault": {Why: "the key is shown once, where a person types the command, and the console never holds it",
+		NoMCP: "handles key material"},
+	"siem": {GUI: "/settings", NoMCP: "exports the audit log and can be asked to reveal identifiers"},
 
 	// -- deliberately not in the interface either -----------------------------
 	"init": {Why: "creates the store, which is what you do before there is an " +
@@ -786,49 +339,18 @@ var coverage = map[string]surfaces{
 		NoMCP: "creates the store an agent would already have to be connected to"},
 	"serve": {Why: "starts the interface; a button inside it could not",
 		NoMCP: "starts a server"},
-	"site": {Why: "starts the public server, for the same reason",
-		NoMCP: "starts a server"},
-	"studio": {Why: "starts the capture surface, which is its own server " +
-		"because it runs a script and the admin does not. A button in the " +
-		"admin could start it, and then the admin would have to know its " +
-		"address — which is a deployment decision rather than a screen",
-		NoMCP: "starts a server, and a model has no screen to record"},
 	"logd": {Why: "runs as another account and must not be startable from this one",
 		NoMCP: "runs as another account"},
 	"mcp": {Why: "is the machine interface; it does not appear inside itself",
 		NoMCP: "is this surface"},
-	"audit": {Why: "reads template files given as arguments and never opens the store",
-		NoMCP: "takes file paths as arguments"},
-	"render": {Why: "renders to a file for a pipeline; the admin previews " +
-		"instead, at /preview/",
-		NoMCP: "writes a file for a pipeline"},
-	"__sandbox": {Why: "is not a command anybody types: it is the shim this " +
-		"program re-executes itself as to confine an extension",
-		NoMCP: "is a shim, and confining an extension is not an operation an " +
-			"agent performs"},
-	"__agentbox": {Why: "is not a command anybody types: it is the first process " +
-		"of an agent program's box, which this program re-executes itself as",
-		NoMCP: "is a box's first process; running a program is quilzo agent run --program"},
-	"__agentbox-exec": {Why: "is not a command anybody types: it is the shim that " +
-		"confines itself and becomes an agent's program",
-		NoMCP: "is a shim, as __sandbox"},
-	"config-show": {Why: "not a command", NoMCP: "not a command"},
-	"help": {Why: "prints usage",
-		NoMCP: "prints usage; the operation list is how an agent discovers this"},
-	"-h":      {Why: "prints usage", NoMCP: "as help"},
-	"--help":  {Why: "prints usage", NoMCP: "as help"},
-	"version": {Why: "prints a version", NoMCP: "prints a version"},
-	// The option spellings the GNU Coding Standards ask for, reaching the same
-	// branch as the subcommand. Listed so this test still accounts for every
-	// dispatched name, and shown in the help so they are findable.
-	"--version":    {Why: "prints a version", NoMCP: "prints a version"},
-	"-V":           {Why: "prints a version", NoMCP: "prints a version"},
-	"locales":      {Why: "an alias of lang", MCP: []string{"check_translations"}},
-	"environments": {Why: "an alias of env", MCP: []string{"pipeline_status"}},
-	"webhooks":     {Why: "an alias of webhook", NoMCP: "as webhook"},
-	"extensions":   {Why: "an alias of ext", NoMCP: "as ext"},
-	"prov":         {Why: "an alias of provenance", MCP: []string{"check_provenance"}},
-	"locks":        {Why: "an alias of lock", NoMCP: "as lock"},
+	// The command lists every command; the console's Find screen and the
+	// find operation find a screen by words.
+	"help":      {GUI: "/find", MCP: []string{"find"}},
+	"version":   {Why: "prints a version", NoMCP: "prints a version"},
+	"--version": {Why: "prints a version", NoMCP: "prints a version"},
+	"-V":        {Why: "prints a version", NoMCP: "prints a version"},
+	"-h":        {Why: "prints usage", NoMCP: "as help"},
+	"--help":    {Why: "prints usage", NoMCP: "as help"},
 }
 
 // Every dispatched command must appear, with a route or a reason.
@@ -908,7 +430,7 @@ func TestEveryClaimedRouteIsServed(t *testing.T) {
 // cannot.
 func TestEveryClaimedMCPOperationIsRegistered(t *testing.T) {
 	registered := registeredOperations(t)
-	if len(registered) < 15 {
+	if len(registered) < 6 {
 		t.Fatalf("found %d MCP operations; the parse is wrong and a test that "+
 			"sees nothing passes", len(registered))
 	}
@@ -1060,7 +582,7 @@ func readFile(t *testing.T, path string) string {
 //
 // The table above is keyed by command, and that granularity is what let a whole
 // operation go missing from the interface for months: removing a page lived at
-// `quilzo add --remove NAME`, so the row for "add" pointed at /page/ and was
+// `vaigil add --remove NAME`, so the row for "add" pointed at /page/ and was
 // perfectly true about writing pages while saying nothing about deleting them.
 // Every screen test passed, because a capability with no screen has nothing to
 // fail on. It was found by building an application and wanting to delete
@@ -1199,7 +721,7 @@ func TestEveryRemovalFlagIsReachableFromTheInterface(t *testing.T) {
 		"shield playbook propose.remove": {
 			// A playbook added here is removed from the Shield screen, where
 			// it was added, and the removal is a proposal like any other
-			// change to what Quilzo does on its own.
+			// change to what Vaigil does on its own.
 			GUI: "/security/shield",
 			MCP: nil,
 			NoMCP: "a playbook acts without asking anybody; an agent that could " +
@@ -1290,7 +812,7 @@ func TestEveryRemovalFlagIsReachableFromTheInterface(t *testing.T) {
 
 // A command nobody can find is a command nobody has.
 //
-// `quilzo demo` shipped working, declared its privilege, sat in the coverage
+// `vaigil demo` shipped working, declared its privilege, sat in the coverage
 // table with a screen and a reason — and was absent from the help text, so the
 // only way to discover it was to read the dispatch switch. Every check above
 // passed, because each of them asks whether a command is *declared* somewhere
@@ -1301,15 +823,15 @@ func TestEveryRemovalFlagIsReachableFromTheInterface(t *testing.T) {
 func TestEveryCommandAppearsInTheHelp(t *testing.T) {
 	help := readFile(t, "main.go")
 	// The help text is a raw string literal in main.go, and every line in it
-	// begins "  quilzo ". Reading the source rather than running the command
+	// begins "  vaigil ". Reading the source rather than running the command
 	// keeps this a source check like the others around it.
 	listed := map[string]bool{}
 	for _, line := range strings.Split(help, "\n") {
 		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, "quilzo ") {
+		if !strings.HasPrefix(line, "vaigil ") {
 			continue
 		}
-		rest := strings.TrimPrefix(line, "quilzo ")
+		rest := strings.TrimPrefix(line, "vaigil ")
 		if i := strings.IndexAny(rest, " \t"); i > 0 {
 			rest = rest[:i]
 		}
@@ -1327,7 +849,7 @@ func TestEveryCommandAppearsInTheHelp(t *testing.T) {
 	// to be added to it.
 	alias := aliasesOf(t)
 
-	// Self-referential, and the only entries excused. A person reading `quilzo
+	// Self-referential, and the only entries excused. A person reading `vaigil
 	// help` has already found help.
 	selfEvident := map[string]bool{"help": true, "-h": true, "--help": true}
 
@@ -1338,7 +860,7 @@ func TestEveryCommandAppearsInTheHelp(t *testing.T) {
 		if primary, is := alias[c]; is && listed[primary] {
 			continue
 		}
-		t.Errorf("%q is dispatched and does not appear in `quilzo help`. "+
+		t.Errorf("%q is dispatched and does not appear in `vaigil help`. "+
 			"The only way to find it is to read the source, which means it "+
 			"ships for nobody.", c)
 	}

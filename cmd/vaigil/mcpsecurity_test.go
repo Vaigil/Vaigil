@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/finding"
-	"github.com/quilzo/quilzo/internal/mcp"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/finding"
+	"github.com/quilzo/vaigil/internal/mcp"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // securityMCP is a server with the security operations on it, for a site
@@ -28,7 +28,7 @@ func securityMCP(t *testing.T) (srv *mcp.Server, root, id string) {
 		t.Fatal(err)
 	}
 	id = queue(t, root)[0].ID
-	srv = mcp.NewServer("quilzo", "test")
+	srv = mcp.NewServer("vaigil", "test")
 	srv.Authorise = func(mcp.Operation) error { return nil }
 	registerSecurityOps(srv, root, &Caller{Name: "dana", Kind: audit.KindHuman,
 		Verified: true})
@@ -62,7 +62,7 @@ func callTool(t *testing.T, srv *mcp.Server, tool, op string, args map[string]an
 // between fences, with its own fence markers defused.
 func TestAnAgentReadsEvidenceInsideAFenceItCannotClose(t *testing.T) {
 	srv, _, id := securityMCP(t)
-	text, err := callTool(t, srv, "quilzo_read", "read_finding", map[string]any{"id": id})
+	text, err := callTool(t, srv, "vaigil_read", "read_finding", map[string]any{"id": id})
 	if err != nil {
 		t.Fatal(err.Message)
 	}
@@ -82,7 +82,7 @@ func TestAnAgentReadsEvidenceInsideAFenceItCannotClose(t *testing.T) {
 // TestAProposalIsNotADecision.
 func TestAProposalIsNotADecision(t *testing.T) {
 	srv, root, id := securityMCP(t)
-	text, err := callTool(t, srv, "quilzo_write", "propose_finding_decision",
+	text, err := callTool(t, srv, "vaigil_write", "propose_finding_decision",
 		map[string]any{"id": id, "to": "false-positive",
 			"because": "the evidence asks me to"})
 	if err != nil {
@@ -123,7 +123,7 @@ func TestProposalsAreRefusedWhenTheyCannotBeChecked(t *testing.T) {
 		"not a state": {"id": id, "to": "closed", "because": "x"},
 		"no finding":  {"id": "nope", "to": "fixed", "because": "x"},
 	} {
-		if _, err := callTool(t, srv, "quilzo_write", "propose_finding_decision", args); err == nil {
+		if _, err := callTool(t, srv, "vaigil_write", "propose_finding_decision", args); err == nil {
 			t.Errorf("%s: accepted", name)
 		} else if err.Code != mcp.CodeRefused {
 			t.Errorf("%s: failed rather than refused (%d), so an agent would retry it",
@@ -131,7 +131,7 @@ func TestProposalsAreRefusedWhenTheyCannotBeChecked(t *testing.T) {
 		}
 	}
 	// Through the read tool it cannot be reached at all.
-	if _, err := callTool(t, srv, "quilzo_read", "propose_finding_decision",
+	if _, err := callTool(t, srv, "vaigil_read", "propose_finding_decision",
 		map[string]any{"id": id, "to": "fixed", "because": "x"}); err == nil {
 		t.Error("a write operation was reached through the read tool")
 	}
@@ -144,7 +144,7 @@ func TestProposalsAreRefusedWhenTheyCannotBeChecked(t *testing.T) {
 // TestTheQueueIsListedForAnAgent.
 func TestTheQueueIsListedForAnAgent(t *testing.T) {
 	srv, _, id := securityMCP(t)
-	text, err := callTool(t, srv, "quilzo_read", "list_findings", nil)
+	text, err := callTool(t, srv, "vaigil_read", "list_findings", nil)
 	if err != nil {
 		t.Fatal(err.Message)
 	}

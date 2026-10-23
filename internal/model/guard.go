@@ -1,22 +1,22 @@
 // SPDX-FileCopyrightText: 2026 Rashik Adhikari
 // SPDX-License-Identifier: Apache-2.0
 
-package gateway
+package model
 
 import (
 	"context"
 
-	"github.com/quilzo/quilzo/internal/assist"
-	"github.com/quilzo/quilzo/internal/codescan"
-	"github.com/quilzo/quilzo/internal/pii"
+	"github.com/quilzo/vaigil/internal/pii"
+	"github.com/quilzo/vaigil/internal/plaintext"
+	"github.com/quilzo/vaigil/internal/secret"
 )
 
-// Guarded is a model reached without the gateway's routes (the single
-// model an install configures with QUILZO_MODEL_URL) behind the same
-// privacy guard: what may not leave is masked before the prompt does, and
-// put back in the answer.
+// Guarded is a model behind a privacy guard: what may not leave is masked
+// before the prompt does, and put back in the answer. What draws nothing is
+// taken out first, so text nobody could read on a screen is not sent to a
+// model either (internal/plaintext).
 type Guarded struct {
-	Model assist.Model
+	Model Model
 	// Personal says it may receive personal data.
 	Personal   bool
 	OwnDomains []string
@@ -30,22 +30,23 @@ func (g Guarded) Complete(ctx context.Context, system, user string) (string, err
 	return out, err
 }
 
-func (g Guarded) CompleteMetered(ctx context.Context, system, user string) (string, assist.Usage, error) {
-	mask := &pii.Masker{Allowed: g.OwnDomains, Secrets: codescan.SecretSpans}
-	sys, usr, hidden := visible(system, user)
+func (g Guarded) CompleteMetered(ctx context.Context, system, user string) (string, Usage, error) {
+	mask := &pii.Masker{Allowed: g.OwnDomains, Secrets: secret.Spans}
+	sys, a := plaintext.Visible(system)
+	usr, b := plaintext.Visible(user)
 	sys, usr = mask.Mask(sys, g.Personal), mask.Mask(usr, g.Personal)
 	var out string
-	var used assist.Usage
+	var used Usage
 	var err error
-	if mm, ok := g.Model.(assist.Metered); ok {
+	if mm, ok := g.Model.(Metered); ok {
 		out, used, err = mm.CompleteMetered(ctx, sys, usr)
 	} else {
 		out, err = g.Model.Complete(ctx, sys, usr)
-		used = assist.Estimate(sys+usr, out)
+		used = Estimate(sys+usr, out)
 	}
 	counts := mask.Masked()
-	if hidden > 0 {
-		counts["invisible"] = hidden
+	if a+b > 0 {
+		counts["invisible"] = a + b
 	}
 	if len(counts) > 0 && g.OnMasked != nil {
 		g.OnMasked(counts)

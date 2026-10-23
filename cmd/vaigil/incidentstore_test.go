@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/incident"
-	"github.com/quilzo/quilzo/internal/mcp"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/incident"
+	"github.com/quilzo/vaigil/internal/mcp"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // incidentSite is a store with one finding in its register.
@@ -173,10 +173,10 @@ func TestAnAgentReadsTheClocksAndNotTheRecord(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	srv := mcp.NewServer("quilzo", "test")
+	srv := mcp.NewServer("vaigil", "test")
 	srv.Authorise = func(mcp.Operation) error { return nil }
 	registerSecurityOps(srv, root, human("dana"))
-	text, merr := callTool(t, srv, "quilzo_read", "incident_status", nil)
+	text, merr := callTool(t, srv, "vaigil_read", "incident_status", nil)
 	if merr != nil {
 		t.Fatal(merr.Message)
 	}

@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/saml"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/saml"
 )
 
 // confirm is signIn from a session that has to prove its person: the same
@@ -55,8 +55,8 @@ func TestATokenAloneIsAFirstFactorOnly(t *testing.T) {
 	if session == "" {
 		t.Fatal("signing in with a token set no session")
 	}
-	c := &http.Cookie{Name: "quilzo_token", Value: session}
-	if w := browse(srv, http.MethodGet, "/", c, nil); w.Code != http.StatusSeeOther ||
+	c := &http.Cookie{Name: "vaigil_token", Value: session}
+	if w := browse(srv, http.MethodGet, "/today", c, nil); w.Code != http.StatusSeeOther ||
 		w.Header().Get("Location") != "/signin/verify" {
 		t.Fatalf("a token's session reached the admin: %d %s", w.Code, w.Header().Get("Location"))
 	}
@@ -73,7 +73,7 @@ func TestATokenAloneIsAFirstFactorOnly(t *testing.T) {
 	if both == "" || both == session {
 		t.Fatal("confirming did not replace the session")
 	}
-	if w := browse(srv, http.MethodGet, "/", &http.Cookie{Name: "quilzo_token", Value: both}, nil); w.Code != http.StatusOK {
+	if w := browse(srv, http.MethodGet, "/today", &http.Cookie{Name: "vaigil_token", Value: both}, nil); w.Code != http.StatusOK {
 		t.Fatalf("the confirmed session does not reach the admin: %d", w.Code)
 	}
 	tok, err := srv.Tokens.Authenticate(both, time.Now())
@@ -92,12 +92,12 @@ func TestATokenAloneIsAFirstFactorOnly(t *testing.T) {
 // factors are compulsory, let through with a notice before.
 func TestATokenInAHeaderIsRefusedOnceTwoFactorsAreCompulsory(t *testing.T) {
 	srv, token := tokenSignIn(t)
-	w := get(t, srv, "/", token)
+	w := get(t, srv, "/today", token)
 	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "signing in here takes two") {
 		t.Fatalf("in the grace a token was refused, or not told: %d", w.Code)
 	}
 	srv.MFAFrom = time.Now().Add(-time.Minute)
-	if w := get(t, srv, "/", token); w.Code != http.StatusUnauthorized || !strings.Contains(w.Body.String(), "two factors") {
+	if w := get(t, srv, "/today", token); w.Code != http.StatusUnauthorized || !strings.Contains(w.Body.String(), "two factors") {
 		t.Fatalf("after the grace a token reached the admin: %d %s", w.Code, w.Body)
 	}
 	// A session that does not say how it began is one factor too.
@@ -105,7 +105,7 @@ func TestATokenInAHeaderIsRefusedOnceTwoFactorsAreCompulsory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if w := browse(srv, http.MethodGet, "/", &http.Cookie{Name: "quilzo_token", Value: legacy}, nil); w.Code == http.StatusOK {
+	if w := browse(srv, http.MethodGet, "/today", &http.Cookie{Name: "vaigil_token", Value: legacy}, nil); w.Code == http.StatusOK {
 		t.Error("a session with no record of how it began reached the admin")
 	}
 }
@@ -116,14 +116,14 @@ func TestATokenInAHeaderIsRefusedOnceTwoFactorsAreCompulsory(t *testing.T) {
 // to it.
 func TestSingleSignOnRequiredHoldsOnEveryRequest(t *testing.T) {
 	srv, _ := setup(t)
-	for _, who := range []string{"dana@quilzo.io", "glass@quilzo.io"} {
+	for _, who := range []string{"dana@vaigil.example", "glass@vaigil.example"} {
 		if err := srv.Policy.Grant(auth.Binding{Principal: who, Role: auth.RoleAdmin, Resource: "/"}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	srv.SAML = &SAMLAdmin{Providers: func() ([]saml.Config, error) {
-		return []saml.Config{{Name: "okta", Required: true, Domains: []string{"quilzo.io"},
-			BreakGlass: []string{"glass@quilzo.io"}}}, nil
+		return []saml.Config{{Name: "okta", Required: true, Domains: []string{"vaigil.example"},
+			BreakGlass: []string{"glass@vaigil.example"}}}, nil
 	}}
 	session := func(who string, methods ...string) string {
 		s, _, err := srv.Tokens.IssueSession("s", who, auth.RoleAdmin, "/", time.Hour, auth.RoleAdmin, methods...)
@@ -132,14 +132,14 @@ func TestSingleSignOnRequiredHoldsOnEveryRequest(t *testing.T) {
 		}
 		return s
 	}
-	if w := get(t, srv, "/", session("dana@quilzo.io", auth.MethodPasskey)); w.Code != http.StatusUnauthorized ||
+	if w := get(t, srv, "/today", session("dana@vaigil.example", auth.MethodPasskey)); w.Code != http.StatusUnauthorized ||
 		!strings.Contains(w.Body.String(), "requires signing in through") {
 		t.Errorf("a passkey session went round single sign-on: %d", w.Code)
 	}
-	if w := get(t, srv, "/", session("dana@quilzo.io", auth.MethodSSO)); w.Code != http.StatusOK {
+	if w := get(t, srv, "/today", session("dana@vaigil.example", auth.MethodSSO)); w.Code != http.StatusOK {
 		t.Errorf("a single sign-on session was refused: %d", w.Code)
 	}
-	if w := get(t, srv, "/", session("glass@quilzo.io", auth.MethodPasskey)); w.Code != http.StatusOK {
+	if w := get(t, srv, "/today", session("glass@vaigil.example", auth.MethodPasskey)); w.Code != http.StatusOK {
 		t.Errorf("the break-glass account was held to single sign-on: %d", w.Code)
 	}
 }

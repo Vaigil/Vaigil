@@ -7,18 +7,15 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/config"
-	"github.com/quilzo/quilzo/internal/find"
-	"github.com/quilzo/quilzo/internal/site"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/config"
+	"github.com/quilzo/vaigil/internal/find"
 )
 
 // Looking for one thing, across everything.
 //
-// A hundred and thirteen routes, twenty-nine destinations, seventy settings,
-// and until now the only way to reach any of it was to remember which of five
-// groups it was in and scroll. The site this interface makes has had search
-// since there was a site; the interface had none.
+// Every screen and every setting, without remembering which group it is in
+// and scrolling.
 //
 // # Why it is a form and a page, and not a suggestion list
 //
@@ -63,44 +60,13 @@ func (s *Server) handleFind(w http.ResponseWriter, r *http.Request) {
 
 // findSources is what this person may look through.
 func (s *Server) findSources(p principal) find.Sources {
-	src := find.Sources{
-		Commit:  s.Store.GetRef(site.RefDraft),
-		Screens: s.navigableTo(p),
-	}
-	if pages, err := site.PagesAt(s.Store, site.RefDraft); err == nil {
-		src.Pages = pages
-	}
-
+	src := find.Sources{Screens: s.navigableTo(p)}
 	// The settings, for somebody who may read them. A key's summary describes
 	// a control, which is why the settings screen asks for the same thing.
 	if s.mayUse(p, auth.ActGrant, "/") {
 		for _, o := range config.All() {
 			src.Settings = append(src.Settings,
 				find.Option{Key: o.Key, Summary: o.Summary})
-		}
-	}
-
-	if s.Media != nil && s.Media.Library != nil {
-		if lib, err := s.Media.Library(); err == nil && lib != nil {
-			if files, ferr := lib.List(); ferr == nil {
-				for _, f := range files {
-					src.Media = append(src.Media,
-						find.File{ID: f.ID, Alt: f.Alt})
-				}
-			}
-		}
-	}
-
-	if s.Types != nil && s.Types.Load != nil {
-		if st, err := s.Types.Load(); err == nil && st != nil && st.Registry != nil {
-			for _, t := range st.Registry.Types {
-				names := make([]string, 0, len(t.Fields))
-				for _, f := range t.Fields {
-					names = append(names, f.Name)
-				}
-				src.Types = append(src.Types,
-					find.ContentType{Name: t.Name, Fields: names})
-			}
 		}
 	}
 	return src
@@ -160,9 +126,6 @@ func groupHits(hits []find.Hit) []group {
 	headings := map[find.Kind]string{
 		find.Screen:  "Screens",
 		find.Setting: "Settings",
-		find.Type:    "Content types",
-		find.Page:    "Pages",
-		find.Media:   "Media",
 	}
 	var out []group
 	for _, h := range hits {

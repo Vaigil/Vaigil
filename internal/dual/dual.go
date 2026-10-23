@@ -26,13 +26,12 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/atomicfile"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/config"
+	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/config"
 )
 
 // The kinds of change that wait.
@@ -43,7 +42,7 @@ const (
 	// Token is an administrator's token, issued to whoever asked once
 	// another administrator agrees.
 	Token = "token"
-	// Setting is a setting weakened, or an approval count lowered.
+	// Setting is a setting weakened.
 	Setting = "setting"
 	// AuditLog is the audit log moved to another directory.
 	AuditLog = "auditlog"
@@ -83,27 +82,13 @@ func Privileged(bindings []auth.Binding) bool {
 	return false
 }
 
-// Lowering are the settings whose every decrease waits for a second
-// administrator, because each is how many people a change needs.
-var Lowering = []string{"review.required_approvals", "approval.required_humans"}
-
 // SettingNeedsSecond says why a setting's new value waits for a second
-// administrator: weaker than the default, or fewer people needed for a
-// change than now (c is the configuration as it stands).
+// administrator: weaker than the default (c is the configuration as it
+// stands).
 func SettingNeedsSecond(c *config.Config, key, value string) (bool, string) {
 	if s, ok := config.Lookup(key); ok {
 		if weaker, why := s.IsWeaker(value); weaker {
 			return true, why
-		}
-	}
-	for _, k := range Lowering {
-		if k != key {
-			continue
-		}
-		now, nerr := strconv.Atoi(strings.TrimSpace(c.Raw(key)))
-		next, xerr := strconv.Atoi(strings.TrimSpace(value))
-		if nerr != nil || xerr != nil || next < now {
-			return true, fmt.Sprintf("%s from %s to %s: fewer people would approve a change", key, c.Raw(key), value)
 		}
 	}
 	return false, ""

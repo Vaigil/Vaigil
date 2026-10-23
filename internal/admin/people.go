@@ -8,14 +8,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"slices"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/dual"
-	"github.com/quilzo/quilzo/internal/enrol"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/dual"
+	"github.com/quilzo/vaigil/internal/enrol"
 )
 
 // Managing people, and managing the credentials they hold.
@@ -45,10 +44,6 @@ type bindingView struct {
 	auth.Binding
 	Live  bool
 	Until string
-	// AppRole is the role an app declares that this row stands for, and
-	// Parts what it grants: a role is shown and removed as one.
-	AppRole string
-	Parts   []string
 }
 
 func viewBinding(b auth.Binding) bindingView {
@@ -111,17 +106,6 @@ func (s *Server) handlePeople(w http.ResponseWriter, r *http.Request) {
 			who = &person{Name: b.Principal, IsSelf: b.Principal == p.Name}
 			byName[b.Principal] = who
 		}
-		part := fmt.Sprintf("%s on %s", b.What(), b.Resource)
-		if role, ok := b.AppRoleOf(); ok {
-			if i := slices.IndexFunc(who.Bindings, func(v bindingView) bool { return v.AppRole == role }); i >= 0 {
-				who.Bindings[i].Parts = append(who.Bindings[i].Parts, part)
-				continue
-			}
-			v := viewBinding(b)
-			v.AppRole, v.Parts = role, []string{part}
-			who.Bindings = append(who.Bindings, v)
-			continue
-		}
 		who.Bindings = append(who.Bindings, viewBinding(b))
 	}
 
@@ -160,20 +144,11 @@ func (s *Server) handlePeople(w http.ResponseWriter, r *http.Request) {
 		seen := map[string]bool{}
 		for _, b := range who.Bindings {
 			label := b.What()
-			if b.AppRole != "" {
-				label = b.AppRole
-			} else if b.Deny {
+			if b.Deny {
 				label = "deny " + label
 			}
-			if b.Resource != "/" && b.AppRole == "" {
+			if b.Resource != "/" {
 				label += " on " + b.Resource
-			}
-			if b.OwnOnly {
-				// A binding written before the flag was withdrawn. It is shown
-				// because it is in the policy file, and shown as inert because
-				// it always was — reading "own only" as a restriction is the
-				// mistake this whole change is about.
-				label += " (own-only: never enforced, ignored)"
 			}
 			if !seen[label] {
 				seen[label] = true
@@ -212,33 +187,11 @@ func (s *Server) handlePeople(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "people.html", map[string]any{
 		"Nav": "people", "Title": "People", "Principal": p, "People": people, "Enrol": s.Enrol != nil,
 		"Waiting": s.enrolWaiting(now), "Pending": s.pendingRows(p, now),
-		"Roles": auth.Roles, "Jobs": auth.Jobs, "Permissions": auth.Permissions, "AppRoles": s.appRoles(),
+		"Roles": auth.Roles, "Jobs": auth.Jobs, "Permissions": auth.Permissions,
 		"ActiveWithin": activeWithin.String(),
 		"Known":        names, "Message": r.URL.Query().Get("m"),
 		"Error": r.URL.Query().Get("e"),
 	})
-}
-
-// appRoles is the roles the installed features declare, or none when they
-// cannot be read: the screen still grants everything else.
-func (s *Server) appRoles() []auth.AppRole {
-	if s.AppRoles == nil {
-		return nil
-	}
-	roles, err := s.AppRoles()
-	if err != nil {
-		return nil
-	}
-	return roles
-}
-
-func (s *Server) appRoleNamed(name string) (auth.AppRole, bool) {
-	for _, r := range s.appRoles() {
-		if r.Name == name {
-			return r, true
-		}
-	}
-	return auth.AppRole{}, false
 }
 
 // handlePeopleGrant adds or changes what somebody may do.
@@ -273,7 +226,7 @@ func (s *Server) handlePeopleGrant(w http.ResponseWriter, r *http.Request) {
 		Deny: r.FormValue("deny") == "on",
 		// own_only is not read from the form any more. The checkbox said
 		// "only content they created", stored a binding that said so, and
-		// nothing enforced it — see the error `quilzo auth grant --own-only`
+		// nothing enforced it — see the error `vaigil auth grant --own-only`
 		// now returns. A form field that cannot be honoured is not read.
 		GrantedBy: p.Name,
 		Note:      strings.TrimSpace(r.FormValue("note")),
@@ -290,22 +243,6 @@ func (s *Server) handlePeopleGrant(w http.ResponseWriter, r *http.Request) {
 		bindings[0].Role, bindings[0].Permission = "", perm.Action
 		role = auth.Role(perm.Action)
 	}
-	// A role an app declares is the bindings it stands for, on its own
-	// blocks, granted together.
-	if name, isApp := strings.CutPrefix(string(role), "app:"); isApp {
-		ar, ok := s.appRoleNamed(name)
-		if !ok || base.Deny {
-			s.peopleBack(w, r, "That role cannot be granted like that: a role an app declares is never a deny.")
-			return
-		}
-		if err := s.changePolicy(func(p *auth.Policy) error { return p.Assign(who, ar, base) }); err != nil {
-			s.peopleBack(w, r, err.Error())
-			return
-		}
-		s.audit("access.grant", "/"+who, map[string]string{"role": ar.Name, "resource": "its feature", "by": p.Name})
-		s.peopleBack(w, r, fmt.Sprintf("%s is now %s: %s", who, ar.Name, strings.Join(ar.Grants, "; ")))
-		return
-	}
 	// A job is the bindings it stands for, each on its own area.
 	if name, isJob := strings.CutPrefix(string(role), "job:"); isJob {
 		job, ok := auth.JobNamed(name)
@@ -320,7 +257,7 @@ func (s *Server) handlePeopleGrant(w http.ResponseWriter, r *http.Request) {
 		bindings = nil
 		for _, jb := range job.Bindings {
 			b := base
-			b.Role, b.Resource = jb.Role, jb.Resource
+			b.Role, b.Permission, b.Resource = jb.Role, jb.Permission, jb.Resource
 			bindings = append(bindings, b)
 		}
 		role, on = auth.Role(job.Name), "its areas"
@@ -456,11 +393,7 @@ func (s *Server) handlePeopleRevoke(w http.ResponseWriter, r *http.Request) {
 		if who == p.Name && role == auth.RoleAdmin && lastAdminIn(pol, who) {
 			return errLastAdmin
 		}
-		if name, isApp := strings.CutPrefix(string(role), "app:"); isApp {
-			n = pol.RevokeAppRole(who, name)
-		} else {
-			n = pol.RevokeNamed(who, string(role), on)
-		}
+		n = pol.RevokeNamed(who, string(role), on)
 		if n == 0 {
 			return errNoSuchBinding
 		}

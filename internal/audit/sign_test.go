@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
+	"github.com/quilzo/vaigil/internal/audit"
 )
 
 func signer(t *testing.T) *audit.HeadSigner {

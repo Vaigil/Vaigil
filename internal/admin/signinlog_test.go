@@ -12,7 +12,7 @@ import (
 
 // Signing in is in the log.
 //
-// It was not. OnSignIn exists and is assigned only inside cmd/quilzo's OIDC
+// It was not. OnSignIn exists and is assigned only inside cmd/vaigil's OIDC
 // block, so on the ordinary deployment — a token, or a passkey, and no
 // identity provider — the audit log held content changes with no record of
 // anybody ever signing in at all. AU-2 asks for the session, not only for what

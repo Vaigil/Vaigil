@@ -14,12 +14,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/finding"
-	"github.com/quilzo/quilzo/internal/indicator"
-	"github.com/quilzo/quilzo/internal/spool"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/finding"
+	"github.com/quilzo/vaigil/internal/indicator"
+	"github.com/quilzo/vaigil/internal/spool"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Indicators: what somebody else has said is bad, looked for in what is
@@ -293,10 +293,10 @@ func cmdIntel(root string, args []string) error {
 		return intelList(root, args[1:])
 	case "remove":
 		if len(args) != 2 {
-			return fmt.Errorf("usage: quilzo intel remove ID")
+			return fmt.Errorf("usage: vaigil intel remove ID")
 		}
 		caller := resolveCaller(root, flagToken)
-		if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
+		if err := authorise(root, caller, auth.ActTriage, auth.AreaSecurity); err != nil {
 			return err
 		}
 		if err := removeIndicator(root, caller, args[1]); err != nil {
@@ -364,10 +364,10 @@ func intelImport(root string, args []string) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return fmt.Errorf("usage: quilzo intel import FILE --source NAME")
+		return fmt.Errorf("usage: vaigil intel import FILE --source NAME")
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActTriage, auth.AreaSecurity); err != nil {
 		return err
 	}
 	raw, err := readBounded(pos[0], MaxVulnFile)
@@ -430,10 +430,10 @@ func intelAdd(root string, args []string) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return fmt.Errorf("usage: quilzo intel add VALUE --source NAME")
+		return fmt.Errorf("usage: vaigil intel add VALUE --source NAME")
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActTriage, auth.AreaSecurity); err != nil {
 		return err
 	}
 	now := time.Now().UTC()
@@ -541,7 +541,7 @@ func intelList(root string, args []string) error {
 		return nil
 	}
 	if len(all) == 0 {
-		w.Human("No indicators are held. quilzo intel import FILE --source NAME\n")
+		w.Human("No indicators are held. vaigil intel import FILE --source NAME\n")
 		return nil
 	}
 	w.Human("%s%d indicator(s)%s, %d lapsed and matching nothing\n\n", bold,

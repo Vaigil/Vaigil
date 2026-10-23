@@ -14,13 +14,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/atomicfile"
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/connector"
-	"github.com/quilzo/quilzo/internal/estate"
-	"github.com/quilzo/quilzo/internal/finding"
-	"github.com/quilzo/quilzo/internal/workforce"
+	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/connector"
+	"github.com/quilzo/vaigil/internal/estate"
+	"github.com/quilzo/vaigil/internal/finding"
+	"github.com/quilzo/vaigil/internal/workforce"
 )
 
 // The estate: what the company's tools say about its people and machines,
@@ -194,7 +194,7 @@ func buildEstate(root string, now time.Time) (*estate.Estate,
 	}
 	if len(snaps) == 0 {
 		return nil, estate.Outcome{}, fmt.Errorf(
-			"no tool has been read into this site yet; quilzo connect run " +
+			"no tool has been read into this site yet; vaigil connect run " +
 				"NAME --save reads one")
 	}
 	links, err := confirmedLinks(root)
@@ -284,7 +284,7 @@ func printSummary(s estateSummary, wrote bool) {
 		w.Human("\n%d finding(s), %d new, %d no longer reported (stale)\n",
 			s.Found, s.Opened, s.Staled)
 	} else {
-		w.Human("\n%d finding(s) would be raised; quilzo estate build records "+
+		w.Human("\n%d finding(s) would be raised; vaigil estate build records "+
 			"them\n", s.Found)
 	}
 }
@@ -300,7 +300,7 @@ func sortedKeysOf(m map[string]string) []string {
 
 func estateShow(root string) error {
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActView, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
 		return err
 	}
 	e, o, err := buildEstate(root, time.Now().UTC())
@@ -321,7 +321,7 @@ func estateBuild(root string, args []string) error {
 		return err
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActEditDraft, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
 		return err
 	}
 	s, err := buildAndRecord(root, time.Now().UTC(), caller.Name, caller.Kind,
@@ -542,7 +542,7 @@ func estateScores(root string, args []string) error {
 func estateSample(root string, args []string) error {
 	remove := len(args) > 0 && args[0] == "--remove"
 	if len(args) > 0 && !remove {
-		return fmt.Errorf("usage: quilzo estate sample [--remove]")
+		return fmt.Errorf("usage: vaigil estate sample [--remove]")
 	}
 	tools := estate.Sample(time.Now().UTC())
 	removed := 0
@@ -611,6 +611,6 @@ func estateSample(root string, args []string) error {
 		return nil
 	}
 	w.Human("wrote a sample company, Northwind Labs, as %d tools; every screen that shows it says it is a sample\n", len(tools))
-	w.Human("  %sremove it with: quilzo estate sample --remove%s\n", dim, reset)
+	w.Human("  %sremove it with: vaigil estate sample --remove%s\n", dim, reset)
 	return nil
 }

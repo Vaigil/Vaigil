@@ -2,8 +2,8 @@
 
 ## Where this project is, stated plainly
 
-Quilzo was written by one person. It is being opened not to collect patches for
-a project that stays under one person's control, but to find people who will
+Vaigil was written by one person. It is open not to collect patches for a
+project that stays under one person's control, but to find people who will
 take it over. That is the actual goal, so this document exists before there is
 anybody to govern.
 
@@ -35,7 +35,7 @@ the wait.
 **Changes to the structural claims** — the properties in the README and
 [SECURITY.md](SECURITY.md), the zero-dependency rule, or the licence — need
 explicit agreement from every maintainer, not silence. These are the reasons
-somebody would choose Quilzo. Removing one is allowed; removing one quietly is
+somebody would choose Vaigil. Removing one is allowed; removing one quietly is
 not.
 
 **Disagreement** that a discussion does not resolve goes to a simple majority of
@@ -63,7 +63,7 @@ must not disappear with them.
 
 ## The licence
 
-Quilzo is licensed under the [Apache License 2.0](LICENSE). Contributions are
+Vaigil is licensed under the [Apache License 2.0](LICENSE). Contributions are
 taken under the same licence with a [DCO](https://developercertificate.org/)
 sign-off. Copyright stays with each contributor; there is no contributor
 licence agreement and no assignment.
@@ -74,35 +74,19 @@ public, in this file, before it changes in the code.
 ## Money
 
 **There is no open-core tier and there will not be one.** Every security
-property — the audit log, the anchoring, the sandbox, the capability model, the
-gates — is in the version you can clone. A system that put its access controls
+property — the audit log, the anchoring, the roles, the second people, the
+two factors — is in the version you can clone. A system that put its access controls
 behind a licence key would be arguing that its users deserve less protection
 than its customers, and that is not an argument this project is willing to make.
 
-Money, if it comes, comes from **hosting and support**: running Quilzo for
+Money, if it comes, comes from **hosting and support**: running Vaigil for
 people who would rather not, and helping people who run it themselves.
 
 ## Moving to a foundation
 
-The intention is to place Quilzo under a neutral non-profit. That is not
-possible yet, and the reasons are worth writing down so nobody has to rediscover
-them:
-
-- **Software Freedom Conservancy** asks for "an existing, vibrant, diverse
-  community that develops and documents the software", and generally does not
-  take projects under development for less than a year. An OSI-approved licence
-  is mandatory, which Apache-2.0 is. The gate is community, not code.
-- **The Apache Software Foundation** releases everything under Apache-2.0,
-  which Quilzo already uses, so no relicensing stands in the way. The Incubator
-  adopts communities, so the gate is the same one.
-  [docs/apache-incubator-proposal.md](docs/apache-incubator-proposal.md) is
-  written and unsent.
-- **NLnet / NGI Zero** funds individuals rather than adopting projects and its
-  subject matter is exactly this one. It is funding rather than governance, and
-  is the realistic near-term step.
-
-So the order is: contributors first, foundation second. A foundation exists to
-steward a community; there is no shortcut that skips having one.
+The intention is to place Vaigil under a neutral non-profit once it has a
+community to steward: a foundation exists for a community, and there is no
+shortcut that skips having one. Contributors first, foundation second.
 
 ## Code of conduct
 

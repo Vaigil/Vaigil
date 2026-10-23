@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/lifecycle"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/lifecycle"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Device compliance: what a machine is required to be, against what the

@@ -15,11 +15,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/atomicfile"
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/egress"
-	"github.com/quilzo/quilzo/internal/remind"
+	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/egress"
+	"github.com/quilzo/vaigil/internal/remind"
 )
 
 // Reminding people what their tools say they still have to do.
@@ -32,7 +32,7 @@ import (
 // The Slack app's token is a credential like a connector's and is held in
 // the same sealed store, under slack-bot-token:
 //
-//	QUILZO_CONNECT_SECRET=xoxb-… quilzo connect secret slack-bot-token
+//	VAIGIL_CONNECT_SECRET=xoxb-… vaigil connect secret slack-bot-token
 
 func remindDir(root string) string { return filepath.Join(root, "remind") }
 
@@ -177,7 +177,7 @@ func remindSenders(root string, c remind.Config) (map[remind.Channel]remind.Send
 			case err != nil:
 				missing[ch] = err.Error()
 			case strings.TrimSpace(token) == "":
-				missing[ch] = "no Slack token is stored; quilzo connect " +
+				missing[ch] = "no Slack token is stored; vaigil connect " +
 					"secret " + slackSecret
 			default:
 				client, base := slackTarget()
@@ -200,8 +200,8 @@ func remindSendNow(root string, now time.Time, by string,
 		return 0, 0, err
 	}
 	if !c.Enabled {
-		return 0, 0, fmt.Errorf("reminders are not enabled. Look at quilzo " +
-			"remind preview, then quilzo remind enable")
+		return 0, 0, fmt.Errorf("reminders are not enabled. Look at vaigil " +
+			"remind preview, then vaigil remind enable")
 	}
 	if !c.InHours(now) {
 		return 0, 0, fmt.Errorf("outside the sending hours (%02d:00–%02d:00 "+

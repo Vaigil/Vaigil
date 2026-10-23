@@ -36,11 +36,7 @@ func TestOpeningANavEntryMarksIt(t *testing.T) {
 	// Screens that legitimately have no navigation to mark. Written down
 	// rather than skipped silently, and each is asserted to be a real
 	// destination below, so a stale exemption fails.
-	standalone := map[string]string{
-		"/playground": "its own document with its own Content-Security-Policy, " +
-			"because it is the one screen permitted a script; it renders " +
-			"neither the header nor the sidebar",
-	}
+	standalone := map[string]string{}
 
 	dests := destinations
 	if len(dests) < 20 {

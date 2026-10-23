@@ -30,7 +30,7 @@ const { spawn } = await import("node:child_process");
 const { mkdtempSync } = await import("node:fs");
 const { tmpdir } = await import("node:os");
 const { join } = await import("node:path");
-const profile = mkdtempSync(join(tmpdir(), "quilzo-passkey-chrome-"));
+const profile = mkdtempSync(join(tmpdir(), "vaigil-passkey-chrome-"));
 
 const chrome = spawn("/usr/bin/chromium", [
   "--headless=new",
@@ -96,7 +96,7 @@ async function main() {
   // is a test of the passkey routes, not of the token form.
   const url = new URL(base);
   await send("Network.setCookie", {
-    name: "quilzo_token", value: token,
+    name: "vaigil_token", value: token,
     domain: url.hostname, path: "/", httpOnly: true,
   });
 
@@ -198,7 +198,7 @@ async function main() {
   const signInMessage = await evaluate(
     `document.getElementById('msg') ? document.getElementById('msg').textContent : ''`);
   const cookies = await send("Network.getCookies", { urls: [base + "/"] });
-  const session = cookies.cookies.find((c) => c.name === "quilzo_token");
+  const session = cookies.cookies.find((c) => c.name === "vaigil_token");
 
   if (!session || !session.value) {
     fail(`signing in with the passkey set no session (page said: ` +

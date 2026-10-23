@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Replaying what has already gone wrong.

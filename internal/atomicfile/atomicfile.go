@@ -5,7 +5,7 @@
 //
 // # Why this is not a nicety
 //
-// Two processes share a store: `quilzo serve` is the admin and `quilzo site`
+// Two processes share a store: `vaigil serve` is the admin and `vaigil site`
 // is the website, and running them separately is the deployment this project
 // recommends because it keeps credentials out of the internet-facing half.
 //

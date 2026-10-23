@@ -58,20 +58,12 @@ func TestNoDeclaredSectionIsUnaccountedFor(t *testing.T) {
 	// Sections no screen owns, because they explain a concept or a surface
 	// rather than a destination.
 	standalone := map[string]bool{
-		"install":        true,
-		"concepts":       true,
-		"agent-limits":   true,
-		"agent-identity": true,
-		"evals":          true,
-		"programs":       true,
-		"chatbot-safety": true,
-		"a2a":            true,
-		"ai-evidence":    true,
-		"compliance":     true,
-		"isolated":       true,
-		"privacy":        true,
-		"collaboration":  true,
-		"licence":        true,
+		"install":  true,
+		"roles":    true,
+		"cli":      true,
+		"mcp":      true,
+		"security": true,
+		"licence":  true,
 	}
 	var loose []string
 	for id := range docSections {
@@ -95,41 +87,21 @@ func TestNoDeclaredSectionIsUnaccountedFor(t *testing.T) {
 // instead of invisibly at the source.
 func TestTheFooterLinksToThePublishedManual(t *testing.T) {
 	srv, token := setup(t)
-	w := get(t, srv, "/", token)
+	w := get(t, srv, "/today", token)
 	body := w.Body.String()
 
 	if !strings.Contains(body, DocsBase) {
 		t.Fatalf("no screen links to the manual at %s", DocsBase)
 	}
-	if strings.Contains(body, `href="/docs`) {
-		t.Error(`a footer still links to "/docs", which this server no longer ` +
-			`serves`)
-	}
 	// Help lands on the section for the screen being looked at, not the top.
-	want := DocURL("pages")
+	want := DocURL("start")
 	if !strings.Contains(body, want) {
-		t.Errorf("the pages screen does not send Help to %s, so Help means "+
+		t.Errorf("Today does not send Help to %s, so Help means "+
 			"\"help\" rather than \"help with this\"", want)
 	}
 	// Leaving this origin without handing the target a window handle.
 	if !strings.Contains(body, `rel="noopener noreferrer"`) {
 		t.Error("the outbound documentation links carry no rel=noopener")
-	}
-}
-
-// The manual is gone from this binary, and stays gone.
-//
-// Asserted because a removed feature that leaves its route behind is worse
-// than one that was never removed: /docs answering anything at all makes a
-// stale in-app copy look current.
-func TestTheInAppManualIsNotServed(t *testing.T) {
-	srv, token := setup(t)
-	for _, path := range []string{"/docs", "/docs/img/pages.png"} {
-		if w := get(t, srv, path, token); w.Code != 404 {
-			t.Errorf("GET %s gave %d, want 404 — the manual is published at %s "+
-				"and this binary should not be answering for it",
-				path, w.Code, DocsBase)
-		}
 	}
 }
 
@@ -170,34 +142,11 @@ func TestEveryDestinationIsServedAndEveryScreenIsADestination(t *testing.T) {
 
 // notADestination is every top-level route that is not a place to navigate to.
 var notADestination = map[string]string{
-	"/save":                  "a form target",
-	"/publish":               "a form target",
-	"/rollback":              "a form target",
-	"/theme":                 "a preference toggle",
-	"/sidebar":               "a preference toggle",
-	"/signin":                "reached when not signed in",
-	"/signout":               "a form target",
-	"/mcp":                   "the agent interface, posted to by programs; Connected apps says where it is",
-	"/a2a":                   "where other agents hand tasks over A2A 1.0, posted to by programs; the agent card says where it is",
-	"/style.css":             "a stylesheet",
-	"/brand.css":             "the operator's accent colour, as a stylesheet",
-	"/admin.js":              "the interface's script, fetched by every page's head",
-	"/fonts/quilzo-ui.woff2": "the interface's typeface, fetched by the stylesheet",
-	"/manifest.webmanifest": "the install manifest, linked from every page's " +
-		"head and opened by the browser rather than by a person",
-	"/icon.svg": "the mark, fetched as a favicon and as the installed " +
-		"application's icon; an image, not a screen",
-	"/preview.css": "the editing panel's stylesheet, fetched by a preview opened in a tab. A stylesheet is not a screen, and the policy on these responses is style-src 'self', so it cannot be inline",
-	"/site.css": "the site's own stylesheet, fetched by the framed preview " +
-		"so it looks like the page; not the interface's own, which is " +
-		"/style.css",
-	"/preview":      "a subtree",
-	"/media":        "in the table",
-	"/languages":    "in the table",
-	"/transfer":     "in the table",
-	"/assist":       "in the table",
-	"/types":        "in the table",
-	"/publishing":   "in the table",
-	"/integrations": "in the table",
-	"/profile":      "in the table",
+	"/theme":     "a preference toggle",
+	"/sidebar":   "a preference toggle",
+	"/signin":    "reached when not signed in",
+	"/signout":   "a form target",
+	"/style.css": "a stylesheet",
+	"/admin.js":  "the console's script, fetched by every page's head",
+	"/icon.svg":  "the mark, fetched as a favicon; an image, not a screen",
 }

@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/atomicfile"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/review"
-	"github.com/quilzo/quilzo/internal/workforce"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/review"
+	"github.com/quilzo/vaigil/internal/workforce"
 )
 
 // Access reviews, closed by the import rather than by the reviewer.
@@ -32,7 +32,7 @@ import (
 // campaign as complete.
 
 func reviewDir(root string) string {
-	return filepath.Join(assuranceDir(root), "reviews")
+	return filepath.Join(root, "reviews")
 }
 
 func campaignPath(root, id string) string {
@@ -155,7 +155,7 @@ func accessOpen(root string, args []string) error {
 	}
 	if len(pos) < 1 {
 		return fmt.Errorf(
-			"usage: quilzo access open ID [IDENTITIES.jsonl] --scope " +
+			"usage: vaigil access open ID [IDENTITIES.jsonl] --scope " +
 				"okta,github --due 2026-10-10 --remediate 2026-10-31")
 	}
 	caller := resolveCaller(root, flagToken)
@@ -194,7 +194,7 @@ func accessOpen(root string, args []string) error {
 	if err := c.Validate(); err != nil {
 		return err
 	}
-	if err := authorise(root, caller, auth.ActEditDraft, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
 		return err
 	}
 
@@ -228,7 +228,7 @@ func accessOpen(root string, args []string) error {
 		c.Remediate.Format("2006-01-02"), reset)
 	if len(stored.Items) == 0 {
 		w.Human("  %snothing to review: pass an identities file, as "+
-			"quilzo connect run ... | quilzo access open ID -%s\n",
+			"vaigil connect run ... | vaigil access open ID -%s\n",
 			yellow, reset)
 	}
 	return nil
@@ -237,7 +237,7 @@ func accessOpen(root string, args []string) error {
 func accessItems(root string, args []string) error {
 	pos, _ := leadingArgs(args, 1)
 	if len(pos) != 1 {
-		return fmt.Errorf("usage: quilzo access items ID")
+		return fmt.Errorf("usage: vaigil access items ID")
 	}
 	stored, err := loadCampaign(root, pos[0])
 	if err != nil {
@@ -287,7 +287,7 @@ func accessDecide(root string, args []string) error {
 	}
 	if len(pos) != 3 {
 		return fmt.Errorf(
-			"usage: quilzo access decide CAMPAIGN ISSUER:VALUE VERDICT " +
+			"usage: vaigil access decide CAMPAIGN ISSUER:VALUE VERDICT " +
 				"[--because ...]\n  verdicts: keep, revoke, reduce")
 	}
 	account, err := contactID(pos[1])
@@ -320,7 +320,7 @@ func accessDecide(root string, args []string) error {
 	if err := d.Validate(privileged); err != nil {
 		return err
 	}
-	if err := authorise(root, caller, auth.ActPublish, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
 		return err
 	}
 	if err := appendJSONL(decisionsPath(root, pos[0]), d); err != nil {
@@ -335,7 +335,7 @@ func accessDecide(root string, args []string) error {
 		verdictColour(d.Verdict), d.Verdict, reset)
 	if d.Verdict.Changes() {
 		w.Human("  %sthis is not done until the account is gone from a "+
-			"later import; quilzo access close %s does that%s\n",
+			"later import; vaigil access close %s does that%s\n",
 			dim, pos[0], reset)
 	}
 	return nil
@@ -352,7 +352,7 @@ func accessClose(root string, args []string) error {
 	pos, _ := leadingArgs(args, 2)
 	if len(pos) < 1 {
 		return fmt.Errorf(
-			"usage: quilzo access close CAMPAIGN [IDENTITIES.jsonl]\n" +
+			"usage: vaigil access close CAMPAIGN [IDENTITIES.jsonl]\n" +
 				"  the identities are a later import; without one, a " +
 				"revocation can only be reported as unverified")
 	}

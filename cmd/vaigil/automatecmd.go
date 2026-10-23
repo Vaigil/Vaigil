@@ -16,16 +16,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/admin"
-	"github.com/quilzo/quilzo/internal/atomicfile"
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/automate"
-	"github.com/quilzo/quilzo/internal/estate"
-	"github.com/quilzo/quilzo/internal/finding"
-	"github.com/quilzo/quilzo/internal/geo"
-	"github.com/quilzo/quilzo/internal/incident"
-	"github.com/quilzo/quilzo/internal/travel"
+	"github.com/quilzo/vaigil/internal/admin"
+	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/automate"
+	"github.com/quilzo/vaigil/internal/estate"
+	"github.com/quilzo/vaigil/internal/finding"
+	"github.com/quilzo/vaigil/internal/geo"
+	"github.com/quilzo/vaigil/internal/incident"
+	"github.com/quilzo/vaigil/internal/travel"
 )
 
 // Automations: the rules (internal/automate), the actions they may take
@@ -74,7 +74,7 @@ func loadGeo(root string) (*geo.Locator, string, error) {
 		l.DB = db
 		desc += " and " + db.Type + " (DB-IP, CC BY 4.0)"
 	} else {
-		desc += "; with no city database, other addresses are not placed (quilzo geo help)"
+		desc += "; with no city database, other addresses are not placed (vaigil geo help)"
 	}
 	if b, err := os.ReadFile(geoASNPath(root)); err == nil {
 		db, oerr := geo.Open(b)
@@ -174,7 +174,7 @@ func automationActions(root string) map[string]automate.Action {
 			return err
 		}
 		if m == nil {
-			return errors.New("no mail is set up (quilzo notify mail), so nobody was told; it is in the history and the audit log")
+			return errors.New("no mail is set up (vaigil notify mail), so nobody was told; it is in the history and the audit log")
 		}
 		return m.SendPlain(to, subject, body)
 	}
@@ -205,7 +205,7 @@ func automationActions(root string) map[string]automate.Action {
 				}
 				return fmt.Sprintf("%d open session(s) must now confirm it is them", n), nil
 			}},
-		"end-sessions": {ID: "end-sessions", Name: "Sign them out of Quilzo",
+		"end-sessions": {ID: "end-sessions", Name: "Sign them out of Vaigil",
 			Does:   "ends every session and token they hold here",
 			Undo:   "Undone by signing in again; a token has to be issued afresh.",
 			Kinds:  []string{"signin", "finding", "person", "signal"},
@@ -245,8 +245,8 @@ func automationActions(root string) map[string]automate.Action {
 				}
 				// One line: a name with a line break in it, from a tool,
 				// must not cost the message (mail refuses broken headers).
-				subject := "Quilzo: " + onOneLine(ev.Summary)
-				if err := mail(to, subject, ev.Summary+"\n\nThis was sent by an automation in Quilzo."); err != nil {
+				subject := "Vaigil: " + onOneLine(ev.Summary)
+				if err := mail(to, subject, ev.Summary+"\n\nThis was sent by an automation in Vaigil."); err != nil {
 					return "", err
 				}
 				return "told " + to, nil
@@ -309,7 +309,7 @@ func requestFromRule(root string, ev automate.Event, name string) (string, error
 		return "", errors.New("this can only be asked for about a finding or another system's report")
 	}
 	if _, err := findAction(root, name); err != nil {
-		return "", fmt.Errorf("%s is not installed (quilzo action add %s): %w", name, name, err)
+		return "", fmt.Errorf("%s is not installed (vaigil action add %s): %w", name, name, err)
 	}
 	caller := &Caller{Name: automateBy, Kind: audit.KindService, Verified: true}
 	now := time.Now().UTC()
@@ -377,7 +377,7 @@ func signInEvent(root string, engine *automate.Engine, f admin.SignInFacts, in t
 	fields := map[string]string{"signal": strings.Join(kinds, ","), "risk": judged.Risk,
 		"score": strconv.FormatFloat(judged.Score, 'f', 1, 64), "how": f.How, "role": string(f.Role),
 		"country": in.Place.Country, "network": in.Place.Kind, "provider": in.Network,
-		"anon": in.Anon, "device": in.Device, "source": "quilzo", "history": strconv.Itoa(primary.History)}
+		"anon": in.Anon, "device": in.Device, "source": "vaigil", "history": strconv.Itoa(primary.History)}
 	if in.ASN != 0 {
 		fields["asn"] = strconv.FormatUint(uint64(in.ASN), 10)
 	}
@@ -453,7 +453,7 @@ func automateDevices(root string, e *estate.Estate, now time.Time) {
 }
 
 func automateUsage() error {
-	return fmt.Errorf("usage: quilzo automate list | runs | templates | add TEMPLATE | mode ID watch|ask|act | on ID | off ID | remove ID | approve RUN | decline RUN")
+	return fmt.Errorf("usage: vaigil automate list | runs | templates | add TEMPLATE | mode ID watch|ask|act | on ID | off ID | remove ID | approve RUN | decline RUN")
 }
 
 func cmdAutomate(root string, args []string) error {
@@ -485,7 +485,7 @@ func cmdAutomate(root string, args []string) error {
 				return r, nil
 			}
 		}
-		return automate.Rule{}, fmt.Errorf("no rule %q (quilzo automate list)", id)
+		return automate.Rule{}, fmt.Errorf("no rule %q (vaigil automate list)", id)
 	}
 	switch args[0] {
 	case "list":
@@ -497,7 +497,7 @@ func cmdAutomate(root string, args []string) error {
 			return nil
 		}
 		if len(rules) == 0 {
-			w.Human("  no rules; quilzo automate templates lists ones to start from\n")
+			w.Human("  no rules; vaigil automate templates lists ones to start from\n")
 		}
 		for _, r := range rules {
 			state := r.Mode
@@ -535,7 +535,7 @@ func cmdAutomate(root string, args []string) error {
 				return note("automation.added", saved.Name)
 			}
 		}
-		return fmt.Errorf("no template %q (quilzo automate templates)", args[1])
+		return fmt.Errorf("no template %q (vaigil automate templates)", args[1])
 	case "mode", "on", "off":
 		want := 2
 		if args[0] == "mode" {
@@ -624,7 +624,7 @@ func cmdAutomate(root string, args []string) error {
 }
 
 func geoUsage() error {
-	return fmt.Errorf("usage: quilzo geo status | network add PREFIX NAME --kind office|vpn [--city C --country CC --lat N --lon N] | network remove PREFIX | help")
+	return fmt.Errorf("usage: vaigil geo status | network add PREFIX NAME --kind office|vpn [--city C --country CC --lat N --lon N] | network remove PREFIX | help")
 }
 
 // cmdGeo says where sign-ins are placed from, and names networks.
@@ -762,7 +762,7 @@ func sessionHooks(root string) (func(addr, agent string) admin.SessionContext,
 		out, err := engine.Handle(automate.Event{Kind: "signin", Subject: m.Principal,
 			Summary: m.Principal + ": " + detail,
 			Fields: map[string]string{"signal": "session-moved", "risk": "high", "role": string(m.Role),
-				"country": m.To.Country, "device": m.To.Device, "source": "quilzo"}})
+				"country": m.To.Country, "device": m.To.Device, "source": "vaigil"}})
 		if err != nil || !out.StepUp {
 			return admin.SignInVerdict{}
 		}
@@ -775,7 +775,7 @@ func sessionHooks(root string) (func(addr, agent string) admin.SessionContext,
 	}
 	signal := func(principal, kind, detail string) {
 		_, _ = engine.Handle(automate.Event{Kind: "signin", Subject: principal, Summary: principal + ": " + detail,
-			Fields: map[string]string{"signal": kind, "risk": travel.Severity(kind), "source": "quilzo"}})
+			Fields: map[string]string{"signal": kind, "risk": travel.Severity(kind), "source": "vaigil"}})
 	}
 	return place, moved, reported, signal
 }

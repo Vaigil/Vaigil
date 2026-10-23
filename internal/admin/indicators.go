@@ -11,7 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/indicator"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/indicator"
 )
 
 // Indicators: what somebody else has said is bad, what each has found, and
@@ -44,7 +45,7 @@ type IndicatorHits struct {
 const MaxIndicatorRows = 200
 
 func (s *Server) handleIndicators(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActView)
 	if !ok {
 		return
 	}
@@ -143,7 +144,7 @@ func (s *Server) handleIndicatorsAct(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "use the form", http.StatusMethodNotAllowed)
 		return
 	}
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActTriage)
 	if !ok {
 		return
 	}

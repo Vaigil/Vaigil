@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/finding"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/finding"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // The queue, on a screen.
@@ -184,7 +184,7 @@ type facet struct {
 }
 
 func (s *Server) handleFindings(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActView)
 	if !ok {
 		return
 	}
@@ -388,7 +388,7 @@ func kindOne(k finding.Kind) string {
 // handleFinding shows one finding: why it is here, its evidence, what has
 // been decided, and the form for deciding.
 func (s *Server) handleFinding(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActView)
 	if !ok {
 		return
 	}
@@ -447,6 +447,10 @@ func (s *Server) handleFinding(w http.ResponseWriter, r *http.Request) {
 	}
 	var opts []option
 	for _, st := range finding.States() {
+		// Accepting a risk is offered to whoever may make it.
+		if st == finding.Accepted && !s.mayAccept(p) {
+			continue
+		}
 		opts = append(opts, option{Value: string(st), Words: stateWords[st],
 			On: st == found.State})
 	}
@@ -486,15 +490,20 @@ func (s *Server) handleFinding(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "finding.html", data)
 }
 
-// mayDecide is whether this person may record a decision.
-//
-// Publish, as on the command line: deciding a risk is acceptable is a
-// statement the organisation stands behind.
+// mayDecide is whether this person may record a decision: an analyst
+// triages.
 func (s *Server) mayDecide(p principal) bool {
 	if p.Limits.ReadOnly {
 		return false
 	}
-	return s.mayUse(p, auth.ActPublish, "/")
+	return s.mayUse(p, auth.ActTriage, auth.AreaSecurity)
+}
+
+// mayAccept is whether this person may accept a risk: a responder, because
+// deciding a risk is acceptable is a statement the organisation stands
+// behind.
+func (s *Server) mayAccept(p principal) bool {
+	return !p.Limits.ReadOnly && s.mayUse(p, auth.ActRespond, auth.AreaSecurity)
 }
 
 // handleFindingDecide records a decision from the form.
@@ -504,11 +513,8 @@ func (s *Server) handleFindingDecide(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "a decision is made with a POST", http.StatusMethodNotAllowed)
 		return
 	}
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActTriage)
 	if !ok {
-		return
-	}
-	if !s.can(w, r, p, auth.ActPublish, "/") {
 		return
 	}
 	if s.Findings == nil || s.Findings.Decide == nil {
@@ -553,6 +559,8 @@ func (s *Server) handleFindingDecide(w http.ResponseWriter, r *http.Request) {
 	}
 	if d.To != finding.Accepted {
 		d.Until = time.Time{}
+	} else if !s.can(w, r, p, auth.ActRespond, auth.AreaSecurity) {
+		return
 	}
 	if err := d.Validate(); err != nil {
 		http.Redirect(w, r, back+"e="+url.QueryEscape(err.Error()),

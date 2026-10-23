@@ -1,5 +1,4 @@
 {{template "head" .}}
-<p class="wf-back"><a href="/security">Security</a></p>
 <h1>Events</h1>
 
 {{if .Unavailable}}<p class="notice bad">{{.Unavailable}}</p>{{else}}
@@ -12,7 +11,7 @@
 read from arrivals since {{.From.Format "2006-01-02 15:04"}} UTC. The
 {{plural .Skipped "older segment was" "older segments were"}} not read on this page load, so a source
 that went quiet before then is not listed here — ask the store directly with
-<code>quilzo spool</code> for anything older.</p>{{end}}
+<code>vaigil spool</code> for anything older.</p>{{end}}
 
 <h2>Whether a query over this means anything</h2>
 <p>A count is the easy number. These are the three that decide whether
@@ -63,7 +62,7 @@ investigation losing its evidence to a schedule.</p>
 <p>Nothing has sent anything yet. An empty store and a collector that has
 stopped look the same from here, so check that a source is set up:
 <a href="/security/feeds">Feeds</a> for what other systems push, or
-<code>quilzo estate sync</code> for what is collected on a schedule.</p>
+<code>vaigil estate sync</code> for what is collected on a schedule.</p>
 {{else}}
 <p>Quietest first, because the source that has stopped is the one worth
 seeing and a list sorted by volume buries it under whatever is loudest.</p>

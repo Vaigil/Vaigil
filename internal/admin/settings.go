@@ -4,15 +4,14 @@
 package admin
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/config"
-	"github.com/quilzo/quilzo/internal/dual"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/config"
+	"github.com/quilzo/vaigil/internal/dual"
 )
 
 // Configuration in the admin.
@@ -40,18 +39,10 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// Reading these needs the permission to write, not merely to read.
-	//
-	// The reason to show them at all is that somebody whose write was refused
-	// has to be able to find out which limit refused it. That argument covers
-	// an author and stops there: a reader never writes, so there is no
-	// refusal to explain to them, and the list does say which security
-	// controls this deployment has relaxed — which is a small target list for
-	// the lowest-privileged account in the building.
-	//
-	// Changing one still needs more than this; the save handler is gated
-	// separately and a weakening also needs a recorded reason.
-	if !s.can(w, r, p, auth.ActEditDraft, "/") {
+	// An administrator's: the list says which security controls this
+	// deployment has relaxed, which is a target list, and a weakening also
+	// needs a recorded reason and a second administrator.
+	if !s.can(w, r, p, auth.ActGrant, "/") {
 		return
 	}
 	if s.Settings == nil || s.Settings.Load == nil {
@@ -168,16 +159,6 @@ func (s *Server) handleSettingSave(w http.ResponseWriter, r *http.Request) {
 		// The acceptance path is surfaced rather than flattened into "invalid".
 		// A refusal that does not say a reason would make this work is a
 		// refusal somebody reads as "you cannot", which is not what it means.
-		var below *config.ErrBelowPolicy
-		if errors.As(err, &below) {
-			if below.Floor.Broken != "" {
-				s.settingsBack(w, r, key+" is held by the organisation's policy, which cannot be read, so it is not changed until the policy is repaired")
-				return
-			}
-			s.settingsBack(w, r, key+" = "+value+" is below the organisation's policy: "+below.Floor.Param+
-				" is "+below.Floor.Declared+". It may be stricter, never weaker; changing the policy is on the Organisation policy screen and takes two administrators")
-			return
-		}
 		var need *config.ErrNeedsAcceptance
 		if asAcceptance(err, &need) {
 			s.settingsBack(w, r, need.Why+
@@ -316,86 +297,28 @@ func (s *Server) idleFor(name string) time.Duration {
 	return idle
 }
 
-// settingGroupLabel names a settings group in words.
-//
-// The groups are the first segment of each key, so the headings on this screen
-// were `auth`, `token`, `api`, `publish`, `review`, `site`, `admin`, `marking`,
-// `approval`, `passkey`, `network`, `security`, `licence`, `fediverse`,
-// `crawl`, `share`, `telemetry`, `media`, `ext` — nineteen identifiers, three
-// of which (auth, passkey, security) a person cannot pre-sort mentally without
-// opening all three.
-//
-// A key is still shown on every row, so nothing is hidden by naming the
-// section after what it is for. An unknown group falls back to its own key
-// rather than to a guess, which is the honest answer for a group added later.
+// settingGroupLabel names a settings group in words: the groups are the
+// first segment of each key, and a heading of identifiers is one a person
+// cannot sort without opening each. A key is still shown on every row, and
+// an unknown group falls back to its own key rather than to a guess.
 func settingGroupLabel(key string) string {
 	switch key {
 	case "auth":
 		return "Signing in"
-	case "agent":
-		return "Agents and their models"
-	case "models":
-		return "Models for agents built elsewhere"
-	case "today":
-		return "The first screen after signing in"
-	case "cell":
-		return "Desktop cells"
 	case "passkey":
 		return "Passkeys"
-	case "siem":
-		return "The audit log, streamed to a SIEM"
+	case "session":
+		return "Console sessions"
 	case "token":
 		return "API tokens"
-	case "api":
-		return "Content API"
-	case "publish":
-		return "Publishing"
-	case "review":
-		return "Review and approval"
-	case "approval":
-		return "Approval policy"
-	case "site":
-		return "The published site"
 	case "admin":
-		return "This interface"
-	case "marking":
-		return "Classification marking"
+		return "This console"
 	case "network":
 		return "Outbound network"
 	case "security":
-		return "Security posture"
-	case "licence":
-		return "Content licensing"
-	case "fediverse":
-		return "Federation"
-	case "crawl":
-		return "Crawlers and AI"
-	case "ucp":
-		return "Shopping agents"
-	case "share":
-		return "Share target"
-	case "telemetry":
-		return "Telemetry"
-	case "media":
-		return "Media"
-	case "ext":
-		return "Extensions"
-	case "content":
-		return "Content"
-	case "session":
-		return "Admin sessions"
-	case "chatbot":
-		return "Chatbots"
-	case "agents":
-		return "Agents"
-	case "browser":
-		return "Agents' browser"
-	case "a2a":
-		return "Other vendors' agents (A2A)"
-	case "mcp":
-		return "Agent interface (MCP)"
-	case "guardrail":
-		return "Guardrails"
+		return "The security team"
+	case "siem":
+		return "The audit log, streamed to a SIEM"
 	}
 	return key
 }

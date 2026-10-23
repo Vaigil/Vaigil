@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/estate"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/estate"
 )
 
 func wfSnapshot(source string, kinds map[string]estate.Kind,
@@ -133,10 +133,10 @@ func TestOnlyAnAdministratorSeesAnybodysScore(t *testing.T) {
 	srv, _ := setup(t)
 	wireWorkforce(srv)
 	if err := srv.Policy.Grant(auth.Binding{Principal: "writer",
-		Role: auth.RoleAuthor, Resource: "/"}); err != nil {
+		Role: auth.RoleAnalyst, Resource: "/"}); err != nil {
 		t.Fatal(err)
 	}
-	secret, _, err := srv.Tokens.IssueSession("w", "writer", auth.RoleAuthor, "/",
+	secret, _, err := srv.Tokens.IssueSession("w", "writer", auth.RoleAnalyst, "/",
 		time.Hour, auth.RoleAdmin, auth.MethodPasskey)
 	if err != nil {
 		t.Fatal(err)

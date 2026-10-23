@@ -10,7 +10,7 @@ import "testing"
 // "What agents remember" took two lines in the sidebar, and a menu item on
 // two lines reads as two items. A label has 131 pixels beside its icon at
 // 1,280 wide (the drawer on a phone has more); these are the widths
-// Chromium drew each character at in the menu's font, Quilzo UI at 500 and
+// Chromium drew each character at in the menu's font, Vaigil UI at 500 and
 // 14px. The limit leaves a few pixels for the difference between the sum
 // of characters and the drawn word.
 var labelWidths = map[string]int{

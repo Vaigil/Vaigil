@@ -1,4 +1,4 @@
-module github.com/quilzo/quilzo
+module github.com/quilzo/vaigil
 
 go 1.27
 

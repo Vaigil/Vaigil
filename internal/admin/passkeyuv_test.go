@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
+	"github.com/quilzo/vaigil/internal/auth"
 )
 
 // A passkey that was only touched signs nobody in, and the person whose key
@@ -126,19 +126,16 @@ func TestAnOlderAdminPasskeyWorksOnlyWithUserVerification(t *testing.T) {
 }
 
 // Somebody provisioning suspended is refused at the passkey, as single
-// sign-on refuses them: no session, no exemption from the shield, and an
-// answer that says why.
+// sign-on refuses them: no session, and an answer that says why.
 func TestASuspendedPersonsPasskeySignsNobodyIn(t *testing.T) {
 	srv, token := fullyWired(t)
 	f := newFake(t, "credential-suspended")
 	f.register(t, srv, token)
 	who := srv.Passkeys.Credentials[0].Principal
-	if err := srv.Policy.Grant(auth.Binding{Principal: who, Role: auth.RoleReader, Resource: "/", Deny: true,
+	if err := srv.Policy.Grant(auth.Binding{Principal: who, Role: auth.RoleViewer, Resource: "/", Deny: true,
 		Note: "suspended: the identity provider deactivated or removed them"}); err != nil {
 		t.Fatal(err)
 	}
-	vouched := false
-	srv.OnStrongSignIn = func(*http.Request, string) { vouched = true }
 	sessions := len(srv.Tokens.Snapshot())
 
 	f.count++
@@ -149,19 +146,15 @@ func TestASuspendedPersonsPasskeySignsNobodyIn(t *testing.T) {
 	if sessionOf(w) != nil || len(srv.Tokens.Snapshot()) != sessions {
 		t.Fatal("a suspended person was given a session")
 	}
-	if vouched {
-		t.Fatal("a suspended person's address was exempted from the shield")
-	}
 }
 
 // A deny that leaves the person something, or that has ended, is not a
 // suspension: their passkey still signs them in.
 func TestAPartialOrEndedDenyOnTheWholeSiteDoesNotSuspendAPasskey(t *testing.T) {
 	for name, deny := range map[string]auth.Binding{
-		"a deny of publishing":    {Role: auth.RolePublisher},
+		"a deny of responding":    {Role: auth.RoleResponder},
 		"a deny of one action":    {Permission: auth.ActApprove},
-		"a deny of their own":     {Role: auth.RoleReader, OwnOnly: true},
-		"a deny that has expired": {Role: auth.RoleReader, Expires: time.Now().Add(-time.Hour).Unix()},
+		"a deny that has expired": {Role: auth.RoleViewer, Expires: time.Now().Add(-time.Hour).Unix()},
 	} {
 		t.Run(name, func(t *testing.T) {
 			srv, token := fullyWired(t)

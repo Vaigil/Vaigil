@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/indicator"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/indicator"
 )
 
 // wireIndicators keeps a set in memory, built the way the store builds it.
@@ -147,26 +147,26 @@ func TestAddingAndRemovingOnTheScreenSayWhatHappened(t *testing.T) {
 	}
 }
 
-func TestOnlyAnAdministratorSeesOrChangesTheIndicators(t *testing.T) {
+// A viewer reads the indicators and adds none: adding one is an analyst's.
+func TestAViewerReadsTheIndicatorsAndChangesNone(t *testing.T) {
 	srv, _ := setup(t)
 	set := wireIndicators(srv)
 	if err := srv.Policy.Grant(auth.Binding{Principal: "writer",
-		Role: auth.RoleAuthor, Resource: "/"}); err != nil {
+		Role: auth.RoleViewer, Resource: "/"}); err != nil {
 		t.Fatal(err)
 	}
-	secret, _, err := srv.Tokens.IssueSession("w", "writer", auth.RoleAuthor, "/",
+	secret, _, err := srv.Tokens.IssueSession("w", "writer", auth.RoleViewer, "/",
 		time.Hour, auth.RoleAdmin, auth.MethodPasskey)
 	if err != nil {
 		t.Fatal(err)
 	}
-	w := get(t, srv, "/security/indicators", secret)
-	if w.Code == 200 || strings.Contains(w.Body.String(), "203.0.113.9") {
-		t.Errorf("an author read the indicators: %d", w.Code)
+	if w := get(t, srv, "/security/indicators", secret); w.Code != 200 {
+		t.Errorf("a viewer cannot read the indicators: %d", w.Code)
 	}
 	before := set.Len()
 	p := postForm(t, srv, "/security/indicators/act", secret, url.Values{
 		"do": {"add"}, "value": {"evil.example"}, "source": {"x"}}.Encode())
 	if set.Len() != before || strings.HasPrefix(p.Header().Get("Location"), "/security/indicators") {
-		t.Error("an author added an indicator")
+		t.Error("a viewer added an indicator")
 	}
 }

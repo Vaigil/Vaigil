@@ -12,8 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/finding"
-	"github.com/quilzo/quilzo/internal/incident"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/finding"
+	"github.com/quilzo/vaigil/internal/incident"
 )
 
 // Cases: an incident, the findings it gathers, and its clocks.
@@ -195,7 +196,7 @@ func stateTone(s incident.State) string {
 }
 
 func (s *Server) handleCases(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActView)
 	if !ok {
 		return
 	}
@@ -300,7 +301,7 @@ func (s *Server) handleCases(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCase(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActView)
 	if !ok {
 		return
 	}
@@ -523,7 +524,10 @@ func (s *Server) handleCasesAct(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "use the form", http.StatusMethodNotAllowed)
 		return
 	}
-	p, ok := s.securityReader(w, r)
+	// An analyst records and links; changing the case takes a responder,
+	// and approving takes the approve permission.
+	do := r.FormValue("do")
+	p, ok := s.securityCan(w, r, caseNeeds(do))
 	if !ok {
 		return
 	}
@@ -541,7 +545,6 @@ func (s *Server) handleCasesAct(w http.ResponseWriter, r *http.Request) {
 		}
 		http.Redirect(w, r, to+"?"+v.Encode(), http.StatusSeeOther)
 	}
-	do := r.FormValue("do")
 	if do == "declare" {
 		var findings []string
 		for _, f := range r.Form["finding"] {
@@ -591,7 +594,7 @@ func (s *Server) handleCasesAct(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		back(caseHref(id), "Requested. Nothing has been sent: somebody "+
-			"else, or the commander, approves it.",
+			"else approves it.",
 			s.Cases.ActRequest(id, p.Name, r.FormValue("action"),
 				r.FormValue("target"), strings.TrimSpace(r.FormValue("text"))))
 		return
@@ -651,4 +654,17 @@ func agoText(d time.Duration) string {
 		return "just now"
 	}
 	return plainAge(d) + " ago"
+}
+
+// caseNeeds is what each change to a case takes: an analyst declares a case,
+// notes on it, links findings and watches it; a responder runs it; and an
+// approval takes the approve permission, which a responder holds.
+func caseNeeds(do string) auth.Action {
+	switch do {
+	case "declare", "note", "link", "unlink", "watch":
+		return auth.ActTriage
+	case "approve", "act-approve":
+		return auth.ActApprove
+	}
+	return auth.ActRespond
 }

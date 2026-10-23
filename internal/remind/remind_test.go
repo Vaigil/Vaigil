@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/estate"
+	"github.com/quilzo/vaigil/internal/estate"
 )
 
 // Wednesday, mid-morning in London.

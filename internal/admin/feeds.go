@@ -8,13 +8,13 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/quilzo/quilzo/internal/auth"
+	"github.com/quilzo/vaigil/internal/auth"
 )
 
 // The Feeds screen: what other systems push here, whether it is arriving,
 // and what it has said.
 //
-// A feed is added here or with quilzo inbound. Either way it takes an
+// A feed is added here or with vaigil inbound. Either way it takes an
 // administrator of the whole site, because what a feed says reaches the
 // automations, and some of them change who can get in.
 
@@ -48,7 +48,7 @@ type FeedsAdmin struct {
 }
 
 func (s *Server) handleFeeds(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActView)
 	if !ok {
 		return
 	}
@@ -77,7 +77,7 @@ func (s *Server) handleFeedsAct(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "POST only", http.StatusMethodNotAllowed)
 		return
 	}
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActGrant)
 	if !ok {
 		return
 	}

@@ -13,9 +13,9 @@ the real WebAuthn implementation with a software key behind it — which is the
 tool this exact situation was built for.
 
 ```
-quilzo auth grant you admin
-quilzo token issue you --principal you --role admin   # keep the token
-QUILZO_TOKEN=$TOKEN quilzo serve --addr 127.0.0.1:8802 &
+vaigil auth grant you admin
+vaigil token issue you --principal you --role admin   # keep the token
+VAIGIL_TOKEN=$TOKEN vaigil serve --addr 127.0.0.1:8802 &
 
 node scripts/passkey/browsercheck.mjs http://localhost:8802 $TOKEN
 ```

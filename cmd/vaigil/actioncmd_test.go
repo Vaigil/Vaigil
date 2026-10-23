@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/incident"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/incident"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // okta is a stand-in for the tool an action is sent to.
@@ -65,7 +65,7 @@ func actionSite(t *testing.T) (root, id string, tool *okta) {
 			t.Fatal(err)
 		}
 	}
-	t.Setenv("QUILZO_CONNECT_SECRET", "00actiontokenABCDEFGHIJKLMNOPQRSTUVWXYZ012")
+	t.Setenv("VAIGIL_CONNECT_SECRET", "00actiontokenABCDEFGHIJKLMNOPQRSTUVWXYZ012")
 	if err := cmdConnect(root, []string{"secret", "okta-action-token"}); err != nil {
 		t.Fatal(err)
 	}

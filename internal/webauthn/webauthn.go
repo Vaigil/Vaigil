@@ -349,11 +349,8 @@ func (p Party) Verify(cred Credential, challenge string, a Assertion) (Credentia
 // NIST SP 800-63B-4 §3.1.7.2: where a multi-factor authenticator reports
 // whether its activation factor was used and says it was not, the
 // authentication "SHALL be treated as single-factor". A passkey here is
-// taken as both factors at once: an administrator's is let through a
-// lockdown and exempts its address from the shield, and a member's is the
-// whole of their sign-in. A key that was only touched has earned neither. So
-// no verification, no passkey, for administrators and members alike, with
-// nothing to configure.
+// taken as both factors at once, and a key that was only touched has not
+// earned that. So no verification, no passkey, with nothing to configure.
 func userVerified(flags byte) error {
 	if flags&flagUserVerified == 0 {
 		return ErrUserNotVerified

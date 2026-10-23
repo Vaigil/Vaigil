@@ -15,25 +15,25 @@ import (
 // allowed, and what must *not* be issuable.
 
 func TestLadderIncludesEverythingBelow(t *testing.T) {
-	if !RoleAdmin.AtLeast(RoleReader) {
+	if !RoleAdmin.AtLeast(RoleViewer) {
 		t.Error("admin should include reader")
 	}
-	if RoleAuthor.AtLeast(RolePublisher) {
+	if RoleAnalyst.AtLeast(RoleResponder) {
 		t.Error("author must not include publisher — that is the boundary that matters")
 	}
-	if RoleNone.AtLeast(RoleReader) {
+	if RoleNone.AtLeast(RoleViewer) {
 		t.Error("no binding must not imply read access")
 	}
 }
 
 func TestGrantsInheritDownTheTree(t *testing.T) {
 	p := &Policy{}
-	must(t, p.Grant(Binding{Principal: "sam", Role: RoleAuthor, Resource: "/blog"}))
+	must(t, p.Grant(Binding{Principal: "sam", Role: RoleAnalyst, Resource: "/blog"}))
 
-	if d := p.Evaluate("sam", ActEditDraft, "/blog/2026/post"); !d.Allowed {
+	if d := p.Evaluate("sam", ActTriage, "/blog/2026/post"); !d.Allowed {
 		t.Errorf("a grant on /blog should cover a page beneath it: %s", d.Reason)
 	}
-	if d := p.Evaluate("sam", ActEditDraft, "/legal"); d.Allowed {
+	if d := p.Evaluate("sam", ActTriage, "/legal"); d.Allowed {
 		t.Error("a grant on /blog must not reach /legal")
 	}
 }
@@ -42,24 +42,24 @@ func TestGrantsInheritDownTheTree(t *testing.T) {
 // cover "/blog-drafts", granting access to a resource nobody named.
 func TestSiblingPathsAreNotCovered(t *testing.T) {
 	p := &Policy{}
-	must(t, p.Grant(Binding{Principal: "sam", Role: RoleAuthor, Resource: "/blog"}))
-	if d := p.Evaluate("sam", ActEditDraft, "/blog-drafts/x"); d.Allowed {
+	must(t, p.Grant(Binding{Principal: "sam", Role: RoleAnalyst, Resource: "/blog"}))
+	if d := p.Evaluate("sam", ActTriage, "/blog-drafts/x"); d.Allowed {
 		t.Error("/blog must not cover /blog-drafts")
 	}
 }
 
-func TestPublishIsTheBoundary(t *testing.T) {
+func TestRespondingIsTheBoundary(t *testing.T) {
 	p := &Policy{}
-	must(t, p.Grant(Binding{Principal: "sam", Role: RoleAuthor, Resource: "/"}))
+	must(t, p.Grant(Binding{Principal: "sam", Role: RoleAnalyst, Resource: "/"}))
 
-	if d := p.Evaluate("sam", ActEditDraft, "/x"); !d.Allowed {
-		t.Errorf("an author should write drafts: %s", d.Reason)
+	if d := p.Evaluate("sam", ActTriage, AreaSecurity); !d.Allowed {
+		t.Errorf("an analyst should triage: %s", d.Reason)
 	}
-	d := p.Evaluate("sam", ActPublish, "/x")
+	d := p.Evaluate("sam", ActRespond, AreaSecurity)
 	if d.Allowed {
-		t.Fatal("an author must not publish")
+		t.Fatal("an analyst must not act on a case")
 	}
-	if !strings.Contains(d.Reason, "needs publisher") {
+	if !strings.Contains(d.Reason, "needs responder") {
 		t.Errorf("the refusal should name what is missing, got %q", d.Reason)
 	}
 }
@@ -68,13 +68,13 @@ func TestPublishIsTheBoundary(t *testing.T) {
 // additive and cannot be revoked from below, which forces the broad grant.
 func TestDenyWinsAnywhereInTheTree(t *testing.T) {
 	p := &Policy{}
-	must(t, p.Grant(Binding{Principal: "sam", Role: RolePublisher, Resource: "/"}))
-	must(t, p.Grant(Binding{Principal: "sam", Role: RolePublisher, Resource: "/legal", Deny: true}))
+	must(t, p.Grant(Binding{Principal: "sam", Role: RoleResponder, Resource: "/"}))
+	must(t, p.Grant(Binding{Principal: "sam", Role: RoleResponder, Resource: "/legal", Deny: true}))
 
-	if d := p.Evaluate("sam", ActPublish, "/blog/post"); !d.Allowed {
+	if d := p.Evaluate("sam", ActRespond, "/blog/post"); !d.Allowed {
 		t.Errorf("the site-wide grant should still work elsewhere: %s", d.Reason)
 	}
-	d := p.Evaluate("sam", ActPublish, "/legal/terms")
+	d := p.Evaluate("sam", ActRespond, "/legal/terms")
 	if d.Allowed {
 		t.Fatal("a deny on /legal must beat a grant on /")
 	}
@@ -88,9 +88,9 @@ func TestDenyWinsAnywhereInTheTree(t *testing.T) {
 func TestDenyingALowRoleAlsoBlocksHigherOnes(t *testing.T) {
 	p := &Policy{}
 	must(t, p.Grant(Binding{Principal: "sam", Role: RoleAdmin, Resource: "/"}))
-	must(t, p.Grant(Binding{Principal: "sam", Role: RoleAuthor, Resource: "/secret", Deny: true}))
+	must(t, p.Grant(Binding{Principal: "sam", Role: RoleAnalyst, Resource: "/secret", Deny: true}))
 
-	if d := p.Evaluate("sam", ActPublish, "/secret/x"); d.Allowed {
+	if d := p.Evaluate("sam", ActRespond, "/secret/x"); d.Allowed {
 		t.Error("denying author on /secret must also stop publishing there")
 	}
 }
@@ -100,16 +100,16 @@ func TestDenyingALowRoleAlsoBlocksHigherOnes(t *testing.T) {
 // the same as denying the ability to look.
 func TestDenyingAHighRoleLeavesLowerActionsAlone(t *testing.T) {
 	p := &Policy{}
-	must(t, p.Grant(Binding{Principal: "dana", Role: RolePublisher, Resource: "/"}))
-	must(t, p.Grant(Binding{Principal: "dana", Role: RolePublisher, Resource: "/legal", Deny: true}))
+	must(t, p.Grant(Binding{Principal: "dana", Role: RoleResponder, Resource: "/"}))
+	must(t, p.Grant(Binding{Principal: "dana", Role: RoleResponder, Resource: "/legal", Deny: true}))
 
-	if d := p.Evaluate("dana", ActPublish, "/legal/terms"); d.Allowed {
+	if d := p.Evaluate("dana", ActRespond, "/legal/terms"); d.Allowed {
 		t.Error("the deny should stop publishing")
 	}
 	if d := p.Evaluate("dana", ActView, "/legal/terms"); !d.Allowed {
 		t.Errorf("denying publish must not remove read access: %s", d.Reason)
 	}
-	if d := p.Evaluate("dana", ActEditDraft, "/legal/terms"); !d.Allowed {
+	if d := p.Evaluate("dana", ActTriage, "/legal/terms"); !d.Allowed {
 		t.Errorf("denying publish must not stop drafting: %s", d.Reason)
 	}
 }
@@ -133,8 +133,8 @@ func TestUnknownActionIsRefused(t *testing.T) {
 // The feature that makes this usable: an answer you can act on.
 func TestDecisionExplainsItself(t *testing.T) {
 	p := &Policy{}
-	must(t, p.Grant(Binding{Principal: "sam", Role: RoleAuthor, Resource: "/blog"}))
-	d := p.Evaluate("sam", ActEditDraft, "/blog/post")
+	must(t, p.Grant(Binding{Principal: "sam", Role: RoleAnalyst, Resource: "/blog"}))
+	d := p.Evaluate("sam", ActTriage, "/blog/post")
 
 	if d.Binding == nil {
 		t.Fatal("the deciding binding should be returned")
@@ -152,11 +152,11 @@ func TestDecisionExplainsItself(t *testing.T) {
 
 func TestPathsNormalise(t *testing.T) {
 	p := &Policy{}
-	must(t, p.Grant(Binding{Principal: "sam", Role: RoleReader, Resource: "blog/"}))
+	must(t, p.Grant(Binding{Principal: "sam", Role: RoleViewer, Resource: "blog/"}))
 	if d := p.Evaluate("sam", ActView, "/blog"); !d.Allowed {
 		t.Errorf("blog/ and /blog are the same place: %s", d.Reason)
 	}
-	if err := p.Grant(Binding{Principal: "sam", Role: RoleReader, Resource: "/blog"}); err == nil {
+	if err := p.Grant(Binding{Principal: "sam", Role: RoleViewer, Resource: "/blog"}); err == nil {
 		t.Error("the same binding written differently should be refused as a duplicate")
 	}
 }
@@ -165,7 +165,7 @@ func TestPathsNormalise(t *testing.T) {
 
 func TestTokenIsShownOnceAndStoredHashed(t *testing.T) {
 	ts := &TokenStore{}
-	secret, tok, err := ts.Issue("ci", "sam", RoleAuthor, "/", time.Hour, RoleAdmin)
+	secret, tok, err := ts.Issue("ci", "sam", RoleAnalyst, "/", time.Hour, RoleAdmin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +182,7 @@ func TestTokenIsShownOnceAndStoredHashed(t *testing.T) {
 
 func TestTokenCannotExceedItsIssuer(t *testing.T) {
 	ts := &TokenStore{}
-	_, _, err := ts.Issue("escalate", "sam", RoleAdmin, "/", time.Hour, RolePublisher)
+	_, _, err := ts.Issue("escalate", "sam", RoleAdmin, "/", time.Hour, RoleResponder)
 	if err == nil {
 		t.Fatal("a publisher must not mint an admin token")
 	}
@@ -193,14 +193,14 @@ func TestTokenCannotExceedItsIssuer(t *testing.T) {
 
 func TestTokenMustExpire(t *testing.T) {
 	ts := &TokenStore{}
-	if _, _, err := ts.Issue("forever", "sam", RoleAuthor, "/", 0, RoleAdmin); err == nil {
+	if _, _, err := ts.Issue("forever", "sam", RoleAnalyst, "/", 0, RoleAdmin); err == nil {
 		t.Fatal("a token with no expiry should be refused")
 	}
 }
 
 func TestAuthenticateRejectsTheWrongToken(t *testing.T) {
 	ts := &TokenStore{}
-	secret, _, err := ts.Issue("ci", "sam", RoleAuthor, "/", time.Hour, RoleAdmin)
+	secret, _, err := ts.Issue("ci", "sam", RoleAnalyst, "/", time.Hour, RoleAdmin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +219,7 @@ func TestAuthenticateRejectsTheWrongToken(t *testing.T) {
 
 func TestExpiredAndRevokedTokensStopWorking(t *testing.T) {
 	ts := &TokenStore{}
-	secret, tok, err := ts.Issue("short", "sam", RoleAuthor, "/", time.Minute, RoleAdmin)
+	secret, tok, err := ts.Issue("short", "sam", RoleAnalyst, "/", time.Minute, RoleAdmin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +231,7 @@ func TestExpiredAndRevokedTokensStopWorking(t *testing.T) {
 		t.Errorf("the error should say it expired, got %q", err)
 	}
 
-	fresh, tok2, _ := ts.Issue("live", "sam", RoleAuthor, "/", time.Hour, RoleAdmin)
+	fresh, tok2, _ := ts.Issue("live", "sam", RoleAnalyst, "/", time.Hour, RoleAdmin)
 	_, rerr := ts.Revoke(tok2.ID)
 	must(t, rerr)
 	if _, err := ts.Authenticate(fresh, time.Now()); err == nil {
@@ -244,7 +244,7 @@ func TestExpiredAndRevokedTokensStopWorking(t *testing.T) {
 
 func TestLastUsedIsRecorded(t *testing.T) {
 	ts := &TokenStore{}
-	secret, _, _ := ts.Issue("ci", "sam", RoleAuthor, "/", time.Hour, RoleAdmin)
+	secret, _, _ := ts.Issue("ci", "sam", RoleAnalyst, "/", time.Hour, RoleAdmin)
 	if ts.Tokens[0].LastUsed != 0 {
 		t.Fatal("a fresh token has not been used")
 	}
@@ -259,7 +259,7 @@ func TestLastUsedIsRecorded(t *testing.T) {
 
 func TestStaleFindsForgottenTokens(t *testing.T) {
 	ts := &TokenStore{}
-	_, _, _ = ts.Issue("old", "sam", RoleAuthor, "/", 90*24*time.Hour, RoleAdmin)
+	_, _, _ = ts.Issue("old", "sam", RoleAnalyst, "/", 90*24*time.Hour, RoleAdmin)
 	ts.Tokens[0].CreatedAt = time.Now().Add(-60 * 24 * time.Hour).Unix()
 
 	stale := ts.Stale(time.Now(), 30*24*time.Hour)
@@ -281,7 +281,7 @@ func must(t *testing.T, err error) {
 // object, so exposure of the second is bounded by a clock.
 func TestExchangeMintsAShortLivedSession(t *testing.T) {
 	ts := &TokenStore{}
-	parent, _, err := ts.Issue("ci", "alice", RolePublisher, "/", 720*time.Hour, RoleAdmin)
+	parent, _, err := ts.Issue("ci", "alice", RoleResponder, "/", 720*time.Hour, RoleAdmin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -309,26 +309,26 @@ func TestExchangeMintsAShortLivedSession(t *testing.T) {
 // wearing the clothes of a convenience.
 func TestASessionCannotWiden(t *testing.T) {
 	ts := &TokenStore{}
-	parent, _, _ := ts.Issue("ci", "alice", RoleAuthor, "/blog", 720*time.Hour, RoleAdmin)
+	parent, _, _ := ts.Issue("ci", "alice", RoleAnalyst, "/blog", 720*time.Hour, RoleAdmin)
 	now := time.Now()
 
-	if _, _, err := ts.Exchange(parent, RolePublisher, "", 0, now); err == nil {
+	if _, _, err := ts.Exchange(parent, RoleResponder, "", 0, now); err == nil {
 		t.Error("a session must not carry more than its parent")
 	}
 	if _, _, err := ts.Exchange(parent, RoleNone, "/", 0, now); err == nil {
 		t.Error("a session must not reach outside its parent's scope")
 	}
 	// Narrowing is fine, and is the reason to exchange at all.
-	if _, sess, err := ts.Exchange(parent, RoleReader, "/blog/post", 0, now); err != nil {
+	if _, sess, err := ts.Exchange(parent, RoleViewer, "/blog/post", 0, now); err != nil {
 		t.Errorf("narrowing should be allowed: %v", err)
-	} else if sess.Role != RoleReader || sess.Resource != "/blog/post" {
+	} else if sess.Role != RoleViewer || sess.Resource != "/blog/post" {
 		t.Errorf("the narrowed session is wrong: %+v", sess)
 	}
 }
 
 func TestSessionLifetimeIsCapped(t *testing.T) {
 	ts := &TokenStore{}
-	parent, _, _ := ts.Issue("ci", "alice", RolePublisher, "/", 720*time.Hour, RoleAdmin)
+	parent, _, _ := ts.Issue("ci", "alice", RoleResponder, "/", 720*time.Hour, RoleAdmin)
 	now := time.Now()
 
 	if _, _, err := ts.Exchange(parent, RoleNone, "", 30*24*time.Hour, now); err == nil {
@@ -336,7 +336,7 @@ func TestSessionLifetimeIsCapped(t *testing.T) {
 	}
 
 	// And never past the parent, or it outlives the credential it came from.
-	short, _, _ := ts.Issue("short", "alice", RolePublisher, "/", 5*time.Minute, RoleAdmin)
+	short, _, _ := ts.Issue("short", "alice", RoleResponder, "/", 5*time.Minute, RoleAdmin)
 	_, sess, err := ts.Exchange(short, RoleNone, "", time.Hour, now)
 	if err != nil {
 		t.Fatal(err)
@@ -348,7 +348,7 @@ func TestSessionLifetimeIsCapped(t *testing.T) {
 
 func TestASessionCannotBeExchangedAgain(t *testing.T) {
 	ts := &TokenStore{}
-	parent, _, _ := ts.Issue("ci", "alice", RolePublisher, "/", 720*time.Hour, RoleAdmin)
+	parent, _, _ := ts.Issue("ci", "alice", RoleResponder, "/", 720*time.Hour, RoleAdmin)
 	now := time.Now()
 	sessSecret, _, _ := ts.Exchange(parent, RoleNone, "", 0, now)
 
@@ -362,7 +362,7 @@ func TestASessionCannotBeExchangedAgain(t *testing.T) {
 // Revocation that leaves sessions running is not revocation.
 func TestRevokingAParentKillsItsSessions(t *testing.T) {
 	ts := &TokenStore{}
-	parentSecret, parent, _ := ts.Issue("ci", "alice", RolePublisher, "/", 720*time.Hour, RoleAdmin)
+	parentSecret, parent, _ := ts.Issue("ci", "alice", RoleResponder, "/", 720*time.Hour, RoleAdmin)
 	now := time.Now()
 
 	a, _, _ := ts.Exchange(parentSecret, RoleNone, "", 0, now)
@@ -402,17 +402,17 @@ func TestAnywhereIsTrueForAScopedGrantAndFalseWithoutOne(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	must(p.Grant(Binding{Principal: "bea", Role: RoleAuthor, Resource: "/blog"}))
-	must(p.Grant(Binding{Principal: "cal", Role: RoleReader, Resource: "/blog"}))
+	must(p.Grant(Binding{Principal: "bea", Role: RoleAnalyst, Resource: "/blog"}))
+	must(p.Grant(Binding{Principal: "cal", Role: RoleViewer, Resource: "/blog"}))
 
-	if p.Evaluate("bea", ActEditDraft, "/").Allowed {
+	if p.Evaluate("bea", ActTriage, "/").Allowed {
 		t.Fatal("the premise is wrong: a /blog author is allowed on /")
 	}
-	if !p.Anywhere("bea", ActEditDraft) {
+	if !p.Anywhere("bea", ActTriage) {
 		t.Error("an author scoped to /blog may edit nothing anywhere, which " +
 			"shuts them out of every screen that lists pages")
 	}
-	if p.Anywhere("cal", ActEditDraft) {
+	if p.Anywhere("cal", ActTriage) {
 		t.Error("a reader may edit somewhere")
 	}
 	if p.Anywhere("nobody", ActView) {
@@ -425,14 +425,14 @@ func TestAnywhereIsTrueForAScopedGrantAndFalseWithoutOne(t *testing.T) {
 func TestAnywhereHonoursADenyThatCoversTheGrant(t *testing.T) {
 	p := &Policy{}
 	if err := p.Grant(Binding{
-		Principal: "bea", Role: RoleAuthor, Resource: "/blog"}); err != nil {
+		Principal: "bea", Role: RoleAnalyst, Resource: "/blog"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := p.Grant(Binding{Principal: "bea", Role: RoleAuthor,
+	if err := p.Grant(Binding{Principal: "bea", Role: RoleAnalyst,
 		Resource: "/blog", Deny: true}); err != nil {
 		t.Fatal(err)
 	}
-	if p.Anywhere("bea", ActEditDraft) {
+	if p.Anywhere("bea", ActTriage) {
 		t.Error("a deny covering the only grant still answers yes, so a " +
 			"screen opens for somebody the policy refuses everywhere")
 	}
@@ -442,14 +442,14 @@ func TestAnywhereHonoursADenyThatCoversTheGrant(t *testing.T) {
 func TestAnywhereFindsTheGrantADenyDoesNotReach(t *testing.T) {
 	p := &Policy{}
 	for _, b := range []Binding{
-		{Principal: "bea", Role: RoleAuthor, Resource: "/"},
-		{Principal: "bea", Role: RoleAuthor, Resource: "/legal", Deny: true},
+		{Principal: "bea", Role: RoleAnalyst, Resource: "/"},
+		{Principal: "bea", Role: RoleAnalyst, Resource: "/legal", Deny: true},
 	} {
 		if err := p.Grant(b); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if !p.Anywhere("bea", ActEditDraft) {
+	if !p.Anywhere("bea", ActTriage) {
 		t.Error("a deny on /legal removed the site-wide grant everywhere else")
 	}
 }
@@ -476,7 +476,7 @@ func TestASteppedUpSessionIsRefusedEverywhere(t *testing.T) {
 		t.Errorf("once it proved its person it is still refused: %v", err)
 	}
 	// Only sessions can be stepped up; a token is not a sign-in.
-	plain, _, _ := ts.Issue("ci", "bot", RoleAuthor, "/", time.Hour, RoleAdmin)
+	plain, _, _ := ts.Issue("ci", "bot", RoleAnalyst, "/", time.Hour, RoleAdmin)
 	for _, tk := range ts.Snapshot() {
 		if tk.Principal == "bot" {
 			if err := ts.RequireStepUp(tk.ID, "x"); err == nil {
@@ -494,11 +494,11 @@ func TestUnknownTellsAGuessFromALateCredential(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = ts.Authenticate("qz_"+strings.Repeat("a", 52), now)
+	_, err = ts.Authenticate("vg_"+strings.Repeat("a", 52), now)
 	if !Unknown(err) || err.Error() != "no such token" {
 		t.Fatalf("a guess: %v", err)
 	}
-	if _, err = ts.Authenticate("hunter2", now); !Unknown(err) || err.Error() != "that is not a quilzo token (they start with qz_)" {
+	if _, err = ts.Authenticate("hunter2", now); !Unknown(err) || err.Error() != "that is not a vaigil token (they start with vg_)" {
 		t.Fatalf("not a token: %v", err)
 	}
 	if _, err = ts.Authenticate(secret, time.Now().Add(2*time.Hour)); err == nil || Unknown(err) {
@@ -510,63 +510,6 @@ func TestUnknownTellsAGuessFromALateCredential(t *testing.T) {
 	}
 	if Unknown(nil) {
 		t.Fatal("no error is unknown")
-	}
-}
-
-func TestALockdownRefusesWhatWasMadeBeforeItEvenAsANewSession(t *testing.T) {
-	ts := &TokenStore{}
-	old, _, err := ts.Issue("laptop", "dana", RoleAdmin, "", 30*24*time.Hour, RoleAdmin)
-	if err != nil {
-		t.Fatal(err)
-	}
-	began := time.Now().Add(time.Second).Unix()
-	locked := func(c Credential) error {
-		if !c.Vouched && c.Issued < began {
-			return ErrLockedDown
-		}
-		return nil
-	}
-	// A session exchanged before the lockdown, from the old token.
-	sessSecret, _, err := ts.Exchange(old, RoleNone, "", time.Hour, time.Now())
-	if err != nil {
-		t.Fatal(err)
-	}
-	passkey, _, err := ts.IssueSession("passkey:dana", "dana", RoleAdmin, "/", time.Hour, RoleAdmin)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ts.Admit = locked
-	if _, err := ts.Authenticate(old, time.Now()); !errors.Is(err, ErrLockedDown) {
-		t.Fatalf("the old token: %v", err)
-	}
-	if _, err := ts.Authenticate(sessSecret, time.Now()); !errors.Is(err, ErrLockedDown) {
-		t.Fatalf("its session: %v", err)
-	}
-	// Exchanging it now cannot launder it into a session made after.
-	if _, _, err := ts.Exchange(old, RoleNone, "", time.Hour, time.Now()); !errors.Is(err, ErrLockedDown) {
-		t.Fatalf("exchanged during the lockdown: %v", err)
-	}
-	if _, err := ts.Authenticate(passkey, time.Now()); err != nil {
-		t.Fatalf("a passkey session was refused: %v", err)
-	}
-	ts.Admit = nil
-	fresh, _, err := ts.Issue("after", "dana", RoleAdmin, "", time.Hour, RoleAdmin)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ts.Admit = func(c Credential) error {
-		if !c.Vouched && c.Issued < began-10 {
-			return ErrLockedDown
-		}
-		return nil
-	}
-	if _, err := ts.Authenticate(fresh, time.Now()); err != nil {
-		t.Fatalf("a token made since: %v", err)
-	}
-	// Refusals are not guesses.
-	ts.Admit = locked
-	if _, err := ts.Authenticate(old, time.Now()); Unknown(err) {
-		t.Fatal("a locked-out credential counted as a guess")
 	}
 }
 
@@ -606,14 +549,14 @@ func TestAnAudienceBoundTokenWorksOnlyAtItsResource(t *testing.T) {
 	ts := &TokenStore{}
 	now := time.Now()
 	const mcp = "https://admin.example.org/mcp"
-	secret, tok, err := ts.IssueForGrant("dana", RoleAuthor, Scope{}, "https://app.example/c.json", "gr_1", mcp, time.Hour, now)
+	secret, tok, err := ts.IssueForGrant("dana", RoleAnalyst, Scope{}, "https://app.example/c.json", "gr_1", mcp, time.Hour, now)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if tok.Session || tok.Audience != mcp || tok.Grant != "gr_1" || tok.Name != "app https://app.example/c.json" {
 		t.Fatalf("%+v", tok)
 	}
-	if got, err := ts.AuthenticateFor(secret, mcp, now); err != nil || got.Principal != "dana" || got.Role != RoleAuthor {
+	if got, err := ts.AuthenticateFor(secret, mcp, now); err != nil || got.Principal != "dana" || got.Role != RoleAnalyst {
 		t.Fatalf("at its resource: %v", err)
 	}
 	for _, resource := range []string{"", "https://admin.example.org/api", "https://other.example/mcp"} {
@@ -624,17 +567,17 @@ func TestAnAudienceBoundTokenWorksOnlyAtItsResource(t *testing.T) {
 	if _, err := ts.Authenticate(secret, now); !errors.Is(err, ErrAudience) || Unknown(err) {
 		t.Fatalf("Authenticate: %v", err)
 	}
-	if _, _, err := ts.Exchange(secret, RoleReader, "/", time.Minute, now); !errors.Is(err, ErrAudience) {
+	if _, _, err := ts.Exchange(secret, RoleViewer, "/", time.Minute, now); !errors.Is(err, ErrAudience) {
 		t.Fatalf("exchanged for a session: %v", err)
 	}
-	// An ordinary token is accepted at the resource too: Quilzo issued it
-	// for Quilzo.
+	// An ordinary token is accepted at the resource too: Vaigil issued it
+	// for Vaigil.
 	plain, _, _ := ts.Issue("cli", "dana", RoleAdmin, "/", time.Hour, RoleAdmin)
 	if _, err := ts.AuthenticateFor(plain, mcp, now); err != nil {
 		t.Fatalf("an ordinary token at the interface: %v", err)
 	}
 	// Revoking the grant revokes what was issued under it, and only that.
-	other, _, _ := ts.IssueForGrant("dana", RoleReader, Scope{}, "c2", "gr_2", mcp, time.Hour, now)
+	other, _, _ := ts.IssueForGrant("dana", RoleViewer, Scope{}, "c2", "gr_2", mcp, time.Hour, now)
 	if n := ts.RevokeGrant("gr_1"); n != 1 {
 		t.Fatalf("revoked %d", n)
 	}
@@ -654,19 +597,19 @@ func TestAppTokensAreBoundedAndSweptAway(t *testing.T) {
 	now := time.Now()
 	for name, issue := range map[string]func() error{
 		"no client": func() error {
-			_, _, err := ts.IssueForGrant("d", RoleReader, Scope{}, "", "g", "r", time.Hour, now)
+			_, _, err := ts.IssueForGrant("d", RoleViewer, Scope{}, "", "g", "r", time.Hour, now)
 			return err
 		},
 		"no grant": func() error {
-			_, _, err := ts.IssueForGrant("d", RoleReader, Scope{}, "c", "", "r", time.Hour, now)
+			_, _, err := ts.IssueForGrant("d", RoleViewer, Scope{}, "c", "", "r", time.Hour, now)
 			return err
 		},
 		"no audience": func() error {
-			_, _, err := ts.IssueForGrant("d", RoleReader, Scope{}, "c", "g", "", time.Hour, now)
+			_, _, err := ts.IssueForGrant("d", RoleViewer, Scope{}, "c", "g", "", time.Hour, now)
 			return err
 		},
 		"too long": func() error {
-			_, _, err := ts.IssueForGrant("d", RoleReader, Scope{}, "c", "g", "r", MaxSessionTTL+time.Minute, now)
+			_, _, err := ts.IssueForGrant("d", RoleViewer, Scope{}, "c", "g", "r", MaxSessionTTL+time.Minute, now)
 			return err
 		},
 		"no role": func() error {
@@ -679,8 +622,8 @@ func TestAppTokensAreBoundedAndSweptAway(t *testing.T) {
 		}
 	}
 	old := now.Add(-3 * 24 * time.Hour)
-	ts.IssueForGrant("d", RoleReader, Scope{}, "c", "g", "r", time.Hour, old)
-	ts.IssueForGrant("d", RoleReader, Scope{}, "c", "g", "r", time.Hour, now)
+	ts.IssueForGrant("d", RoleViewer, Scope{}, "c", "g", "r", time.Hour, old)
+	ts.IssueForGrant("d", RoleViewer, Scope{}, "c", "g", "r", time.Hour, now)
 	n := 0
 	for _, tk := range ts.Snapshot() {
 		if tk.Grant == "g" {
@@ -712,7 +655,7 @@ func TestMergingTokenStoresNeverUndoesARevocation(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Meanwhile the admin signed somebody in.
-	_, session, err := mine.IssueSession("session", "rae", RoleReader, "/", time.Hour, RoleReader)
+	_, session, err := mine.IssueSession("session", "rae", RoleViewer, "/", time.Hour, RoleViewer)
 	if err != nil {
 		t.Fatal(err)
 	}

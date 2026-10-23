@@ -1,10 +1,10 @@
 {
-  "id": "quilzo.break-glass",
+  "id": "vaigil.break-glass",
   "title": "Emergency access recovery was used",
   "why": "recovery bypasses the normal way in; it should be rare and expected",
   "blind": "access recovered by editing files on the machine directly",
   "sources": [
-    "quilzo/audit"
+    "vaigil/audit"
   ],
   "severity": 4,
   "when": {
@@ -24,13 +24,13 @@
       "name": "recovery used",
       "match": true,
       "event": {
-        "source": "quilzo/audit",
+        "source": "vaigil/audit",
         "time": "2026-10-01T09:00:00Z",
         "received": "2026-10-01T09:00:05Z",
         "class": 6003,
         "disposition": 1,
         "actor": {
-          "issuer": "quilzo",
+          "issuer": "vaigil",
           "value": "p_1a2b3c"
         },
         "message": "auth.break-glass",
@@ -46,13 +46,13 @@
       "name": "a token revoked",
       "match": false,
       "event": {
-        "source": "quilzo/audit",
+        "source": "vaigil/audit",
         "time": "2026-10-01T09:00:00Z",
         "received": "2026-10-01T09:00:05Z",
         "class": 6003,
         "disposition": 1,
         "actor": {
-          "issuer": "quilzo",
+          "issuer": "vaigil",
           "value": "p_1a2b3c"
         },
         "message": "auth.revoke",

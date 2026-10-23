@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/remind"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/remind"
 )
 
 type fakeReminders struct {
@@ -98,10 +98,10 @@ func TestOnlyAnAdministratorSendsReminders(t *testing.T) {
 	f := &fakeReminders{enabled: true}
 	srv.Reminders = f.wire()
 	if err := srv.Policy.Grant(auth.Binding{Principal: "writer",
-		Role: auth.RoleAuthor, Resource: "/"}); err != nil {
+		Role: auth.RoleAnalyst, Resource: "/"}); err != nil {
 		t.Fatal(err)
 	}
-	secret, _, err := srv.Tokens.IssueSession("w", "writer", auth.RoleAuthor, "/",
+	secret, _, err := srv.Tokens.IssueSession("w", "writer", auth.RoleAnalyst, "/",
 		time.Hour, auth.RoleAdmin, auth.MethodPasskey)
 	if err != nil {
 		t.Fatal(err)

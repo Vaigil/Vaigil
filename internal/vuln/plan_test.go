@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
+	"github.com/quilzo/vaigil/internal/audit"
 )
 
 func fixedAt(id, introduced, fixed string, epss float64) Advisory {

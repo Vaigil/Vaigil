@@ -18,7 +18,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>Sign in — Quilzo</title>
+<title>Sign in — Vaigil</title>
 {{with .Continue}}<meta http-equiv="refresh" content="0;url={{.Href}}">{{end}}
 <link rel="stylesheet" href="/style.css">
 <link rel="icon" href="{{signedOutIcon}}" type="image/svg+xml">
@@ -54,9 +54,9 @@
       <p class="actions"><a class="btn" href="/signin/oidc">{{if .OIDCLabel}}Continue with {{.OIDCLabel}}{{else}}Continue{{end}}</a></p>
     </div>
     <p class="help">Signing in there proves who you are. What you may do here
-      is decided by this site’s access policy, which an administrator
+      is decided by this console’s access policy, which an administrator
       maintains — so an account with the provider is not by itself access to
-      this site.</p>
+      Vaigil.</p>
     <p class="or-divider"><span>or</span></p>
     {{end}}
 
@@ -66,10 +66,10 @@
         <input id="tok" name="token" type="password"
                autocomplete="current-password"{{if not .SSO}} autofocus{{end}}
                aria-describedby="tok-help" required
-               placeholder="qz_…">
+               placeholder="vg_…">
         <p id="tok-help" class="help">Create one with
-          <code>quilzo auth grant you admin</code>, then
-          <code>quilzo token issue you --principal you --role admin</code>.
+          <code>vaigil auth grant you admin</code>, then
+          <code>vaigil token issue you --principal you --role admin</code>.
           Both: the grant is what gives you a role, the token is how you prove
           you are you, and a token on its own signs in and is then refused by
           every screen.</p>

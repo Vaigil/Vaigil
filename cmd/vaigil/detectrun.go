@@ -12,13 +12,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/admin"
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/detect"
-	"github.com/quilzo/quilzo/internal/finding"
-	"github.com/quilzo/quilzo/internal/spool"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/admin"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/detect"
+	"github.com/quilzo/vaigil/internal/finding"
+	"github.com/quilzo/vaigil/internal/spool"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Running the detections over what the event store holds.
@@ -50,7 +50,7 @@ func detectRun(root string, args []string) error {
 	}
 
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActEditDraft, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActTriage, auth.AreaSecurity); err != nil {
 		return err
 	}
 	if err := noEventsYet(root); err != nil {
@@ -103,20 +103,20 @@ func detectRun(root string, args []string) error {
 		w.Human("  %snothing arrived since the last run%s\n", dim, reset)
 	} else {
 		w.Human("  %sthe register holds %d finding(s); read them with "+
-			"quilzo finding list%s\n", dim, sum.Findings, reset)
+			"vaigil finding list%s\n", dim, sum.Findings, reset)
 	}
 	return nil
 }
 
 // noEventsYet refuses a run against a site with nothing to read: a mistake
 // worth saying, not an empty result worth recording. Its own audit log
-// counts: since Quilzo watches itself, a site that has collected nothing from
+// counts: since Vaigil watches itself, a site that has collected nothing from
 // outside still has events, and the store is created to hold them.
 func noEventsYet(root string) error {
 	if _, serr := os.Stat(spoolDir(root)); serr != nil {
 		if own, _ := audit.Read(auditPath(root)); len(own) == 0 {
 			return fmt.Errorf("no events have been stored in this site yet; " +
-				"add some with quilzo spool add")
+				"add some with vaigil spool add")
 		}
 	}
 	return nil
@@ -206,20 +206,13 @@ func detectPass(root, rulesAt string, since time.Duration, caller *Caller, sp *s
 		from = now.Add(-since)
 	}
 
-	// What the agents have done since the last run goes into the store
-	// first, so the rules below read it like any other source.
-	agentEvents, agentNew, err := storeAgentEvents(root, sp, reg, now)
-	if err != nil {
-		return nil, err
-	}
-	// And what Quilzo itself recorded, so the quilzo.* rules can read it.
+	// What this program itself recorded, so the rules about it read it.
 	selfEvents, err := storeSelfEvents(root, sp, now)
 	if err != nil {
 		return nil, err
 	}
 
 	var events, matches, opened, suppressed int
-	opened += agentNew
 	var through time.Time
 	// What one event does: every rule that matches it, through the
 	// suppressions and rings, into the queue.
@@ -265,7 +258,7 @@ func detectPass(root, rulesAt string, since time.Duration, caller *Caller, sp *s
 			}
 		}
 	}
-	// Quilzo's own records first, as they are copied: they are read here,
+	// Vaigil's own records first, as they are copied: they are read here,
 	// once, and never by the pass below, so that their arrival time — now —
 	// does not move the cursor outside platforms' events are read by.
 	for _, e := range selfEvents {
@@ -325,7 +318,6 @@ func detectPass(root, rulesAt string, since time.Duration, caller *Caller, sp *s
 			"suppressed": strconv.Itoa(suppressed), "off": strconv.Itoa(off),
 			"correlations":   strconv.Itoa(corr.Rules),
 			"correlated":     strconv.Itoa(corr.Hits),
-			"agent_events":   strconv.Itoa(agentEvents),
 			"indicators":     strconv.Itoa(held.Len()),
 			"indicator_hits": strconv.Itoa(intelHit),
 		},
@@ -342,7 +334,7 @@ func detectPass(root, rulesAt string, since time.Duration, caller *Caller, sp *s
 }
 
 // findingsCapability is the finding register for the admin: the same queue
-// `quilzo finding list` prints, and decisions written the way `quilzo finding
+// `vaigil finding list` prints, and decisions written the way `vaigil finding
 // decide` writes them.
 func findingsCapability(root string) *admin.Findings {
 	return &admin.Findings{

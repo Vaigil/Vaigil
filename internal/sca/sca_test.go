@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 var t0 = time.Date(2026, 9, 26, 9, 0, 0, 0, time.UTC)

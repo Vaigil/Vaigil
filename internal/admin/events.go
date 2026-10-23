@@ -9,8 +9,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/spool"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/spool"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // The events, in the interface.
@@ -92,7 +93,7 @@ type sender struct {
 }
 
 func (s *Server) handleEventsScreen(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActTriage)
 	if !ok {
 		return
 	}
@@ -115,7 +116,7 @@ func (s *Server) handleEventsScreen(w http.ResponseWriter, r *http.Request) {
 		data["Unavailable"] = "Nothing has ever been collected here: no " +
 			"events have been stored in this site. That is not a quiet " +
 			"estate — it is one nothing is watching. Events arrive with " +
-			"quilzo spool add, or from a connector that runs it."
+			"vaigil spool add, or from a connector that runs it."
 		s.render(w, r, "events.html", data)
 		return
 	}

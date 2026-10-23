@@ -15,16 +15,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/egress"
-	"github.com/quilzo/quilzo/internal/ext"
-	"github.com/quilzo/quilzo/internal/fetch"
-	"github.com/quilzo/quilzo/internal/notify"
-	"github.com/quilzo/quilzo/internal/provenance"
-	"github.com/quilzo/quilzo/internal/site"
-	"github.com/quilzo/quilzo/internal/store"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/egress"
+	"github.com/quilzo/vaigil/internal/fetch"
+	"github.com/quilzo/vaigil/internal/notify"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Telling customers and subscribers what happened.
@@ -144,7 +141,7 @@ func notifyAdd(root string, args []string) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return fmt.Errorf("usage: quilzo notify add ISSUER:VALUE " +
+		return fmt.Errorf("usage: vaigil notify add ISSUER:VALUE " +
 			"--channel app|email|webhook [--address ...] --source ...")
 	}
 	id, err := contactID(pos[0])
@@ -152,7 +149,7 @@ func notifyAdd(root string, args []string) error {
 		return err
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActEditDraft, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActRespond, auth.AreaSecurity); err != nil {
 		return err
 	}
 	st, err := notify.OpenStore(notifyDir(root))
@@ -205,14 +202,14 @@ func notifyObject(root string, args []string) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return fmt.Errorf("usage: quilzo notify object ISSUER:VALUE [--kinds ...]")
+		return fmt.Errorf("usage: vaigil notify object ISSUER:VALUE [--kinds ...]")
 	}
 	id, err := contactID(pos[0])
 	if err != nil {
 		return err
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActEditDraft, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActRespond, auth.AreaSecurity); err != nil {
 		return err
 	}
 	st, err := notify.OpenStore(notifyDir(root))
@@ -268,14 +265,14 @@ func notifyObject(root string, args []string) error {
 func notifyErase(root string, args []string) error {
 	pos, _ := leadingArgs(args, 1)
 	if len(pos) != 1 {
-		return fmt.Errorf("usage: quilzo notify erase ISSUER:VALUE")
+		return fmt.Errorf("usage: vaigil notify erase ISSUER:VALUE")
 	}
 	id, err := contactID(pos[0])
 	if err != nil {
 		return err
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActPublish, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActRespond, auth.AreaSecurity); err != nil {
 		return err
 	}
 	st, err := notify.OpenStore(notifyDir(root))
@@ -401,7 +398,7 @@ func notifyDraft(root string, args []string) error {
 		_, why := n.SubjectDue()
 		w.Human("  %s%s%s\n", yellow, why, reset)
 	}
-	w.Human("\n  %snothing has been sent. quilzo notify plan %s%s\n",
+	w.Human("\n  %snothing has been sent. vaigil notify plan %s%s\n",
 		dim, n.ID, reset)
 	return nil
 }
@@ -415,13 +412,11 @@ func notifyList(root string) error {
 	if err != nil {
 		return err
 	}
-	live, draft, perr := noticePages(root)
+	written, perr := noticePages(root)
 	if perr != nil {
 		return perr
 	}
-	if w.JSON(map[string]any{
-		"notices": all, "public_live": live, "public_draft": draft,
-	}) {
+	if w.JSON(map[string]any{"notices": all, "public_written": written}) {
 		return nil
 	}
 	if len(all) == 0 {
@@ -440,68 +435,56 @@ func notifyList(root string) error {
 			w.Human("  %s%s; %s since anybody knew%s\n",
 				colour, state, n.Undue(at).Round(time.Minute), reset)
 		}
-		reportPublicPage(n, live, draft)
+		reportPublicPage(root, n, written)
 	}
 	return nil
 }
 
 // reportPublicPage says where a notice's public communication stands.
 //
-// The case worth printing is the last one. If a public communication is how
-// somebody was told, taking the page down three weeks later unmakes the
-// notification — and the way that is discovered otherwise is from a
-// regulator.
-func reportPublicPage(n notify.Notice, live, draft map[string]bool) {
+// The case worth printing is the last one: a notice that records an
+// Article 34(3)(c) reason told people through a public communication, and
+// one never written told nobody.
+func reportPublicPage(root string, n notify.Notice, written map[string]bool) {
 	name := n.PageName()
 	switch {
-	case live[name]:
-		w.Human("  %spublic communication live at /%s%s\n",
-			green, name, reset)
-	case draft[name]:
-		w.Human("  %spublic communication written as %s and not published: "+
-			"quilzo publish%s\n", yellow, name, reset)
+	case written[name]:
+		w.Human("  %spublic communication written to %s: put it on the site "+
+			"people were told about%s\n", green, noticePagePath(root, name), reset)
 	case n.Kind == notify.Breach && strings.TrimSpace(n.Public) != "":
 		w.Human("  %sthis notice records an Article 34(3)(c) reason and "+
-			"there is no public communication: /%s is neither live nor in "+
-			"the draft. If the page was taken down, the people who were "+
-			"told only that way are no longer told%s\n", red, name, reset)
+			"no public communication was written: vaigil notify publish %s%s\n",
+			red, n.ID, reset)
 	}
 }
 
-// noticePages reads which notice pages exist, live and in the draft.
-func noticePages(root string) (live, draft map[string]bool, err error) {
-	live, draft = map[string]bool{}, map[string]bool{}
-	s, err := open(root)
+// noticePagePath is where a notice's public communication is written.
+func noticePagePath(root, name string) string {
+	return filepath.Join(notifyDir(root), "public", name+".json")
+}
+
+// noticePages reads which public communications have been written.
+func noticePages(root string) (map[string]bool, error) {
+	written := map[string]bool{}
+	files, err := os.ReadDir(filepath.Join(notifyDir(root), "public"))
+	if os.IsNotExist(err) {
+		return written, nil
+	}
 	if err != nil {
-		// A notification store can exist before a site does. Reporting no
-		// pages is the truth in that case, and failing would make `notify
-		// list` unusable on a deployment that only ever notifies.
-		return live, draft, nil
+		return nil, err
 	}
-	for ref, into := range map[string]map[string]bool{
-		site.RefLive: live, site.RefDraft: draft,
-	} {
-		commit := s.GetRef(ref)
-		if commit == "" {
-			continue
-		}
-		pages, perr := site.PagesAt(s, commit)
-		if perr != nil {
-			return nil, nil, perr
-		}
-		for name := range pages {
-			if strings.HasPrefix(name, "notice-") {
-				into[name] = true
-			}
+	for _, f := range files {
+		if name, ok := strings.CutSuffix(f.Name(), ".json"); ok {
+			written[name] = true
 		}
 	}
-	return live, draft, nil
+	return written, nil
 }
 
 func notifyPlan(root string, args []string) error {
 	pos, _ := leadingArgs(args, 1)
 	if len(pos) != 1 {
-		return fmt.Errorf("usage: quilzo notify plan NOTICE")
+		return fmt.Errorf("usage: vaigil notify plan NOTICE")
 	}
 	st, n, a, err := notifyLoad(root, pos[0])
 	if err != nil {
@@ -532,7 +515,7 @@ func notifyPlan(root string, args []string) error {
 			"%d of these deliveries need it%s\n",
 			red, c.channel, c.count, reset)
 	}
-	w.Human("\n  %snothing was sent. quilzo notify send %s%s\n",
+	w.Human("\n  %snothing was sent. vaigil notify send %s%s\n",
 		dim, n.ID, reset)
 	return nil
 }
@@ -583,7 +566,7 @@ func reportPlan(n notify.Notice, plan notify.Plan) {
 func notifySend(root string, args []string) error {
 	pos, _ := leadingArgs(args, 1)
 	if len(pos) != 1 {
-		return fmt.Errorf("usage: quilzo notify send NOTICE")
+		return fmt.Errorf("usage: vaigil notify send NOTICE")
 	}
 	st, n, a, err := notifyLoad(root, pos[0])
 	if err != nil {
@@ -592,7 +575,7 @@ func notifySend(root string, args []string) error {
 	caller := resolveCaller(root, flagToken)
 	// Telling customers something is the organisation speaking. The same
 	// authority as publishing, and for the same reason.
-	if err := authorise(root, caller, auth.ActPublish, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActRespond, auth.AreaSecurity); err != nil {
 		return err
 	}
 	at := time.Now().UTC()
@@ -676,14 +659,23 @@ func notifySenders(root string, st *notify.Store, at time.Time) (
 	}
 	if hookSecret != "" {
 		out[notify.Webhook] = notify.HookSender{
-			// The same SSRF-hardened client the CMS webhooks use. A
-			// customer's endpoint is a URL somebody configured and this
-			// program requests it from inside the network, which is the
-			// shape that needs a connect-time address check.
 			Post: sender{fetch.For("webhook")}, Secret: hookSecret, At: clock,
 		}
 	}
 	return out, nil
+}
+
+// sender posts a notice to a customer's webhook through the SSRF-hardened
+// client: the endpoint is a URL somebody configured, and this program
+// requests it from inside the network.
+type sender struct{ c *fetch.Client }
+
+func (s sender) Post(url string, body []byte, headers map[string]string) (int, error) {
+	res, err := s.c.PostSigned(context.Background(), url, body, headers)
+	if err != nil {
+		return 0, err
+	}
+	return res.Status, nil
 }
 
 // mailConfig is notify/mail.json.
@@ -758,19 +750,18 @@ func notifyLoad(root, id string) (*notify.Store, notify.Notice,
 	return st, n, a, nil
 }
 
-// notifyPublish writes the public communication as a draft page.
+// notifyPublish writes the public communication as a page for the site.
 //
-// A draft, and then it stops. Article 34(3)(c) permits a public
+// A file, and then it stops. Article 34(3)(c) permits a public
 // communication only where the people affected are informed "in an equally
-// effective manner", and a notice page that fails the accessibility gate is
+// effective manner", and a notice page that fails an accessibility check is
 // not equally effective for somebody reading it with a screen reader. So it
-// goes through `quilzo publish` like every other page, with the same gates in
-// front of it. Skipping them to save two minutes during an incident would be
-// failing the legal test in order to meet it faster.
+// is published by the site, through the same checks as every other page:
+// with Vaigil, `vaigil add NAME=FILE` and `vaigil publish`.
 func notifyPublish(root string, args []string) error {
 	pos, _ := leadingArgs(args, 1)
 	if len(pos) != 1 {
-		return fmt.Errorf("usage: quilzo notify publish NOTICE")
+		return fmt.Errorf("usage: vaigil notify publish NOTICE")
 	}
 	st, err := notify.OpenStore(notifyDir(root))
 	if err != nil {
@@ -781,7 +772,7 @@ func notifyPublish(root string, args []string) error {
 		return err
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActEditDraft, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActRespond, auth.AreaSecurity); err != nil {
 		return err
 	}
 	at := time.Now().UTC()
@@ -789,67 +780,31 @@ func notifyPublish(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-
-	s, err := open(root)
-	if err != nil {
-		return err
-	}
-	parent := s.GetRef(site.RefDraft)
-	if parent == "" {
-		parent = s.GetRef(site.RefLive)
-	}
-	pages := map[string]any{}
-	if parent != "" {
-		if pages, err = site.PagesAt(s, parent); err != nil {
-			return err
-		}
-	}
 	name := n.PageName()
-	pages[name] = page
-
-	// The same two gates every other write passes. A page that reached the
-	// store without them is one an author could not have written by hand,
-	// and the store is immutable, so an invalid page that lands in it is in
-	// the history for good.
-	out, xerr := runExtensions(root, ext.OnTransform, name, page)
-	if xerr != nil {
-		return xerr
-	}
-	if _, xerr = runExtensions(root, ext.OnValidate, name, out); xerr != nil {
-		return xerr
-	}
-	pages[name] = out
-	if _, err := gateWrite(root, pages); err != nil {
-		return err
-	}
-
-	cid, err := site.SaveDraftFrom(s, pages,
-		"public notice "+n.ID, caller.Name, "")
+	path := noticePagePath(root, name)
+	body, err := json.MarshalIndent(page, "", "  ")
 	if err != nil {
 		return err
 	}
-
-	// Marked as written by a person, because it was. Without this the
-	// provenance gate refuses the publish, and discovering that during an
-	// incident is the wrong moment for a surprise.
-	if err := markNoticeProvenance(root, s, name, caller.Name); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-
+	if err := atomicfile.Write(path, append(body, '\n'), 0o600); err != nil {
+		return err
+	}
 	record(root, audit.Record{
 		Action: "notice.public", Resource: "/" + name,
 		Outcome: audit.Success, Principal: caller.Name, Kind: caller.Kind, Model: caller.Model,
 		Verified: caller.Kind != audit.KindUnknown,
 		Detail: map[string]string{
 			"notice": n.ID, "notice_of": string(n.Kind), "page": name,
-			"commit": cid,
 		},
 	})
 
-	if w.JSON(map[string]any{"page": name, "commit": cid}) {
+	if w.JSON(map[string]any{"page": name, "file": path}) {
 		return nil
 	}
-	w.Human("%s%s%s written to the draft as %s\n", bold, n.ID, reset, name)
+	w.Human("%s%s%s written to %s\n", bold, n.ID, reset, path)
 	if n.Kind == notify.Breach && strings.TrimSpace(n.Public) != "" {
 		w.Human("  %sthis is the Article 34(3)(c) communication. The reason "+
 			"recorded is: %s%s\n", yellow, n.Public, reset)
@@ -858,39 +813,16 @@ func notifyPublish(root string, args []string) error {
 			"not replace them; the Article 34(3)(c) exemption needs a "+
 			"reason recorded with --public%s\n", dim, reset)
 	}
-	w.Human("  %snobody can read it yet. quilzo publish runs the "+
-		"accessibility and provenance gates, and a notice page that fails "+
-		"them is not the \"equally effective manner\" Article 34(3)(c) "+
-		"asks for%s\n", dim, reset)
+	w.Human("  %snobody can read it yet. Put it on the site people were told "+
+		"about, through its accessibility checks: with Vaigil,\n"+
+		"    vaigil add %s=%s && vaigil publish%s\n", dim, name, path, reset)
 	return nil
-}
-
-// markNoticeProvenance records the page as human-written.
-func markNoticeProvenance(root string, s *store.Store, page, author string) error {
-	hashes, err := pageHashes(s, site.RefDraft)
-	if err != nil {
-		return err
-	}
-	hash, ok := hashes[page]
-	if !ok {
-		return fmt.Errorf("%s was written and is not in the draft", page)
-	}
-	idx, err := loadProvenance(root)
-	if err != nil {
-		return err
-	}
-	if err := idx.Set(page, provenance.Record{
-		ContentHash: hash, SourceType: provenance.HumanEdits, Author: author,
-	}); err != nil {
-		return err
-	}
-	return saveJSON(provPath(root), idx)
 }
 
 func notifyInbox(root string, args []string) error {
 	pos, _ := leadingArgs(args, 1)
 	if len(pos) != 1 {
-		return fmt.Errorf("usage: quilzo notify inbox ISSUER:VALUE")
+		return fmt.Errorf("usage: vaigil notify inbox ISSUER:VALUE")
 	}
 	id, err := contactID(pos[0])
 	if err != nil {

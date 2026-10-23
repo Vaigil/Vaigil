@@ -6,14 +6,14 @@
 // # What this changes, precisely
 //
 // Without it, the process that publishes content is the process that writes the
-// audit log, so anything that can execute code as the CMS can rewrite the
+// audit log, so anything that can execute code as Vaigil can rewrite the
 // record of what it did. That is a low bar: a template bug, a dependency, a
 // mistake in this program.
 //
-// With it, the log file is owned by a different account and the CMS cannot open
-// it at all. The CMS can submit a record over a socket and nothing else — it
+// With it, the log file is owned by a different account and Vaigil cannot open
+// it at all. The Vaigil can submit a record over a socket and nothing else — it
 // cannot seek, truncate, reorder or delete, because it does not hold a
-// descriptor that could. Compromising the CMS no longer compromises the record
+// descriptor that could. Compromising Vaigil no longer compromises the record
 // of the compromise.
 //
 // It does not stop root. Nothing running on the machine can. What it does is
@@ -27,9 +27,9 @@
 // number, a previous hash or an entry hash, and if it tries, they are
 // discarded.
 //
-// This is the part that matters. If the CMS computed the chain, a compromised
-// CMS could submit a self-consistent run of forged entries and the log would
-// verify perfectly. Because the writer computes it, a compromised CMS can add
+// This is the part that matters. If Vaigil computed the chain, a compromised
+// Vaigil could submit a self-consistent run of forged entries and the log would
+// verify perfectly. Because the writer computes it, a compromised Vaigil can add
 // records — which is unavoidable, it is the thing generating events — but
 // cannot make the log say anything about what came before.
 //
@@ -53,7 +53,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
+	"github.com/quilzo/vaigil/internal/audit"
 )
 
 // MaxRecordBytes bounds one submission.
@@ -281,7 +281,7 @@ func Submit(path string, sub Submission) (*Response, error) {
 //
 // Configuration that is not in effect is worse than no configuration, because
 // somebody believes it. This answers the only question that matters: can the
-// account running the CMS write the log file directly, in which case the socket
+// account running Vaigil write the log file directly, in which case the socket
 // is a formality it can bypass.
 func CheckOwnership(logPath string, cmsUID int) (bool, string) {
 	info, err := os.Stat(logPath)

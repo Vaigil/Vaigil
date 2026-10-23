@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/atomicfile"
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/dual"
+	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/dual"
 )
 
 // Access lives beside the content rather than inside it. The object store is
@@ -129,7 +129,7 @@ func cmdAuth(root string, args []string) error {
 	case "grant":
 		return authGrant(root, args[1:])
 	// The word everybody reaches for, including this program's own security
-	// report, which advised `quilzo auth deny WHO ROLE --on /path` and got
+	// report, which advised `vaigil auth deny WHO ROLE --on /path` and got
 	// "unknown auth command". Denying was `grant --deny`, which reads as its
 	// own opposite, and the browser's people screen has had a Deny checkbox
 	// the whole time — so the one surface that spelled it out was the one
@@ -165,7 +165,7 @@ func cmdAuth(root string, args []string) error {
 }
 
 func authUsage() error {
-	fmt.Print(`quilzo auth — who can do what
+	fmt.Print(`vaigil auth — who can do what
 
   grant <principal> <role|permission|job|APP/ROLE> [--on /path] [--note "..."]
   deny <principal> <role|permission> [--on /path] [--note "..."]
@@ -194,7 +194,7 @@ Permissions for working with agents, each also granted on its own. Agents are
 	fmt.Print(`
 An installed feature can declare roles for the people who work in it, over
 its own records, pages and agents: grant lab-samples/technician gives somebody
-what that role grants, and nothing else. quilzo auth roles lists them.
+what that role grants, and nothing else. vaigil auth roles lists them.
 
 A grant on /blog covers everything under it. A deny wins wherever it sits, so
 "publisher everywhere except /legal" is two bindings rather than a broad grant
@@ -217,18 +217,8 @@ func authRoles(root string) error {
 	for _, pm := range auth.Permissions {
 		fmt.Printf("  %-17s %s\n", pm.Action, pm.Summary)
 	}
-	if roles, err := appRoles(root); err == nil && len(roles) > 0 {
-		fmt.Printf("\n%sroles the installed features declare%s\n", bold, reset)
-		for _, r := range roles {
-			fmt.Printf("  %-28s %s\n", r.Name, r.Title)
-			for _, g := range r.Grants {
-				fmt.Printf("  %-28s %s%s%s\n", "", dim, g, reset)
-			}
-		}
-	}
-	fmt.Printf("\n  %sthat is the whole model — four roles, five permissions, the jobs\n"+
-		"  that bundle them, and roles a feature declares over its own records,\n"+
-		"  pages and agents. Nothing else, because that is how a role surface\n"+
+	fmt.Printf("\n  %sthat is the whole model — the roles, the permissions and the jobs\n"+
+		"  that bundle them. Nothing else, because that is how a role surface\n"+
 		"  stops being reviewable%s\n", dim, reset)
 	return nil
 }
@@ -246,47 +236,16 @@ func authGrant(root string, args []string) error {
 	// is not an answer; it is the same non-answer for every operator who has
 	// ever run the command.
 	by := fs.String("by", "", "who granted it; the signed-in principal by default")
-	// Withdrawn rather than quietly dropped, so a script that passes it stops
-	// with a reason instead of silently granting something wider than it asked
-	// for — which is what it had been doing all along.
-	ownOnly := fs.Bool("own-only", false,
-		"withdrawn: it was never enforced (see the error it returns)")
 	until := fs.String("until", "", "the grant ends at the start of this day (YYYY-MM-DD)")
 	forDur := fs.String("for", "", "the grant ends after this long: 30d, 72h")
 	rest, flags := leadingArgs(args, 2)
 	if err := fs.Parse(flags); err != nil {
 		return err
 	}
-	if *ownOnly {
-		// Offered on both surfaces, confirmed in writing by both, enforced by
-		// neither: EvaluateOwned — the function that resolves an own-only
-		// binding — had no production caller at all. Every enforcement path
-		// called plain Evaluate and dropped the field. A principal granted
-		// `author --own-only` could edit every page in the store while the
-		// operator had been told they could not.
-		//
-		// Refusing rather than accepting-and-ignoring, because a grant that
-		// looks narrower than it is was the whole of the problem.
-		return fmt.Errorf(
-			"--own-only is withdrawn: it was never enforced\n" +
-				"  The binding was stored and confirmed and every check " +
-				"ignored it, so the grant was\n" +
-				"  always as wide as the role itself. Nothing that holds one " +
-				"loses access now.\n" +
-				"  To narrow a grant, use --on /path, which is enforced.\n" +
-				"  Bringing it back needs a creator recorded per page. The " +
-				"store knows who wrote\n" +
-				"  each commit but not who first created a page, and deriving " +
-				"that means walking\n" +
-				"  the whole history on every write — which fails closed when " +
-				"the walk comes up\n" +
-				"  empty, locking people out of their own older pages. That is " +
-				"a feature to build,\n" +
-				"  not a flag to restore")
-	}
+
 	if len(rest) != 2 {
-		return fmt.Errorf("usage: quilzo auth grant <principal> <role> " +
-			"[--on /path]\n   or: quilzo auth deny <principal> <role> [--on /path]")
+		return fmt.Errorf("usage: vaigil auth grant <principal> <role> " +
+			"[--on /path]\n   or: vaigil auth deny <principal> <role> [--on /path]")
 	}
 
 	expires, err := grantExpiry(*until, *forDur, time.Now())
@@ -302,10 +261,6 @@ func authGrant(root string, args []string) error {
 	bindings := []auth.Binding{{Principal: rest[0], Role: auth.Role(rest[1]), Resource: *on}}
 	if perm, ok := auth.PermissionNamed(rest[1]); ok {
 		bindings[0].Role, bindings[0].Permission = "", perm.Action
-	}
-	if auth.IsAppRoleName(rest[1]) {
-		return grantAppRole(root, rest[0], rest[1], *on, *deny, auth.Binding{
-			GrantedBy: grantedBy(root, *by), Note: *note, Expires: expires})
 	}
 	if job, ok := auth.JobNamed(rest[1]); ok {
 		if *on != "/" || *deny {
@@ -449,16 +404,14 @@ func authRevoke(root string, args []string) error {
 		return err
 	}
 	if len(rest) != 2 {
-		return fmt.Errorf("usage: quilzo auth revoke <principal> <role> [--on /path]")
+		return fmt.Errorf("usage: vaigil auth revoke <principal> <role> [--on /path]")
 	}
 
 	var n int
 	p, err := updatePolicy(root, func(p *auth.Policy) error {
-		if auth.IsAppRoleName(rest[1]) {
-			n = p.RevokeAppRole(rest[0], rest[1])
-		} else if job, ok := auth.JobNamed(rest[1]); ok {
+		if job, ok := auth.JobNamed(rest[1]); ok {
 			for _, jb := range job.Bindings {
-				n += p.Revoke(rest[0], jb.Role, jb.Resource)
+				n += p.RevokeNamed(rest[0], jb.What(), jb.Resource)
 			}
 		} else {
 			n = p.RevokeNamed(rest[0], rest[1], *on)
@@ -534,41 +487,10 @@ func authList(root string) error {
 				fmt.Printf("  %sexpired %s%s", red, expiryText(b.Expires), reset)
 			}
 		}
-		if r, ok := b.AppRoleOf(); ok {
-			fmt.Printf("  %sas %s%s", dim, r, reset)
-		}
 		if b.Note != "" {
 			fmt.Printf("  %s%s%s", dim, b.Note, reset)
 		}
 		fmt.Println()
-	}
-	return nil
-}
-
-// grantAppRole gives somebody a role an installed feature declares.
-func grantAppRole(root, who, name, on string, deny bool, base auth.Binding) error {
-	if on != "/" || deny {
-		return fmt.Errorf("%s is a role a feature declares over its own blocks: it takes no --on and cannot be a deny", name)
-	}
-	r, err := appRoleNamed(root, name)
-	if err != nil {
-		return err
-	}
-	if _, err := updatePolicy(root, func(p *auth.Policy) error { return p.Assign(who, r, base) }); err != nil {
-		return err
-	}
-	caller := resolveCaller(root, "")
-	record(root, audit.Record{
-		Action: "auth.granted", Resource: "/", Outcome: audit.Success,
-		Principal: caller.Name, Kind: caller.Kind, Model: caller.Model, Verified: caller.Verified,
-		Detail: map[string]string{"subject": who, "role": name, "deny": "false", "expires": expiryText(base.Expires)},
-	})
-	fmt.Printf("granted %s to %s: %s\n", name, who, r.Title)
-	for _, g := range r.Grants {
-		fmt.Printf("  %s%s%s\n", dim, g, reset)
-	}
-	if base.Expires != 0 {
-		fmt.Printf("  %suntil %s%s\n", dim, expiryText(base.Expires), reset)
 	}
 	return nil
 }
@@ -586,7 +508,7 @@ func authExplain(root string, args []string) error {
 		return err
 	}
 	if len(rest) < 1 {
-		return fmt.Errorf("usage: quilzo auth explain <principal> [action] [--on /path]")
+		return fmt.Errorf("usage: vaigil auth explain <principal> [action] [--on /path]")
 	}
 	principal := rest[0]
 
@@ -635,7 +557,7 @@ func authExplain(root string, args []string) error {
 
 func cmdToken(root string, args []string) error {
 	if len(args) == 0 {
-		fmt.Print(`quilzo token — credentials for API access
+		fmt.Print(`vaigil token — credentials for API access
 
   issue <name> --principal <who> --role <role> [--on /path] [--ttl 720h]
   exchange [--role R] [--on /path] [--ttl 15m]   short-lived session from a token
@@ -692,31 +614,27 @@ func strongestRole(pol *auth.Policy, principal, resource string) auth.Role {
 func tokenIssue(root string, args []string) error { return tokenIssueAs(root, args, false) }
 
 // tokenIssueAs issues a token; approved says a second administrator has
-// already agreed to it (quilzo pending redeem), which an administrator's
+// already agreed to it (vaigil pending redeem), which an administrator's
 // token waits for otherwise.
 func tokenIssueAs(root string, args []string, approved bool) error {
 	fs := flag.NewFlagSet("issue", flag.ContinueOnError)
 	principal := fs.String("principal", "", "who the token acts as")
-	role := fs.String("role", string(auth.RoleReader), "role the token carries")
+	role := fs.String("role", string(auth.RoleViewer), "role the token carries")
 	on := fs.String("on", "/", "resource path the token is scoped to")
 	ttl := fs.Duration("ttl", 0, "how long it lasts (default from config)")
 	as := fs.String("as", string(auth.RoleAdmin), "role of whoever is issuing")
-	types := fs.String("types", "",
-		"comma-separated content types this token may touch; all if unset")
-	locales := fs.String("locales", "",
-		"comma-separated locales this token may touch; all if unset")
 	readOnly := fs.Bool("read-only", false,
 		"refuse every write regardless of role")
 	forAPI := fs.Bool("api", false,
 		"short-lived and read-only: the shape an integration should hold")
-	keyFile := fs.String("key", "", "bind it to this public key (a JWK file, from quilzo token keygen): "+
+	keyFile := fs.String("key", "", "bind it to this public key (a JWK file, from vaigil token keygen): "+
 		"accepted only with a DPoP proof made by the key")
 	rest, flags := leadingArgs(args, 1)
 	if err := fs.Parse(flags); err != nil {
 		return err
 	}
 	if len(rest) != 1 {
-		return fmt.Errorf("usage: quilzo token issue <name> --principal <who> --role <role>")
+		return fmt.Errorf("usage: vaigil token issue <name> --principal <who> --role <role>")
 	}
 	if strings.TrimSpace(*principal) == "" {
 		return fmt.Errorf("--principal is required: a token acts as somebody")
@@ -756,8 +674,6 @@ func tokenIssueAs(root string, args []string, approved bool) error {
 	}
 
 	scope := auth.Scope{
-		Types:    splitList(*types),
-		Locales:  splitList(*locales),
 		ReadOnly: *readOnly,
 	}
 	// --api is a shorthand for the shape an integration should hold, because
@@ -782,7 +698,7 @@ func tokenIssueAs(root string, args []string, approved bool) error {
 		return fmt.Errorf(
 			"a %s token is longer than token.ttl.max (%s).\n"+
 				"  Raise the ceiling deliberately if that is right:\n"+
-				"    quilzo config set token.ttl.max %s --accept-risk \"why\"",
+				"    vaigil config set token.ttl.max %s --accept-risk \"why\"",
 			life, max, life)
 	}
 
@@ -839,10 +755,7 @@ func tokenIssueAs(root string, args []string, approved bool) error {
 		tok.Resource, time.Unix(tok.ExpiresAt, 0).UTC().Format("2006-01-02"), reset)
 	if tok.Key != "" {
 		fmt.Printf("  %sbound to key %s: send it as Authorization: DPoP, with a proof the key makes for "+
-			"each request, to /mcp, /v1 or /a2a; it is refused everywhere else%s\n", dim, tok.Key, reset)
-	} else if tok.Role.AtLeast(auth.RolePublisher) && !tok.Scope.ReadOnly && life > shortLived {
-		fmt.Printf("  %sfrom another machine, publishing and administering with it need it bound to a key "+
-			"(--key), and a session exchanged from it counts as it does; reading and drafting work as it is%s\n", dim, reset)
+			"each request%s\n", dim, tok.Key, reset)
 	}
 	if fromPolicy {
 		fmt.Printf("  %sthe role is what %s holds in the policy; --role narrows "+
@@ -862,7 +775,7 @@ func tokenIssueAs(root string, args []string, approved bool) error {
 		fmt.Printf("\n  %s%s holds no role yet, so this token can sign in "+
 			"and do nothing%s\n", yellow, tok.Principal, reset)
 		fmt.Printf("  %sgrant one:%s\n", dim, reset)
-		fmt.Printf("    quilzo auth grant %s %s\n", tok.Principal, tok.Role)
+		fmt.Printf("    vaigil auth grant %s %s\n", tok.Principal, tok.Role)
 	}
 
 	// The bootstrap closes the moment a token exists, so a first token that
@@ -979,7 +892,7 @@ func tokenList(root string) error {
 
 func tokenRevoke(root string, args []string) error {
 	if len(args) != 1 {
-		return fmt.Errorf("usage: quilzo token revoke <id>")
+		return fmt.Errorf("usage: vaigil token revoke <id>")
 	}
 	ts, err := loadTokens(root)
 	if err != nil {
@@ -1041,9 +954,8 @@ func tokenStale(root string, args []string) error {
 	return nil
 }
 
-// splitList turns a comma-separated flag into a list, dropping blanks so that
-// `--types article,` does not produce a scope containing an empty name — which
-// would fail validation and read as though the flag itself were rejected.
+// splitList turns a comma-separated flag or setting into a list, dropping
+// blanks so that a trailing comma does not produce an empty name.
 func splitList(s string) []string {
 	var out []string
 	for _, p := range strings.Split(s, ",") {

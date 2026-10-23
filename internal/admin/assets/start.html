@@ -1,9 +1,7 @@
 {{template "head" .}}
 <h1>Get started</h1>
-<p>Content here is immutable and addressed by the hash of its own bytes.
-Publishing moves a pointer, so rolling back cannot half-complete, and the
-template language cannot execute anything — there is no query to inject into and
-nothing to escape from.</p>
+<p>Vaigil watches the platforms a company runs on, decides what is wrong,
+and keeps a record nobody can quietly change of what was done about it.</p>
 
 <h2>Four things, in order</h2>
 <p>Read from this store as the page loads, so a step is ticked because it is
@@ -26,9 +24,8 @@ done rather than because you clicked past it.
 
 <h2>Three ways in, and they agree</h2>
 <p>Everything here is reachable from the browser, from the command line, and
-from the agent interface. A test walks the source and fails when a capability
-exists in one and not the others, because that gap is this project's most
-frequent bug rather than a hypothetical.</p>
+from the agent interface. A test fails when a capability exists in one and
+not the others, or is missing from one without a written reason.</p>
 
 <div class="table-wrap">
 <table>
@@ -38,33 +35,30 @@ frequent bug rather than a hypothetical.</p>
   </tr></thead>
   <tbody>
     <tr>
-      <th scope="row">This interface</th>
-      <td>Writing and reviewing, and everything administrative</td>
+      <th scope="row">This console</th>
+      <td>Triage, cases, and everything administrative</td>
       <td>The menu on the left</td>
     </tr>
     <tr>
       <th scope="row">The command line</th>
       <td>Scripting, pipelines and anything repeatable</td>
-      <td><code class="cmd">quilzo help</code></td>
+      <td><code class="cmd">vaigil help</code></td>
     </tr>
     <tr>
       <th scope="row">The agent interface</th>
-      <td>Models that read and author content, and nothing else</td>
-      <td><code class="cmd">quilzo mcp --list</code></td>
+      <td>Models that read the queue and summarise it, and nothing that acts</td>
+      <td><code class="cmd">vaigil mcp --list</code></td>
     </tr>
   </tbody>
 </table>
 </div>
 
-<p>An agent can read and author. It deliberately cannot change who may do what,
-what code runs, or what the keys are — a prompt injection in a page an agent is
-reading is a plausible route to whatever that agent can call.</p>
+<p>An agent can read and explain. It cannot change who may do what, approve
+an act, or reach another platform — a prompt injection in an event an agent
+is reading is a plausible route to whatever that agent can call.</p>
 
-<h2>What will refuse you, and why</h2>
-<p>These stop a publish rather than warning about it. Each one can be overridden
-deliberately, and the override is recorded in the commit — so the question
-afterwards is not whether somebody skipped a check but who decided to, and
-what reason they gave.</p>
+<h2>What will stop you, and why</h2>
+<p>These refuse rather than warn, and none of them is a setting.</p>
 
 <dl class="gates">
 {{range .Gates}}
@@ -74,13 +68,13 @@ what reason they gave.</p>
 </dl>
 
 <h2>When you want more detail</h2>
-<p>Every screen has a Help link in its footer, in the same place, pointing at
-the section of the manual about that screen rather than at the top of it.</p>
+<p>Every screen has a Help link in its footer, pointing at the part of the
+manual about that screen.</p>
 <p><a href="{{.DocsBase}}" rel="noopener noreferrer">The full manual</a></p>
 
 {{if not .Dismissed}}
 <form method="post" action="/start/done" class="inline">
-  <button type="submit">Got it — go to my pages</button>
+  <button type="submit">Got it — go to Today</button>
 </form>
 <p class="help">This screen stops opening on sign-in. It stays in the menu, and
 the checklist keeps reading the store, so it is worth coming back to.</p>

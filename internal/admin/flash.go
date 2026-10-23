@@ -52,7 +52,7 @@ func newFlashKey() []byte {
 // flashMAC is the signature over a message pair.
 func flashMAC(key []byte, e, m string) string {
 	h := hmac.New(sha256.New, key)
-	h.Write([]byte("quilzo-flash\x00"))
+	h.Write([]byte("vaigil-flash\x00"))
 	h.Write([]byte(e))
 	h.Write([]byte{0})
 	h.Write([]byte(m))

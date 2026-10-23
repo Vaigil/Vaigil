@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/quilzo/quilzo/internal/detect"
+	"github.com/quilzo/vaigil/internal/detect"
 )
 
 // Skip is a rule that did not come across, and why.

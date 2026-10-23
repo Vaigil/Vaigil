@@ -65,7 +65,7 @@ import (
 // protocol and they can obtain a valid audit head from it. The version is in
 // the string so that a change to what gets signed cannot be confused with the
 // thing it replaced.
-const signatureContext = "quilzo/audit-head/v1"
+const signatureContext = "vaigil/audit-head/v1"
 
 // SignedHead is a head with proof of who published it.
 type SignedHead struct {
@@ -120,6 +120,17 @@ type HeadVerifier struct {
 	// weaker. A deployment building against a FIPS module without ML-DSA
 	// turns it on knowingly, for its own heads.
 	AcceptSingle bool
+	// context is the domain the heads were signed in: this program's, or
+	// another's whose log it receives (NewHeadVerifierIn).
+	context string
+}
+
+// domain is the context this verifier checks heads in.
+func (v *HeadVerifier) domain() string {
+	if v.context == "" {
+		return signatureContext
+	}
+	return v.context
 }
 
 // SeedSize is the length of each half of a signing seed.
@@ -191,7 +202,7 @@ func (s *HeadSigner) Verifier() *HeadVerifier {
 // ML-DSA key and keep the same name.
 func (v *HeadVerifier) KeyID() string {
 	h := sha256.New()
-	h.Write([]byte(signatureContext))
+	h.Write([]byte(v.domain()))
 	writeField(h, string(v.ed))
 	if v.ml != nil {
 		writeField(h, string(v.ml.Bytes()))
@@ -205,6 +216,21 @@ func (v *HeadVerifier) PublicKeys() (ed, ml []byte) {
 		return append([]byte(nil), v.ed...), nil
 	}
 	return append([]byte(nil), v.ed...), v.ml.Bytes()
+}
+
+// NewHeadVerifierIn reads published public keys for heads another program
+// signed in its own context, such as "quilzo/audit-head/v1", for a receiver
+// of that program's audit stream.
+func NewHeadVerifierIn(context string, ed, ml []byte) (*HeadVerifier, error) {
+	if context == "" || len(context) > 255 {
+		return nil, fmt.Errorf("a head's context is named, in at most 255 bytes")
+	}
+	v, err := NewHeadVerifier(ed, ml)
+	if err != nil {
+		return nil, err
+	}
+	v.context = context
+	return v, nil
 }
 
 // NewHeadVerifier reads published public keys.
@@ -292,7 +318,7 @@ func (v *HeadVerifier) Verify(sh SignedHead) error {
 		if derr != nil {
 			return fmt.Errorf("the Ed25519 signature is not base64: %w", derr)
 		}
-		if !ed25519.Verify(v.ed, headMessage(sh.Head), edSig) {
+		if !ed25519.Verify(v.ed, headMessageIn(v.domain(), sh.Head), edSig) {
 			return fmt.Errorf("the Ed25519 signature does not verify")
 		}
 		return nil
@@ -313,12 +339,12 @@ func (v *HeadVerifier) Verify(sh SignedHead) error {
 		return fmt.Errorf("the ML-DSA signature is not base64: %w", err)
 	}
 
-	msg := headMessage(sh.Head)
+	msg := headMessageIn(v.domain(), sh.Head)
 	if !ed25519.Verify(v.ed, msg, edSig) {
 		return fmt.Errorf("the Ed25519 signature does not verify")
 	}
 	if err := mldsa.Verify(v.ml, msg, mlSig, &mldsa.Options{
-		Context: signatureContext,
+		Context: v.domain(),
 	}); err != nil {
 		return fmt.Errorf("the ML-DSA signature does not verify: %w", err)
 	}
@@ -345,9 +371,12 @@ func whichIsMissing(sh SignedHead) string {
 // "3" concatenate to the same string -- so a signature over one would be a
 // signature over the other, and a log could be shown to an auditor with a
 // different number of entries than the one that was signed.
-func headMessage(h Head) []byte {
+func headMessage(h Head) []byte { return headMessageIn(signatureContext, h) }
+
+// headMessageIn is headMessage in a given context.
+func headMessageIn(context string, h Head) []byte {
 	var b bytes.Buffer
-	b.WriteString(signatureContext)
+	b.WriteString(context)
 	b.WriteByte(0)
 	writeField(&b, strconv.Itoa(h.Size))
 	writeField(&b, h.Root)
@@ -369,7 +398,7 @@ type Statement struct {
 // statementMessage is the bytes a statement's signatures cover.
 func statementMessage(context string, msg []byte) []byte {
 	var b bytes.Buffer
-	b.WriteString("quilzo/statement/v1")
+	b.WriteString("vaigil/statement/v1")
 	b.WriteByte(0)
 	writeField(&b, context)
 	writeField(&b, string(msg))

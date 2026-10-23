@@ -15,9 +15,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/throttle"
-	"github.com/quilzo/quilzo/internal/webauthn"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/throttle"
+	"github.com/quilzo/vaigil/internal/webauthn"
 )
 
 // Passkeys in an admin that serves no script.
@@ -388,7 +388,7 @@ func (s *Server) handlePasskeyChallenge(w http.ResponseWriter, r *http.Request) 
 		// model, because the prompt about sharing information with the site
 		// is one people learn to dismiss when it is shown for no reason.
 		"attestation": s.enrolment().AttestationPreference(),
-		"rp":          map[string]string{"id": party.ID, "name": s.SiteName},
+		"rp":          map[string]string{"id": party.ID, "name": brandName},
 		// The user handle is the principal, which is what this program calls
 		// people everywhere else. It is not a secret and it is not an email.
 		"user": map[string]string{
@@ -653,8 +653,7 @@ func (s *Server) handlePasskeyVerify(w http.ResponseWriter, r *http.Request) {
 	// here as single sign-on refuses it, before a session exists. Asked first
 	// because a suspension is a deny binding, which also makes the person
 	// known to the policy, and the session minted below would otherwise go
-	// to somebody every screen then refuses, with their address exempted
-	// from the shield on the way.
+	// to somebody every screen then refuses.
 	if s.suspended(cred.Principal) {
 		s.audit("session.refused", "/", map[string]string{"by": cred.Principal,
 			"how": "passkey", "why": "suspended"})
@@ -665,7 +664,7 @@ func (s *Server) handlePasskeyVerify(w http.ResponseWriter, r *http.Request) {
 	if !s.knownPrincipal(cred.Principal) {
 		writeJSONError(w, http.StatusForbidden, fmt.Errorf(
 			"%s holds a passkey and no role. An administrator can grant one: "+
-				"quilzo auth grant %s author", cred.Principal, cred.Principal))
+				"vaigil auth grant %s author", cred.Principal, cred.Principal))
 		return
 	}
 	if body.Expect != "" && !strings.EqualFold(body.Expect, cred.Principal) {
@@ -746,7 +745,7 @@ func (s *Server) handlePasskeyVerify(w http.ResponseWriter, r *http.Request) {
 	next = s.withNotice(next, notice)
 
 	http.SetCookie(w, &http.Cookie{
-		Name: "quilzo_token", Value: secret, Path: "/",
+		Name: "vaigil_token", Value: secret, Path: "/",
 		HttpOnly: true, SameSite: http.SameSiteStrictMode,
 		Secure: r.TLS != nil || s.behindTLSProxy(), MaxAge: int(s.sessionMax().Seconds()),
 	})

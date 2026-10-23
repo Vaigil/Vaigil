@@ -6,43 +6,36 @@ package admin
 import (
 	"net/http"
 	"strconv"
+	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/site"
+	"github.com/quilzo/vaigil/internal/auth"
 )
 
 // The screen somebody sees first.
 //
 // # Why a checklist of real state rather than a tour
 //
-// The usual onboarding is a carousel of screenshots that says the same thing to
-// everybody and is dismissed without being read. It cannot say anything true,
-// because it does not know what is in the store — so the second screen somebody
-// sees contradicts it, and the tour is the first thing in the product they
-// learned to ignore.
-//
-// This reads the store instead. Every step is a question about *this*
-// installation answered at request time: is there a page, is a type bound to
-// it, has anything been published, does anybody besides you hold a role. A step
-// that is done says so and stays visible, because "what did I already do" is
-// the question somebody coming back after a week actually has.
+// A carousel of screenshots says the same thing to everybody and cannot say
+// anything true, because it does not know what this installation holds.
+// This reads the store instead. Every step is a question about this
+// installation answered at request time: does anything send events here,
+// are detections on, is the estate known, does anybody besides you hold a
+// role. A step that is done says so and stays visible, because "what did I
+// already do" is the question somebody coming back after a week has.
 //
 // # Why it explains what will refuse them
 //
-// The gates are the thing about this program that surprises people, and being
-// surprised by a refusal is how somebody decides a tool is broken rather than
-// careful. So the last section is the list of things that will stop a publish,
-// stated before the first one happens.
+// The separations of duty are the thing about this program that surprises
+// people, and being surprised by a refusal is how somebody decides a tool
+// is broken rather than careful. So the last section lists what will stop
+// them, before the first time it does.
 
 // StartDismissedCookie records that somebody has finished with this screen.
 //
-// A cookie rather than a stored flag on the person, deliberately. Onboarding is
-// a fact about a screen somebody has read, not a property of the content store,
-// and putting it in the store would mean an editor's first-run state survives
-// into a colleague's session on a shared account. The cost is that a new
-// machine shows it again, which is the right failure: seeing the getting
-// started screen once more is cheaper than never seeing it.
-const StartDismissedCookie = "quilzo_started"
+// A cookie rather than a stored flag on the person: onboarding is a fact
+// about a screen somebody has read. The cost is that a new machine shows it
+// again, which is the right failure.
+const StartDismissedCookie = "vaigil_started"
 
 // step is one thing to do, and whether this store shows it done.
 type step struct {
@@ -56,28 +49,34 @@ type step struct {
 	// Done is read from the store at request time.
 	Done bool
 	// DoneNote states what was found, so a tick is evidence rather than a
-	// claim. "3 pages" is checkable; a green tick is not.
+	// claim.
 	DoneNote string
 }
 
 // startState answers each step against the store.
-func (s *Server) startState(p principal) []step {
-	pages := 0
-	if got, err := site.PagesAt(s.Store, site.RefDraft); err == nil {
-		pages = len(got)
-	} else if got, err := site.PagesAt(s.Store, site.RefLive); err == nil {
-		pages = len(got)
-	}
-
-	published := s.Store.GetRef(site.RefLive) != ""
-
-	types := 0
-	if s.Types != nil && s.Types.Load != nil {
-		if st, err := s.Types.Load(); err == nil && st != nil {
-			types = len(st.Registry.Types)
+func (s *Server) startState(p principal, now time.Time) []step {
+	feeds := 0
+	if s.Feeds != nil && s.Feeds.List != nil {
+		if got, err := s.Feeds.List(); err == nil {
+			for _, f := range got {
+				if !f.Off {
+					feeds++
+				}
+			}
 		}
 	}
-
+	rules := 0
+	if s.Detections != nil && s.Detections.Load != nil {
+		if v, err := s.Detections.Load(now); err == nil {
+			rules = len(v.Rules)
+		}
+	}
+	tools := 0
+	if s.Workforce != nil && s.Workforce.Status != nil {
+		if st, err := s.Workforce.Status(); err == nil {
+			tools = st.Tools
+		}
+	}
 	// People other than whoever is looking, because "you have an account" is
 	// not a step and counting yourself would tick it on a fresh store.
 	others := 0
@@ -91,37 +90,36 @@ func (s *Server) startState(p principal) []step {
 
 	return []step{
 		{
-			Title: "Write something",
-			Body: "A page is fields, not markup. What it looks like is the " +
-				"template's job, which is why the same page can be a web page, " +
-				"a feed entry and an API response without being written three " +
-				"times.",
-			Where: "/", What: "Pages",
-			Done: pages > 0, DoneNote: counted(pages, "page", "pages"),
+			Title: "Bring events in",
+			Body: "A feed is an address another system sends its events to: " +
+				"an identity provider's security events, or a signed webhook. " +
+				"Each event is checked and kept before any detection reads it.",
+			Where: "/security/feeds", What: "Feeds",
+			Done: feeds > 0, DoneNote: counted(feeds, "feed", "feeds"),
 		},
 		{
-			Title: "Give it a shape",
-			Body: "A content type says which fields a page must have and what " +
-				"they may contain. Every surface checks it — the browser, the " +
-				"command line and the agent interface — so content that is " +
-				"wrong cannot be stored by going around this screen.",
-			Where: "/types", What: "Types",
-			Done: types > 0, DoneNote: counted(types, "type", "types"),
+			Title: "Decide what counts as wrong",
+			Body: "A detection is a rule over the events, written here or " +
+				"imported as Sigma. A new rule runs in a ring that only " +
+				"records what it would raise, until its record shows it is " +
+				"worth somebody's attention.",
+			Where: "/security/detections", What: "Detections",
+			Done: rules > 0, DoneNote: counted(rules, "rule", "rules"),
 		},
 		{
-			Title: "Publish it",
-			Body: "Publishing moves one pointer. Nothing is overwritten and the " +
-				"previous version is still addressable, so rolling back is the " +
-				"pointer moving again rather than a restore from a backup.",
-			Where: "/publish", What: "Review and publish",
-			Done: published, DoneNote: "live",
+			Title: "Know the estate",
+			Body: "The people and machines the company's tools know about, " +
+				"each measured against the controls, so a finding names whose " +
+				"account and which machine rather than an address.",
+			Where: "/workforce", What: "Workforce risk",
+			Done: tools > 0, DoneNote: counted(tools, "tool read", "tools read"),
 		},
 		{
 			Title: "Decide who else may do what",
-			Body: "Four roles on a ladder: reader, author, publisher, admin. A " +
-				"token can carry less than the person holding it and never " +
-				"more, so a credential for a script is narrower than the " +
-				"person who issued it.",
+			Body: "Roles follow the work of a security team: viewer, analyst, " +
+				"responder and admin, and the jobs engineer, vuln-manager and " +
+				"auditor. Everybody signs in with a second factor, and a " +
+				"change to who may do what takes two administrators.",
 			Where: "/people", What: "People",
 			Done: others > 0, DoneNote: counted(others, "other person", "other people"),
 		},
@@ -137,44 +135,26 @@ func counted(n int, one, many string) string {
 	return strconv.Itoa(n) + " " + many
 }
 
-// gate is something that will refuse a publish, said before it does.
+// gate is something that will refuse, said before it does.
 type gate struct {
 	Name string
 	What string
 }
 
 // gates is the list of refusals, in the order somebody meets them.
-//
-// Stated up front because a refusal nobody expected reads as a malfunction.
-//
-// Not every one of these can be overridden, and this used to say they all
-// could — "the override exists for every one of these", which was true of
-// accessibility and provenance and of nothing else. The seven checks about the
-// content itself are unwaivable by design: internal/gate's whole argument is
-// that one list is possible only because "every gate below either passes or
-// refuses, on every surface, with no per-surface question about what an
-// override means". Telling somebody an override exists for a gate that has
-// none is how a refusal becomes a support conversation.
 var gates = []gate{
-	{"Accessibility", "The page is rendered and checked. A failure that makes " +
-		"the page unusable for somebody stops the publish rather than warning " +
-		"about it."},
-	{"Content types", "A page bound to a type must satisfy it. The store is " +
-		"append-only, so a page that is wrong stays addressable forever — it " +
-		"is refused before it is written rather than fixed afterwards."},
-	{"Provenance", "AI-generated content carries a machine-readable mark. " +
-		"Publishing unmarked AI content is refused, because the EU AI Act " +
-		"asks for the mark and a label people can read is not the same thing. " +
-		"A page's mark has to cover its pictures too: one that says a person " +
-		"wrote it while carrying a generated image is making a claim its own " +
-		"library contradicts, and that refusal cannot be overridden because " +
-		"the fix is one command."},
-	{"Menus", "A menu entry pointing at a page that is not going live is " +
-		"refused, naming the entry. A navigation link to nothing is a 404 " +
-		"somebody finds later."},
-	{"Approval", "Where dual authorisation is configured, an approval names " +
-		"the content hash it agreed to — so editing the draft afterwards does " +
-		"not carry the approval forward."},
+	{"A second factor", "Everybody signs in with a passkey, or with a " +
+		"password and a second factor. There is no setting that turns it off."},
+	{"Lockout by place", "Failed sign-ins lock out the place they come from, " +
+		"not the person, so somebody guessing cannot lock a colleague out."},
+	{"Two people for an act", "Disabling an account or isolating a machine on " +
+		"another platform is asked for by one person and approved by another. " +
+		"Whoever asked cannot approve it."},
+	{"Two people for a playbook", "A playbook run is proposed by one person " +
+		"and approved by another, or by whoever commands the case."},
+	{"Two administrators", "Making somebody an administrator, an " +
+		"administrator's token, a weaker setting and moving the audit log " +
+		"each take a second administrator's approval."},
 }
 
 func (s *Server) handleStart(w http.ResponseWriter, r *http.Request) {
@@ -186,7 +166,7 @@ func (s *Server) handleStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	steps := s.startState(p)
+	steps := s.startState(p, time.Now())
 	done := 0
 	for _, st := range steps {
 		if st.Done {

@@ -11,18 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
+	"github.com/quilzo/vaigil/internal/auth"
 )
-
-// cookieFrom returns the session cookie a response set.
-func cookieFrom(w *httptest.ResponseRecorder) string {
-	for _, c := range w.Result().Cookies() {
-		if c.Name == "quilzo_token" {
-			return c.Value
-		}
-	}
-	return ""
-}
 
 // TestTheCookieNeverHoldsThePastedToken.
 //
@@ -54,7 +44,7 @@ func TestTheCookieNeverHoldsThePastedToken(t *testing.T) {
 	// Signing out ends the session and leaves the token alone.
 	req := httptest.NewRequest(http.MethodPost, "/signout", nil)
 	req.Header.Set("Sec-Fetch-Site", "same-origin")
-	req.AddCookie(&http.Cookie{Name: "quilzo_token", Value: session})
+	req.AddCookie(&http.Cookie{Name: "vaigil_token", Value: session})
 	srv.Handler().ServeHTTP(httptest.NewRecorder(), req)
 
 	if _, err := srv.Tokens.Authenticate(session, time.Now()); err == nil {
@@ -98,14 +88,14 @@ func TestSigningOutEndsAnIdentityProviderSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if w := get(t, srv, "/", secret); w.Code != http.StatusOK {
+	if w := get(t, srv, "/today", secret); w.Code != http.StatusOK {
 		t.Fatalf("the session does not work to begin with: %d", w.Code)
 	}
 	req := httptest.NewRequest(http.MethodPost, "/signout", nil)
 	req.Header.Set("Sec-Fetch-Site", "same-origin")
-	req.AddCookie(&http.Cookie{Name: "quilzo_token", Value: secret})
+	req.AddCookie(&http.Cookie{Name: "vaigil_token", Value: secret})
 	srv.Handler().ServeHTTP(httptest.NewRecorder(), req)
-	if w := get(t, srv, "/", secret); w.Code == http.StatusOK {
+	if w := get(t, srv, "/today", secret); w.Code == http.StatusOK {
 		t.Fatal("an identity-provider session outlived signing out")
 	}
 }

@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/xmldsig"
+	"github.com/quilzo/vaigil/internal/xmldsig"
 )
 
 // IdPMetadata is what an identity provider's metadata says about signing
@@ -28,7 +28,7 @@ type IdPMetadata struct {
 	SSOURL   string
 	Certs    []*x509.Certificate
 	// WantsSignedRequests is the provider asking for signed requests, which
-	// Quilzo does not send.
+	// Vaigil does not send.
 	WantsSignedRequests bool
 }
 

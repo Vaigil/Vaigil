@@ -113,9 +113,9 @@ func (i *Incident) RequestAct(spec Act, by, why string, at time.Time) (int, erro
 
 // ApproveAct marks a requested act as approved and about to be sent.
 //
-// By somebody other than whoever asked, or by the commander: the same rule
-// as a playbook, for the same reason, and here it is what stands between
-// one person and another person's account.
+// By somebody other than whoever asked, always — the commander included.
+// An act reaches another platform and somebody's account there, and one
+// person both asking for it and agreeing to it has been checked by nobody.
 func (i *Incident) ApproveAct(id int, by string, at time.Time) (Act, error) {
 	a := i.act(id)
 	if a == nil {
@@ -124,10 +124,9 @@ func (i *Incident) ApproveAct(id int, by string, at time.Time) (Act, error) {
 	if a.State != ActRequested {
 		return Act{}, fmt.Errorf("act %d is %s", id, a.State)
 	}
-	commanding := strings.EqualFold(strings.TrimSpace(i.Filled[Commander]), by)
-	if !commanding && strings.EqualFold(a.Requested.By, by) {
-		return Act{}, fmt.Errorf("%s asked for this. It is approved by "+
-			"somebody else, or by whoever is commanding the incident", by)
+	if strings.EqualFold(a.Requested.By, by) {
+		return Act{}, fmt.Errorf("%s asked for this, and it is approved by "+
+			"somebody else", by)
 	}
 	a.Approved = &Moment{At: at.UTC(), By: by, Why: "approved"}
 	a.State = ActApproved
@@ -166,7 +165,7 @@ func (i *Incident) FinishAct(id int, ok bool, code int, at time.Time) error {
 	if ok {
 		a.State, word = ActDone, "done"
 	}
-	i.note("quilzo", fmt.Sprintf("%s on %s %s (the tool answered %d)", a.Action,
+	i.note("vaigil", fmt.Sprintf("%s on %s %s (the tool answered %d)", a.Action,
 		a.Target, word, code), at)
 	return nil
 }
@@ -204,12 +203,12 @@ func (i *Incident) FinishUndo(id int, ok bool, code int, at time.Time) error {
 	a.Code, a.At = code, at.UTC()
 	if ok {
 		a.State = ActUndone
-		i.note("quilzo", fmt.Sprintf("%s on %s undone (the tool answered %d)",
+		i.note("vaigil", fmt.Sprintf("%s on %s undone (the tool answered %d)",
 			a.Action, a.Target, code), at)
 		return nil
 	}
 	a.State, a.Undone = ActDone, nil
-	i.note("quilzo", fmt.Sprintf("undoing %s on %s failed (the tool answered "+
+	i.note("vaigil", fmt.Sprintf("undoing %s on %s failed (the tool answered "+
 		"%d); it is still in force", a.Action, a.Target, code), at)
 	return nil
 }

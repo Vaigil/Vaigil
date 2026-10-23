@@ -49,7 +49,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/atomicfile"
 )
 
 // Event is something that happened, as automation sees it.
@@ -714,6 +714,16 @@ func (e *Engine) Decide(id string, approve bool, by string) (Run, error) {
 			}
 			if r.State != "waiting" {
 				return false, fmt.Errorf("this run is %s, not waiting", r.State)
+			}
+			// Whoever wrote the rule does not approve what it holds: a rule
+			// somebody wrote and then let act has been checked by nobody.
+			// Declining is anybody's.
+			if approve {
+				for _, rule := range st.Rules {
+					if rule.ID == r.Rule && strings.EqualFold(rule.By, by) {
+						return false, fmt.Errorf("%s wrote %s, so its runs are approved by somebody else", by, rule.Name)
+					}
+				}
 			}
 			r.By = by
 			if !approve {

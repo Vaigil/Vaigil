@@ -10,8 +10,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/quilzo/quilzo/internal/sarif"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/sarif"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // The interchange format every code scanner already speaks.
@@ -120,7 +120,7 @@ func sarifRead(args []string) error {
 	}
 	// Written back out with a fingerprint on every result, because
 	// omitting it is the churn above and there is no reason to pass it on.
-	written, err := sarif.Write("quilzo", "1.0.0", rep.Alerts,
+	written, err := sarif.Write("vaigil", "1.0.0", rep.Alerts,
 		sarif.Provenance{})
 	if err != nil {
 		return err

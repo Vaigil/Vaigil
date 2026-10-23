@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/appsec"
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/appsec"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // What a code scanner found, and the part it left undone.
@@ -196,7 +196,7 @@ func appsecTriage(root string, args []string) error {
 		return err
 	}
 	if len(rest) == 0 {
-		return fmt.Errorf("usage: quilzo appsec triage ALERTS.jsonl [--repo R]")
+		return fmt.Errorf("usage: vaigil appsec triage ALERTS.jsonl [--repo R]")
 	}
 	t, run, previous, err := compare(root, rest[0], *repo)
 	if err != nil {
@@ -263,7 +263,7 @@ func appsecGate(root string, args []string) error {
 		return err
 	}
 	if len(rest) == 0 {
-		return fmt.Errorf("usage: quilzo appsec gate ALERTS.jsonl [--at 4]")
+		return fmt.Errorf("usage: vaigil appsec gate ALERTS.jsonl [--at 4]")
 	}
 	t, _, _, err := compare(root, rest[0], *repo)
 	if err != nil {
@@ -309,7 +309,7 @@ func appsecAccept(root string, args []string) error {
 		return err
 	}
 	if len(rest) == 0 {
-		return fmt.Errorf("usage: quilzo appsec accept ALERTS.jsonl [--repo R]")
+		return fmt.Errorf("usage: vaigil appsec accept ALERTS.jsonl [--repo R]")
 	}
 	run, err := loadAlerts(rest[0])
 	if err != nil {
@@ -319,7 +319,7 @@ func appsecAccept(root string, args []string) error {
 	// Taking a codebase's existing debt as the baseline is a decision about
 	// what this organisation will stop reporting: the same authority as
 	// publishing.
-	if err := authorise(root, caller, auth.ActPublish, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActAssess, auth.AreaSecurity); err != nil {
 		return err
 	}
 	if err := os.MkdirAll(appsecDir(root), 0o700); err != nil {
@@ -382,7 +382,7 @@ func appsecRotated(root string, args []string) error {
 	}
 	if len(pos) != 1 {
 		return fmt.Errorf(
-			"usage: quilzo appsec rotated FINGERPRINT --where \"...\" " +
+			"usage: vaigil appsec rotated FINGERPRINT --where \"...\" " +
 				"--because \"...\"")
 	}
 	caller := resolveCaller(root, flagToken)
@@ -394,7 +394,7 @@ func appsecRotated(root string, args []string) error {
 	if err := r.Validate(); err != nil {
 		return err
 	}
-	if err := authorise(root, caller, auth.ActPublish, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActAssess, auth.AreaSecurity); err != nil {
 		return err
 	}
 	if err := appendJSONL(rotationsPath(root), r); err != nil {

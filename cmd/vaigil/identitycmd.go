@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/atomicfile"
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/source"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/source"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // One person, several identifiers.
@@ -31,7 +31,7 @@ import (
 // where the platform gave one. The pairing is remembered, so a later event
 // from the same identifier that arrives without an address still gets it.
 // For a platform that never gives one (GitHub knows a login, not an
-// address) a person says who it is, once: `quilzo identity link`.
+// address) a person says who it is, once: `vaigil identity link`.
 //
 // A link somebody made is never overwritten by one that was learned.
 
@@ -129,7 +129,7 @@ func cmdIdentity(root string, args []string) error {
 		}
 		if args[0] == "unlink" {
 			if len(args) != 2 {
-				return fmt.Errorf("usage: quilzo identity unlink ISSUER:VALUE")
+				return fmt.Errorf("usage: vaigil identity unlink ISSUER:VALUE")
 			}
 			if _, ok := aliases[args[1]]; !ok {
 				return fmt.Errorf("%s is not linked to anybody", args[1])
@@ -137,7 +137,7 @@ func cmdIdentity(root string, args []string) error {
 			delete(aliases, args[1])
 		} else {
 			if len(args) != 3 {
-				return fmt.Errorf("usage: quilzo identity link ISSUER:VALUE " +
+				return fmt.Errorf("usage: vaigil identity link ISSUER:VALUE " +
 					"PERSON@EXAMPLE.COM")
 			}
 			issuer, value, ok := strings.Cut(args[1], ":")
@@ -193,7 +193,7 @@ func identityList(root string) error {
 	}
 	if len(aliases) == 0 {
 		w.Human("Nobody is known yet. Identifiers are learned as events " +
-			"are collected; quilzo identity link adds one by hand.\n")
+			"are collected; vaigil identity link adds one by hand.\n")
 		return nil
 	}
 	several := 0

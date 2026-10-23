@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/finding"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/finding"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // fakeRegister is a finding register in memory with a decision log.
@@ -187,15 +187,30 @@ func TestADecisionNeedsARealFindingAndTheRight(t *testing.T) {
 	if len(fr.decisions) != 0 {
 		t.Fatalf("an acceptance with no future expiry was recorded: %+v", fr.decisions)
 	}
-	// A reader sees nothing and decides nothing.
-	reader, rtoken := asRole(t, auth.RoleReader)
-	reader.Findings = fr.wire()
-	if w := get(t, reader, "/findings", rtoken); w.Code == http.StatusOK {
-		t.Error("a reader opened the queue")
+	// A viewer reads the queue and decides nothing.
+	viewer, vtoken := asRole(t, auth.RoleViewer)
+	viewer.Findings = fr.wire()
+	if w := get(t, viewer, "/findings", vtoken); w.Code != http.StatusOK {
+		t.Errorf("a viewer cannot read the queue: %d", w.Code)
 	}
-	if w := decideForm(t, reader, "/findings/decide", rtoken, url.Values{
+	if w := decideForm(t, viewer, "/findings/decide", vtoken, url.Values{
 		"id": {id}, "to": {"fixed"}}); w.Code == http.StatusSeeOther || len(fr.decisions) != 0 {
-		t.Errorf("a reader recorded a decision: %d", w.Code)
+		t.Errorf("a viewer recorded a decision: %d", w.Code)
+	}
+	// An analyst triages, and does not accept a risk.
+	analyst, atoken := asRole(t, auth.RoleAnalyst)
+	analyst.Findings = fr.wire()
+	if page := getPage(t, analyst, "/findings/"+id, atoken); strings.Contains(page, `value="accepted"`) {
+		t.Error("an analyst is offered accepting a risk")
+	}
+	decideForm(t, analyst, "/findings/decide", atoken, url.Values{"id": {id}, "to": {"accepted"},
+		"because": {"x"}, "until": {time.Now().AddDate(0, 0, 10).Format("2006-01-02")}})
+	if len(fr.decisions) != 0 {
+		t.Error("an analyst accepted a risk")
+	}
+	if w := decideForm(t, analyst, "/findings/decide", atoken, url.Values{
+		"id": {id}, "to": {"triaged"}}); w.Code != http.StatusSeeOther || len(fr.decisions) != 1 {
+		t.Errorf("an analyst could not triage: %d", w.Code)
 	}
 }
 

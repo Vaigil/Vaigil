@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
+	"github.com/quilzo/vaigil/internal/auth"
 )
 
 // A passkey signs its person in with everything they hold, so a session
@@ -19,23 +19,23 @@ import (
 // lasting past the token's revocation — nor take one away.
 func TestOnlyAFullReachSessionManagesPasskeys(t *testing.T) {
 	srv, full := fullyWired(t)
-	narrow, _, err := srv.Tokens.IssueSession("ci", "editor", auth.RoleAuthor, "/blog", time.Hour, auth.RoleAdmin, auth.MethodPasskey)
+	narrow, _, err := srv.Tokens.IssueSession("ci", "editor", auth.RoleAnalyst, auth.AreaSecurity, time.Hour, auth.RoleAdmin, auth.MethodPasskey)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if w := postJSON(t, srv, "/passkeys/challenge", narrow, nil); w.Code != http.StatusForbidden {
-		t.Errorf("a session narrowed to /blog as an author was offered enrolment: %d %s", w.Code, w.Body)
+		t.Errorf("a session narrowed to the security area as an analyst was offered enrolment: %d %s", w.Code, w.Body)
 	}
 	if w := postJSON(t, srv, "/passkeys/register", narrow, map[string]any{"challenge": "x"}); w.Code != http.StatusForbidden {
 		t.Errorf("a narrowed session reached registration: %d", w.Code)
 	}
-	limited, _, err := srv.Tokens.IssueScoped("types", "editor", auth.RoleAdmin, "/", time.Hour, auth.RoleAdmin,
-		auth.Scope{Types: []string{"article"}})
+	limited, _, err := srv.Tokens.IssueScoped("ro", "editor", auth.RoleAdmin, "/", time.Hour, auth.RoleAdmin,
+		auth.Scope{ReadOnly: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if w := postJSON(t, srv, "/passkeys/challenge", limited, nil); w.Code < 400 {
-		t.Errorf("a session limited to one content type was offered enrolment: %d", w.Code)
+		t.Errorf("a read-only session was offered enrolment: %d", w.Code)
 	}
 	// The person's own full session still can, and a key added there cannot
 	// be removed from the narrow one.

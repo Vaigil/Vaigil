@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/atomicfile"
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/config"
-	"github.com/quilzo/quilzo/internal/dual"
-	"github.com/quilzo/quilzo/internal/throttle"
+	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/config"
+	"github.com/quilzo/vaigil/internal/dual"
+	"github.com/quilzo/vaigil/internal/throttle"
 )
 
 func configPath(root string) string { return filepath.Join(root, "config.json") }
@@ -30,7 +30,7 @@ func configPath(root string) string { return filepath.Join(root, "config.json") 
 func loadConfig(root string) (*config.Config, error) {
 	body, err := os.ReadFile(configPath(root))
 	if os.IsNotExist(err) {
-		return config.New().WithFloors(floorsFor(root)), nil
+		return config.New(), nil
 	}
 	if err != nil {
 		return nil, err
@@ -39,9 +39,7 @@ func loadConfig(root string) (*config.Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", configPath(root), err)
 	}
-	// The organisation's policy stands under the settings it governs, on
-	// every surface that changes one, because every one loads through here.
-	return c.WithFloors(floorsFor(root)), nil
+	return c, nil
 }
 
 func saveConfig(root string, c *config.Config) error {
@@ -168,7 +166,7 @@ func configShow(root string) error {
 	}
 	if weak > 0 {
 		w.Human("\n  %s%d setting(s) are weaker than the default and are "+
-			"reported by `quilzo posture scan`%s\n", dim, weak, reset)
+			"reported by `vaigil posture scan`%s\n", dim, weak, reset)
 	}
 	return nil
 }
@@ -193,17 +191,17 @@ func configList() error {
 	w.Human("\n  %s· marked settings give up security if changed; they are "+
 		"still changeable,%s\n", dim, reset)
 	w.Human("  %s  with --accept-risk and a reason that is recorded%s\n", dim, reset)
-	w.Human("  %squilzo config explain KEY%s\n", dim, reset)
+	w.Human("  %svaigil config explain KEY%s\n", dim, reset)
 	return nil
 }
 
 func configExplain(args []string) error {
 	if len(args) != 1 {
-		return fmt.Errorf("usage: quilzo config explain <key>")
+		return fmt.Errorf("usage: vaigil config explain <key>")
 	}
 	s, ok := config.Lookup(args[0])
 	if !ok {
-		return fmt.Errorf("%q is not a setting; `quilzo config list` shows "+
+		return fmt.Errorf("%q is not a setting; `vaigil config list` shows "+
 			"every one", args[0])
 	}
 	if w.JSON(s) {
@@ -241,7 +239,7 @@ func configSet(root string, args []string) error {
 		}
 	}
 	if len(rest) != 2 {
-		return fmt.Errorf("usage: quilzo config set <key> <value> " +
+		return fmt.Errorf("usage: vaigil config set <key> <value> " +
 			"[--accept-risk \"reason\"]")
 	}
 	key, value = rest[0], rest[1]
@@ -252,9 +250,6 @@ func configSet(root string, args []string) error {
 	}
 	caller := resolveCaller(root, "")
 	before := c.Raw(key)
-	if err := checkSetting(root, key, value); err != nil {
-		return err
-	}
 
 	if err := c.Set(key, value, reason, caller.Name); err != nil {
 		var need *config.ErrNeedsAcceptance
@@ -292,7 +287,7 @@ func configSet(root string, args []string) error {
 	if reason != "" {
 		w.Human("  %srisk accepted for %d days: %q%s\n", yellow,
 			int(config.MaxAcceptance.Hours()/24), reason, reset)
-		w.Human("  %s`quilzo posture scan` reports this until it is changed "+
+		w.Human("  %s`vaigil posture scan` reports this until it is changed "+
 			"back or renewed%s\n", dim, reset)
 	}
 	return nil
@@ -300,7 +295,7 @@ func configSet(root string, args []string) error {
 
 func configUnset(root string, args []string) error {
 	if len(args) != 1 {
-		return fmt.Errorf("usage: quilzo config unset <key>")
+		return fmt.Errorf("usage: vaigil config unset <key>")
 	}
 	c, err := loadConfig(root)
 	if err != nil {
@@ -365,22 +360,4 @@ var _ = json.Marshal
 // for one call in a branch.
 func errorsAs(err error, target **config.ErrNeedsAcceptance) bool {
 	return errors.As(err, target)
-}
-
-// checkSetting refuses a value that names something this store does not
-// have, which a setting's own kind cannot know: a reviewer naming a route
-// that is not declared would stop every run that uses a model.
-func checkSetting(root, key, value string) error {
-	if key != "agent.reviewer" || value == "" {
-		return nil
-	}
-	gw, _, err := modelGateway(root)
-	if err != nil {
-		return fmt.Errorf("the model gateway could not be read: %w", err)
-	}
-	if gw == nil || !gw.HasRoute(value) {
-		return fmt.Errorf("agent.reviewer names a route of the model gateway, and no route called %s is "+
-			"declared: quilzo gateway status", value)
-	}
-	return nil
 }

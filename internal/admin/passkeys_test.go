@@ -171,7 +171,7 @@ func TestAPasskeyRegistersAndThenSignsSomebodyIn(t *testing.T) {
 	// A session, and a real one: the cookie has to authenticate.
 	var session string
 	for _, c := range w.Result().Cookies() {
-		if c.Name == "quilzo_token" {
+		if c.Name == "vaigil_token" {
 			session = c.Value
 		}
 	}
@@ -262,7 +262,7 @@ func TestOnlyThePasskeyScreensPermitAScript(t *testing.T) {
 	}
 
 	// Elsewhere, only the interface's own script, by a nonce of its own.
-	for _, path := range []string{"/", "/people", "/access", "/media"} {
+	for _, path := range []string{"/today", "/people", "/findings", "/settings"} {
 		w := get(t, srv, path, token)
 		csp := w.Header().Get("Content-Security-Policy")
 		if strings.Contains(csp, "script-src") &&
@@ -346,12 +346,6 @@ func TestEveryServedScriptAvoidsDangerousSinks(t *testing.T) {
 		}
 		sources[f.Name()] = string(body)
 	}
-	// The playground builds its script in Go rather than in a template, so the
-	// walk above cannot see it. Rendered and added here rather than left to
-	// its own test: the point of this is that there is one list.
-	rendered, _ := fetchPlayground(t)
-	sources["playground (rendered)"] = rendered
-
 	checked := 0
 	for name, page := range sources {
 

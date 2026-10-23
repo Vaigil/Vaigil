@@ -15,18 +15,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/admin"
-	"github.com/quilzo/quilzo/internal/atomicfile"
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/oauthas"
-	"github.com/quilzo/quilzo/internal/scim"
-	"github.com/quilzo/quilzo/internal/throttle"
+	"github.com/quilzo/vaigil/internal/admin"
+	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/scim"
+	"github.com/quilzo/vaigil/internal/throttle"
 )
 
 // Provisioning from an identity provider. See internal/scim.
@@ -72,7 +70,7 @@ func newSCIMToken(root string, days int) (string, scimToken, error) {
 	if _, err := rand.Read(b); err != nil {
 		return "", scimToken{}, err
 	}
-	token := "qzscim_" + base64.RawURLEncoding.EncodeToString(b)
+	token := "vgscim_" + base64.RawURLEncoding.EncodeToString(b)
 	sum := sha256.Sum256([]byte(token))
 	now := time.Now().UTC()
 	kept := scimToken{Hash: hex.EncodeToString(sum[:]), Created: now, Expires: now.AddDate(0, 0, days)}
@@ -106,7 +104,7 @@ func readSCIMToken(root string, now time.Time) (scimToken, bool, error) {
 	var t scimToken
 	if text := strings.TrimSpace(string(b)); strings.HasPrefix(text, "{") {
 		if err := json.Unmarshal(b, &t); err != nil || t.Hash == "" || t.Expires.IsZero() {
-			return scimToken{}, false, fmt.Errorf("%s cannot be read; make a new token: quilzo scim token", path)
+			return scimToken{}, false, fmt.Errorf("%s cannot be read; make a new token: vaigil scim token", path)
 		}
 		return t, true, nil
 	} else {
@@ -139,7 +137,7 @@ func scimAuthenticate(root, token string) bool {
 }
 
 // validMapping reports whether a group may be mapped to this: a role, a
-// permission, a job, or a role an installed feature declares.
+// permission or a job.
 func validMapping(root, to string) error {
 	if _, ok := auth.JobNamed(to); ok {
 		return nil
@@ -150,16 +148,16 @@ func validMapping(root, to string) error {
 	if auth.Role(to).Valid() {
 		return nil
 	}
-	if auth.IsAppRoleName(to) {
-		_, err := appRoleNamed(root, to)
-		return err
-	}
 	var jobs []string
 	for _, j := range auth.Jobs {
 		jobs = append(jobs, j.Name)
 	}
-	return fmt.Errorf("%q is not a role (reader, author, publisher, admin), a permission, a job (%s) "+
-		"or a role an installed feature declares (APP/ROLE)", to, strings.Join(jobs, ", "))
+	var roles []string
+	for _, r := range auth.Roles {
+		roles = append(roles, string(r))
+	}
+	return fmt.Errorf("%q is not a role (%s), a permission or a job (%s)", to,
+		strings.Join(roles, ", "), strings.Join(jobs, ", "))
 }
 
 // scimSync makes a person's provisioned access match what provisioning
@@ -194,40 +192,27 @@ func scimSync(root, name string, grants []string, suspended bool) error {
 	}
 
 	var want []auth.Binding
-	// Read only when a group means one, so a feature whose package cannot
-	// be read stops nobody else's provisioning.
-	var roles []auth.AppRole
-	if slices.ContainsFunc(grants, auth.IsAppRoleName) && !suspended {
-		if roles, err = appRoles(root); err != nil {
-			return err
-		}
-	}
 	if suspended {
 		for _, who := range spellings {
-			want = append(want, auth.Binding{Principal: who, Role: auth.RoleReader, Resource: "/", Deny: true,
+			want = append(want, auth.Binding{Principal: who, Role: auth.RoleViewer, Resource: "/", Deny: true,
 				Note: "suspended: the identity provider deactivated or removed them"})
 		}
 	} else {
 		for _, g := range grants {
 			if job, ok := auth.JobNamed(g); ok {
 				for _, b := range job.Bindings {
-					want = append(want, auth.Binding{Principal: name, Role: b.Role, Resource: b.Resource})
+					want = append(want, auth.Binding{Principal: name, Role: b.Role, Permission: b.Permission, Resource: b.Resource})
 				}
 			} else if auth.Role(g).Valid() {
 				want = append(want, auth.Binding{Principal: name, Role: auth.Role(g), Resource: "/"})
 			} else if perm, ok := auth.PermissionNamed(g); ok {
 				want = append(want, auth.Binding{Principal: name, Permission: perm.Action, Resource: "/"})
-			} else if i := slices.IndexFunc(roles, func(r auth.AppRole) bool { return r.Name == g }); i >= 0 {
-				for _, b := range roles[i].Bindings {
-					want = append(want, auth.Binding{Principal: name, Role: b.Role, Permission: b.Permission,
-						Resource: b.Resource, Via: auth.ViaApp(g)})
-				}
 			}
 		}
 	}
 	same := func(a, b auth.Binding) bool {
 		return a.Principal == b.Principal && a.Role == b.Role && a.Permission == b.Permission &&
-			a.Resource == b.Resource && a.Deny == b.Deny && a.Via == b.Via
+			a.Resource == b.Resource && a.Deny == b.Deny
 	}
 
 	// Keep what provisioning made and still wants, so a grant's date is the
@@ -330,37 +315,13 @@ func scimSync(root, name string, grants []string, suspended bool) error {
 			Outcome: audit.Success, Principal: scimBy, Kind: audit.KindService,
 			Verified: true, Detail: map[string]string{"subject": name, "count": fmt.Sprint(ended)}})
 	}
-	// And the apps they connected: an app acting for somebody who is no
-	// longer here is not connected to anybody. Ended after the tokens are
-	// saved, because ending a connection revokes its tokens in the same
-	// file.
-	by := &Caller{Name: scimBy, Kind: audit.KindService, Verified: true}
-	appsServer(root, by).EndWhere(func(g oauthas.Grant) bool { return strings.EqualFold(g.Principal, name) },
-		scimBy, "the identity provider suspended or removed them")
-	// Deleted, not suspended: no longer anybody here, so no agent keeps
-	// anything about them.
-	exists := false
-	_ = scimStore(root).Read(func(st *scim.State) {
-		for _, u := range st.Users {
-			if strings.EqualFold(u.UserName, name) {
-				exists = true
-			}
-		}
-	})
-	if !exists {
-		for _, who := range spellings {
-			if _, err := forgetPerson(root, who, scimBy); err != nil {
-				return err
-			}
-		}
-	}
 	return nil
 }
 
 // holdsArea reports whether somebody holds any grant on an area, which
 // Anywhere does not count.
 func holdsArea(p *auth.Policy, name string) bool {
-	for _, a := range []string{auth.AreaSecurity, auth.AreaCompliance, auth.AreaLog, auth.AreaInbox, auth.AreaBoards} {
+	for _, a := range []string{auth.AreaSecurity, auth.AreaLog} {
 		if p.Evaluate(name, auth.ActView, a).Allowed {
 			return true
 		}
@@ -390,7 +351,7 @@ func scimHandler(root string) *scim.Handler {
 }
 
 func scimUsage() error {
-	return fmt.Errorf("usage: quilzo scim status | token [--revoke] | map GROUP ROLE|JOB | unmap GROUP")
+	return fmt.Errorf("usage: vaigil scim status | token [--revoke] | map GROUP ROLE|JOB | unmap GROUP")
 }
 
 func cmdSCIM(root string, args []string) error {
@@ -432,10 +393,10 @@ func cmdSCIM(root string, args []string) error {
 		}
 		switch {
 		case !set:
-			w.Human("  no provisioning token; quilzo scim token makes one\n")
+			w.Human("  no provisioning token; vaigil scim token makes one\n")
 		case !now.Before(tok.Expires):
 			w.Human("  %sthe provisioning token ended on %s, so the identity provider can change nothing, "+
-				"not even take access away: quilzo scim token makes a new one%s\n",
+				"not even take access away: vaigil scim token makes a new one%s\n",
 				red, tok.Expires.Format("2 January 2006"), reset)
 		default:
 			w.Human("  provisioning is set up at /scim/v2 on the admin; its token ends on %s\n",

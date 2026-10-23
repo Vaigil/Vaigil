@@ -8,20 +8,21 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
-	"sort"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/analyst"
-	"github.com/quilzo/quilzo/internal/atomicfile"
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/decide"
-	"github.com/quilzo/quilzo/internal/finding"
-	"github.com/quilzo/quilzo/internal/spool"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/analyst"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/decide"
+	"github.com/quilzo/vaigil/internal/finding"
+	"github.com/quilzo/vaigil/internal/model"
+	"github.com/quilzo/vaigil/internal/pii"
 )
 
 // The analyst: a model's first pass over the queue, as suggestions.
@@ -37,11 +38,6 @@ import (
 // organisation's own history: the findings people have ruled on, each run
 // several times, and again with instructions planted in the log text.
 //
-// What agents do is also put in front of the detections. Every action a
-// model takes is already in the audit log; `storeAgentEvents` copies those
-// into the event store as events, and raises a finding the first time an
-// agent does something it has not done before.
-
 // triageAgent is the name the analyst acts under.
 const triageAgent = "analyst:triage"
 
@@ -51,22 +47,47 @@ const abstainAction = "analyst.abstained"
 
 func agentsDir(root string) string { return filepath.Join(root, "agents") }
 
-// analystModel is the model a triage asks, through the gateway when one is
-// declared so that it is budgeted and recorded like every other caller.
+// analystModel is the model a triage asks, behind the privacy guard:
+// personal data reaches it only when it is on this organisation's network,
+// and what was masked is recorded as counts.
 func analystModel(root string) (decide.Model, string) {
-	gw, _, err := modelGateway(root)
+	m, err := model.NewHTTPModel()
 	if err != nil {
-		return nil, "the model gateway could not be read: " + err.Error()
+		return nil, "no model is configured: " + firstLine(err)
 	}
-	if gw != nil {
-		return gw.For(triageAgent), ""
+	host := ""
+	if u, err := url.Parse(m.BaseURL); err == nil {
+		host = u.Hostname()
 	}
-	m, err := directModel(root)
-	if err != nil {
-		return nil, "no model is configured. quilzo gateway route add, " +
-			"and the analyst has something to ask"
+	return model.Guarded{Model: m, Personal: hostIsLocal(host),
+		OnMasked: func(counts map[string]int) { noteMasked(root, triageAgent, host, counts) }}, ""
+}
+
+// noteMasked records what was taken out of a prompt before it left, as
+// counts: the record that personal data stayed here, which names none of
+// it.
+func noteMasked(root, caller, host string, counts map[string]int) {
+	d := map[string]string{"caller": caller, "host": host}
+	for k, n := range counts {
+		// The log refuses a key that names a secret, and with it the
+		// whole record: a credential is counted under another name.
+		if k == string(pii.Secret) {
+			k = "credential"
+		}
+		d["masked_"+k] = strconv.Itoa(n)
 	}
-	return m, ""
+	record(root, audit.Record{Action: "model.masked", Resource: "/analyst", Outcome: audit.Success,
+		Principal: "vaigil", Kind: audit.KindService, Verified: true, Detail: d})
+}
+
+// hostIsLocal is this machine or a private network: somewhere what is sent
+// does not leave the organisation.
+func hostIsLocal(host string) bool {
+	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && (ip.IsLoopback() || ip.IsPrivate())
 }
 
 // analystSeam lets a test stand in for the model.
@@ -245,7 +266,7 @@ func analystTriage(root string, args []string) error {
 		return fmt.Errorf("--limit is between 1 and 500")
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActTriage, auth.AreaSecurity); err != nil {
 		return err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
@@ -330,7 +351,7 @@ func analystEval(root string, args []string) error {
 		return err
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActTune, auth.AreaSecurity); err != nil {
 		return err
 	}
 	m, why := modelForAnalyst(root)
@@ -446,98 +467,4 @@ func loadAgentsSeen(root string) (agentsSeen, error) {
 		s.First = map[string]time.Time{}
 	}
 	return s, nil
-}
-
-// AgentSettling is how long an agent is watched before something new from
-// it is remarkable. On its first day everything it does is new.
-const AgentSettling = 24 * time.Hour
-
-// AgentSource is the source agents' actions are stored under.
-const AgentSource = "quilzo/agents"
-
-// storeAgentEvents copies what models have done, from the audit log, into the
-// event store, and raises a finding when a settled agent does something it
-// has not done before. It returns how many events it stored and how many
-// findings it opened.
-//
-// The event carries the action, the outcome and the resource: what the
-// audit log already holds. Nothing a model wrote is copied.
-func storeAgentEvents(root string, sp *spool.Spool, reg *finding.Register,
-	now time.Time) (stored, opened int, err error) {
-
-	events, err := audit.Read(auditPath(root))
-	if err != nil {
-		return 0, 0, err
-	}
-	seen, err := loadAgentsSeen(root)
-	if err != nil {
-		return 0, 0, err
-	}
-	last := seen.Seq
-	for _, e := range events {
-		if e.Seq <= seen.Seq || e.Kind != audit.KindAI {
-			if e.Seq > last {
-				last = e.Seq
-			}
-			continue
-		}
-		last = e.Seq
-		at, perr := time.Parse(time.RFC3339Nano, e.At)
-		if perr != nil {
-			at = now
-		}
-		who := telemetry.ID{Issuer: "agent", Value: e.Principal}
-		disposition := telemetry.DispositionAllowed
-		if e.Outcome != audit.Success {
-			disposition = telemetry.DispositionFailed
-		}
-		ev := telemetry.Event{Time: at, Received: now,
-			Class: telemetry.ClassAPIActivity, Disposition: disposition,
-			Source: AgentSource, Actor: who,
-			Message: e.Action + " " + string(e.Outcome),
-			Raw: map[string]string{"action": e.Action,
-				"outcome": string(e.Outcome), "resource": e.Resource}}
-		if _, aerr := sp.Append(ev); aerr != nil {
-			return stored, opened, aerr
-		}
-		stored++
-
-		known := false
-		for _, a := range seen.Did[e.Principal] {
-			known = known || a == e.Action
-		}
-		first, met := seen.First[e.Principal]
-		if !met {
-			seen.First[e.Principal] = at
-			first = at
-		}
-		if !known {
-			if len(seen.Did[e.Principal]) < 500 {
-				seen.Did[e.Principal] = append(seen.Did[e.Principal], e.Action)
-				sort.Strings(seen.Did[e.Principal])
-			}
-			if at.Sub(first) > AgentSettling {
-				if _, isNew := reg.Record(finding.Finding{
-					Kind:   finding.FromDetection,
-					Title:  "An agent did something it has not done before: " + e.Action,
-					Source: "agent/new-action/" + e.Action, Entity: who,
-					Severity: telemetry.SeverityMedium, State: finding.Open,
-					Evidence: []finding.Evidence{{At: at, Source: AgentSource,
-						What: e.Action + " on " + e.Resource + ", " +
-							string(e.Outcome), Ref: e.Hash}},
-				}, at); isNew {
-					opened++
-				}
-			}
-		}
-	}
-	seen.Seq = last
-	b, merr := json.MarshalIndent(seen, "", "  ")
-	if merr != nil {
-		return stored, opened, merr
-	}
-	if err := os.MkdirAll(agentsDir(root), 0o700); err != nil {
-		return stored, opened, err
-	}
-	return stored, opened, atomicfile.Write(agentsSeenPath(root), b, 0o600)
 }

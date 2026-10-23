@@ -1,0 +1,51 @@
+# The console, the feeds other systems push to, and the scheduled work.
+#
+#   sudo cp deploy/vaigil.service /etc/systemd/system/
+#   sudo systemctl enable --now vaigil
+#
+# A key for the keyring, when one is enabled, comes from outside the store:
+# put VAIGIL_KEY_FILE (or VAIGIL_KEY_COMMAND) in /etc/vaigil/env, readable
+# by root alone.
+
+[Unit]
+Description=Vaigil security operations console
+Documentation=https://quilzo.github.io/vaigil.github.io/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=vaigil
+Group=vaigil
+WorkingDirectory=/srv/vaigil
+EnvironmentFile=-/etc/vaigil/env
+
+ExecStart=/usr/local/bin/vaigil --root /srv/vaigil/store serve --addr 127.0.0.1:8080
+
+Restart=on-failure
+RestartSec=5s
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @obsolete
+
+# The store is the only place it writes.
+ReadWritePaths=/srv/vaigil/store
+
+[Install]
+WantedBy=multi-user.target

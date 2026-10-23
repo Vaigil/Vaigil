@@ -39,12 +39,12 @@ func newKey(t *testing.T) *ecdsa.PrivateKey {
 func TestAProofHoldsForItsRequestOnce(t *testing.T) {
 	key := newKey(t)
 	now := time.Now()
-	proof, err := Prove(key, "POST", "https://admin.example/mcp", "qz_token", now)
+	proof, err := Prove(key, "POST", "https://admin.example/mcp", "vg_token", now)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var replays Replays
-	thumb, err := Check(proof, "POST", "https://ADMIN.example:443/mcp?x=1", "qz_token", now, &replays)
+	thumb, err := Check(proof, "POST", "https://ADMIN.example:443/mcp?x=1", "vg_token", now, &replays)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestAProofHoldsForItsRequestOnce(t *testing.T) {
 	if want, _ := Thumbprint(pub); thumb != want {
 		t.Errorf("thumbprint %q, want %q", thumb, want)
 	}
-	if _, err := Check(proof, "POST", "https://admin.example/mcp", "qz_token", now, &replays); err == nil {
+	if _, err := Check(proof, "POST", "https://admin.example/mcp", "vg_token", now, &replays); err == nil {
 		t.Error("a proof was used twice")
 	}
 }
@@ -62,7 +62,7 @@ func TestAProofThatDoesNotHoldIsRefused(t *testing.T) {
 	key := newKey(t)
 	now := time.Now()
 	good := func(at time.Time) string {
-		p, err := Prove(key, "POST", "https://admin.example/mcp", "qz_token", at)
+		p, err := Prove(key, "POST", "https://admin.example/mcp", "vg_token", at)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -83,23 +83,23 @@ func TestAProofThatDoesNotHoldIsRefused(t *testing.T) {
 	for name, c := range map[string]struct {
 		proof, method, url, token string
 	}{
-		"another method":  {good(now), "GET", "https://admin.example/mcp", "qz_token"},
-		"another address": {good(now), "POST", "https://admin.example/v1/messages", "qz_token"},
-		"another token":   {good(now), "POST", "https://admin.example/mcp", "qz_other"},
-		"too old":         {good(now.Add(-6 * time.Minute)), "POST", "https://admin.example/mcp", "qz_token"},
-		"from the future": {good(now.Add(3 * time.Minute)), "POST", "https://admin.example/mcp", "qz_token"},
-		"another type":    {tamper(good(now), func(h, c map[string]any) { h["typ"] = "JWT" }), "POST", "https://admin.example/mcp", "qz_token"},
-		"no algorithm":    {tamper(good(now), func(h, c map[string]any) { h["alg"] = "none" }), "POST", "https://admin.example/mcp", "qz_token"},
-		"a shared secret": {tamper(good(now), func(h, c map[string]any) { h["alg"] = "HS256" }), "POST", "https://admin.example/mcp", "qz_token"},
-		"a private key":   {tamper(good(now), func(h, c map[string]any) { h["jwk"].(map[string]any)["d"] = "AAAA" }), "POST", "https://admin.example/mcp", "qz_token"},
-		"a changed claim": {tamper(good(now), func(h, c map[string]any) { c["htu"] = "https://admin.example/a2a" }), "POST", "https://admin.example/a2a", "qz_token"},
+		"another method":  {good(now), "GET", "https://admin.example/mcp", "vg_token"},
+		"another address": {good(now), "POST", "https://admin.example/v1/messages", "vg_token"},
+		"another token":   {good(now), "POST", "https://admin.example/mcp", "vg_other"},
+		"too old":         {good(now.Add(-6 * time.Minute)), "POST", "https://admin.example/mcp", "vg_token"},
+		"from the future": {good(now.Add(3 * time.Minute)), "POST", "https://admin.example/mcp", "vg_token"},
+		"another type":    {tamper(good(now), func(h, c map[string]any) { h["typ"] = "JWT" }), "POST", "https://admin.example/mcp", "vg_token"},
+		"no algorithm":    {tamper(good(now), func(h, c map[string]any) { h["alg"] = "none" }), "POST", "https://admin.example/mcp", "vg_token"},
+		"a shared secret": {tamper(good(now), func(h, c map[string]any) { h["alg"] = "HS256" }), "POST", "https://admin.example/mcp", "vg_token"},
+		"a private key":   {tamper(good(now), func(h, c map[string]any) { h["jwk"].(map[string]any)["d"] = "AAAA" }), "POST", "https://admin.example/mcp", "vg_token"},
+		"a changed claim": {tamper(good(now), func(h, c map[string]any) { c["htu"] = "https://admin.example/a2a" }), "POST", "https://admin.example/a2a", "vg_token"},
 		"another key in the head": {tamper(good(now), func(h, c map[string]any) {
 			pub, _ := PublicJWK(&newKey(t).PublicKey)
 			var m map[string]any
 			json.Unmarshal(pub, &m)
 			h["jwk"] = m
-		}), "POST", "https://admin.example/mcp", "qz_token"},
-		"not a JWT": {"abc", "POST", "https://admin.example/mcp", "qz_token"},
+		}), "POST", "https://admin.example/mcp", "vg_token"},
+		"not a JWT": {"abc", "POST", "https://admin.example/mcp", "vg_token"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := Check(c.proof, c.method, c.url, c.token, now, &Replays{}); !errors.Is(err, ErrProof) {

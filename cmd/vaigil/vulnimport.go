@@ -19,12 +19,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/atomicfile"
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/sca"
-	"github.com/quilzo/quilzo/internal/telemetry"
-	"github.com/quilzo/quilzo/internal/vuln"
+	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/sca"
+	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/vuln"
 )
 
 // Filling the queue from what the world publishes.
@@ -104,12 +104,12 @@ func vulnImport(root string, args []string) error {
 		return err
 	}
 	if len(osv) == 0 && *bom == "" && *kev == "" && *epss == "" && *ssvc == "" {
-		return fmt.Errorf("usage: quilzo vuln import [--bom FILE --where " +
+		return fmt.Errorf("usage: vaigil vuln import [--bom FILE --where " +
 			"ISSUER:VALUE] [--osv PATH]... [--kev FILE] [--epss FILE] " +
 			"[--ssvc PATH]")
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActPublish, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActAssess, auth.AreaSecurity); err != nil {
 		return err
 	}
 	now := time.Now().UTC()
@@ -416,7 +416,7 @@ func vulnImport(root string, args []string) error {
 		w.Human("%s%d%s of the stored advisories carry CISA's SSVC "+
 			"annotations\n", bold, rep.Annotated, reset)
 	}
-	w.Human("  %s%d advisory(ies) and %d component(s) stored; quilzo vuln "+
+	w.Human("  %s%d advisory(ies) and %d component(s) stored; vaigil vuln "+
 		"plan says what to change%s\n", dim, rep.Advisories, rep.Inventory,
 		reset)
 	return nil

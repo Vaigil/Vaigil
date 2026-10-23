@@ -58,8 +58,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // AuthorityDeadline is Article 33(1): 72 hours from awareness.

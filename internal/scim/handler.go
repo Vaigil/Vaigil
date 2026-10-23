@@ -5,14 +5,14 @@ package scim
 
 import (
 	"encoding/json"
-	"github.com/quilzo/quilzo/internal/clientip"
+	"github.com/quilzo/vaigil/internal/clientip"
 	"net/http"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 
-	"github.com/quilzo/quilzo/internal/throttle"
+	"github.com/quilzo/vaigil/internal/throttle"
 )
 
 // Handler serves /scim/v2 for an identity provider.
@@ -108,7 +108,7 @@ var serviceProviderConfig = map[string]any{
 	"sort":           map[string]bool{"supported": false},
 	"etag":           map[string]bool{"supported": false},
 	"authenticationSchemes": []map[string]any{{"type": "oauthbearertoken", "name": "Bearer token",
-		"description": "The provisioning token made with quilzo scim token"}},
+		"description": "The provisioning token made with vaigil scim token"}},
 }
 
 func resourceTypes(prefix string) map[string]any {

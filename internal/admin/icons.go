@@ -133,9 +133,8 @@ func toneIcon(tone string) string {
 // so a section never looks like one of its screens. The file is
 // section-<slug>.svg.
 var sectionSymbol = map[string]string{
-	"Content": "article", "Release": "send", "Assurance": "verified_user",
-	"Security operations": "policy", "Administration": "admin_panel_settings",
-	"Reference": "menu_book",
+	"Operations": "crisis_alert", "Investigation": "manage_search", "Detection": "policy",
+	"Exposure": "gpp_maybe", "Administration": "admin_panel_settings", "Reference": "menu_book",
 }
 
 var sectionPath = func() map[string]string {
@@ -169,7 +168,4 @@ func sectionSlug(name string) string {
 // sectionShort is a section's name where the rail has room for one word.
 // Each is the start of the full name, which a screen reader hears instead,
 // so what is seen is always part of what is heard.
-//
-// Security operations is Operations rather than Security, which is already
-// the name of a screen.
-var sectionShort = map[string]string{"Security operations": "Operations", "Administration": "Admin"}
+var sectionShort = map[string]string{"Administration": "Admin"}

@@ -4,27 +4,17 @@
 package admin
 
 import (
-	"github.com/quilzo/quilzo/internal/render"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/a11y"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/dual"
-	publishgate "github.com/quilzo/quilzo/internal/gate"
-	"github.com/quilzo/quilzo/internal/oidc"
-	"github.com/quilzo/quilzo/internal/posture"
-	"github.com/quilzo/quilzo/internal/provenance"
-	"github.com/quilzo/quilzo/internal/schema"
-	"github.com/quilzo/quilzo/internal/site"
-	"github.com/quilzo/quilzo/internal/store"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/oidc"
 )
 
 // The admin is checked by the same engine it uses on your content.
@@ -37,128 +27,9 @@ import (
 // a regression in the interface fails the build rather than waiting for someone
 // to complain.
 
-const siteTemplate = `<!doctype html><html lang="en"><head><title>{{ page.title }}</title></head>
-<body><h1>{{ page.title }}</h1><p>{{ page.body }}</p></body></html>`
-
-// noGates is the content-gate hook for a test that is not about the gates.
-func noGates(string) (*publishgate.Report, []publishgate.Finding, error) {
-	return nil, nil, nil
-}
-
-func setup(t *testing.T) (*Server, string) {
-	t.Helper()
-	dir := t.TempDir()
-	s, err := store.Open(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pages := map[string]any{
-		"index": map[string]any{"title": "Home", "body": "Welcome."},
-		"about": map[string]any{"title": "About", "body": "Who we are."},
-	}
-	if _, err := site.SaveDraft(s, pages, "first", "test"); err != nil {
-		t.Fatal(err)
-	}
-
-	pol := &auth.Policy{}
-	if err := pol.Grant(auth.Binding{
-		Principal: "editor", Role: auth.RoleAdmin, Resource: "/"}); err != nil {
-		t.Fatal(err)
-	}
-	ts := &auth.TokenStore{}
-	// Signed in as a person is, with a passkey: the admin takes two factors
-	// on every request, and a test not about signing in should not be
-	// stopped at the door.
-	secret, _, err := ts.IssueSession("test", "editor", auth.RoleAdmin, "/", time.Hour, auth.RoleAdmin, auth.MethodPasskey)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	srv, err := New(s, pol, ts, render.OneLayout(siteTemplate))
-	if err != nil {
-		t.Fatal(err)
-	}
-	// No content gates in a test that is not about them. cmd/quilzo wires
-	// the real set; a nil one is refused by handlePublish, because a build
-	// that cannot run the checks must not report that they passed.
-	srv.ContentGates = noGates
-	srv.Dual = &Dual{Store: &dual.Store{Path: filepath.Join(dir, "dual.json")}}
-	idx := provenance.NewIndex()
-	srv.LoadProvenance = func() (*provenance.Index, error) { return idx, nil }
-	srv.SaveProvenance = func(i *provenance.Index) error { idx = i; return nil }
-	return srv, secret
-}
-
-// tokenSignIn is setup for a test about signing in with a token, or about
-// holding one: the token is a long-lived one for editor, and the store is
-// in the grace before two factors are compulsory, the one state in which a
-// token alone still reaches the admin.
-func tokenSignIn(t *testing.T) (*Server, string) {
-	t.Helper()
-	srv, _ := setup(t)
-	secret, _, err := srv.Tokens.Issue("cli", "editor", auth.RoleAdmin, "/", time.Hour, auth.RoleAdmin)
-	if err != nil {
-		t.Fatal(err)
-	}
-	srv.MFAFrom = time.Now().Add(14 * 24 * time.Hour)
-	return srv, secret
-}
-
-func get(t *testing.T, srv *Server, path, token string) *httptest.ResponseRecorder {
-	t.Helper()
-	req := httptest.NewRequest(http.MethodGet, path, nil)
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-	w := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(w, req)
-	return w
-}
-
-// The dogfooding test. Every admin page must pass the checks we enforce on
-// content before publishing.
-func TestAdminPagesPassOurOwnAccessibilityChecks(t *testing.T) {
-	srv, token := setup(t)
-
-	for _, path := range []string{
-		"/", "/page/index", "/review", "/access", "/provenance", "/history",
-	} {
-		t.Run(path, func(t *testing.T) {
-			w := get(t, srv, path, token)
-			if w.Code != http.StatusOK {
-				t.Fatalf("%s returned %d", path, w.Code)
-			}
-			r := a11y.Check(path, w.Body.String())
-			if r.Blocks() {
-				for _, f := range r.Findings {
-					if f.Severity == a11y.Blocking {
-						t.Errorf("%s: %s (%s) — %s", path, f.Rule, f.Criterion, f.Detail)
-					}
-				}
-				t.Fatal("the authoring interface fails the checks it enforces on content")
-			}
-		})
-	}
-}
-
-// The sign-in page is reached without a token, so it is checked unauthenticated.
-func TestSignInPageIsAccessible(t *testing.T) {
-	srv, _ := setup(t)
-	w := get(t, srv, "/", "")
-	if w.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401 without a token, got %d", w.Code)
-	}
-	r := a11y.Check("signin", w.Body.String())
-	for _, f := range r.Findings {
-		if f.Severity == a11y.Blocking {
-			t.Errorf("sign-in: %s (%s) — %s", f.Rule, f.Criterion, f.Detail)
-		}
-	}
-}
-
 func TestEveryPageHasASkipLinkAndLandmarks(t *testing.T) {
 	srv, token := setup(t)
-	body := get(t, srv, "/", token).Body.String()
+	body := get(t, srv, "/today", token).Body.String()
 
 	for _, want := range []string{
 		`class="skip"`,             // 2.4.1 Bypass Blocks
@@ -176,7 +47,7 @@ func TestEveryPageHasASkipLinkAndLandmarks(t *testing.T) {
 // a token is not; a puzzle or a transcription would be.
 func TestSignInHasNoPuzzle(t *testing.T) {
 	srv, _ := setup(t)
-	body := strings.ToLower(get(t, srv, "/", "").Body.String())
+	body := strings.ToLower(get(t, srv, "/today", "").Body.String())
 
 	// Look for the mechanism, not the word. The first version of this grepped
 	// for "solve" and flagged the sentence "no puzzle to solve" — copy that
@@ -225,7 +96,7 @@ func TestNoScriptAnywhere(t *testing.T) {
 
 func TestSecurityHeadersAreSet(t *testing.T) {
 	srv, token := setup(t)
-	h := get(t, srv, "/", token).Header()
+	h := get(t, srv, "/today", token).Header()
 	csp := h.Get("Content-Security-Policy")
 	if !strings.Contains(csp, "default-src 'none'") {
 		t.Errorf("CSP should deny by default, got %q", csp)
@@ -243,53 +114,31 @@ func TestSecurityHeadersAreSet(t *testing.T) {
 func TestPermissionsAreEnforcedNotJustHidden(t *testing.T) {
 	srv, _ := setup(t)
 
-	// An author may edit drafts but not publish.
+	// A reader may look, and may not change who may do what.
 	if err := srv.Policy.Grant(auth.Binding{
-		Principal: "writer", Role: auth.RoleAuthor, Resource: "/"}); err != nil {
+		Principal: "watcher", Role: auth.RoleViewer, Resource: "/"}); err != nil {
 		t.Fatal(err)
 	}
-	secret, _, err := srv.Tokens.IssueSession("w", "writer", auth.RoleAuthor, "/",
+	secret, _, err := srv.Tokens.IssueSession("w", "watcher", auth.RoleViewer, "/",
 		time.Hour, auth.RoleAdmin, auth.MethodPasskey)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	req := httptest.NewRequest(http.MethodPost, "/publish", nil)
-	req.Header.Set("Authorization", "Bearer "+secret)
-	w := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(w, req)
-
+	w := postForm(t, srv, "/people/grant", secret, "principal=watcher&role=admin&resource=/")
 	if w.Code != http.StatusForbidden {
-		t.Fatalf("an author posting to /publish should get 403, got %d", w.Code)
+		t.Fatalf("a reader granting themselves admin should get 403, got %d", w.Code)
 	}
 	// The refusal has to say what was missing, or people ask for more access
 	// than they need just to make the error go away.
-	if !strings.Contains(w.Body.String(), "publisher") {
+	if !strings.Contains(w.Body.String(), "admin") {
 		t.Error("the refusal should name the role required")
 	}
 }
 
 func TestBadTokenIsRefused(t *testing.T) {
 	srv, _ := setup(t)
-	if w := get(t, srv, "/", "qz_not_a_real_token"); w.Code != http.StatusUnauthorized {
+	if w := get(t, srv, "/today", "vg_not_a_real_token"); w.Code != http.StatusUnauthorized {
 		t.Errorf("a bad token should give 401, got %d", w.Code)
-	}
-}
-
-// A.3.7.1: a preview should render in a real user agent rather than an
-// approximation, so it serves the actual page.
-func TestPreviewServesTheRealPage(t *testing.T) {
-	srv, token := setup(t)
-	w := get(t, srv, "/preview/index", token)
-	if w.Code != http.StatusOK {
-		t.Fatalf("preview returned %d", w.Code)
-	}
-	body := w.Body.String()
-	if !strings.Contains(body, "<h1>Home</h1>") {
-		t.Errorf("preview should be the rendered page, got %q", body[:min(120, len(body))])
-	}
-	if strings.Contains(body, "class=\"bar\"") {
-		t.Error("preview must not wrap the page in admin chrome")
 	}
 }
 
@@ -352,7 +201,7 @@ func TestRevokedTokensStopWorkingWithoutARestart(t *testing.T) {
 		return srv.Policy, srv.Tokens, nil
 	}
 
-	if w := get(t, srv, "/", token); w.Code != http.StatusOK {
+	if w := get(t, srv, "/today", token); w.Code != http.StatusOK {
 		t.Fatalf("the token should work first: %d", w.Code)
 	}
 
@@ -361,7 +210,7 @@ func TestRevokedTokensStopWorkingWithoutARestart(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if w := get(t, srv, "/", token); w.Code != http.StatusUnauthorized {
+	if w := get(t, srv, "/today", token); w.Code != http.StatusUnauthorized {
 		t.Errorf("a revoked token still worked: %d", w.Code)
 	}
 }
@@ -375,15 +224,15 @@ func TestNewlyIssuedTokensWorkWithoutARestart(t *testing.T) {
 	}
 
 	if err := srv.Policy.Grant(auth.Binding{
-		Principal: "newcomer", Role: auth.RoleReader, Resource: "/"}); err != nil {
+		Principal: "newcomer", Role: auth.RoleViewer, Resource: "/"}); err != nil {
 		t.Fatal(err)
 	}
-	secret, _, err := srv.Tokens.IssueSession("late", "newcomer", auth.RoleReader, "/",
+	secret, _, err := srv.Tokens.IssueSession("late", "newcomer", auth.RoleViewer, "/",
 		time.Hour, auth.RoleAdmin, auth.MethodPasskey)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if w := get(t, srv, "/", secret); w.Code != http.StatusOK {
+	if w := get(t, srv, "/today", secret); w.Code != http.StatusOK {
 		t.Errorf("a token issued after startup did not work: %d", w.Code)
 	}
 }
@@ -433,7 +282,7 @@ func TestSignInSetsAHardenedCookie(t *testing.T) {
 func TestSignInRefusesABadToken(t *testing.T) {
 	srv, _ := setup(t)
 	req := httptest.NewRequest(http.MethodPost, "/signin",
-		strings.NewReader("token=qz_nonsense"))
+		strings.NewReader("token=vg_nonsense"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
@@ -524,43 +373,6 @@ func TestOversizedRequestsAreRefused(t *testing.T) {
 
 // -- content types -----------------------------------------------------------
 
-// withTypes wires the same schema.Store the CLI uses, the way serve.go does.
-func withTypes(t *testing.T, srv *Server) *schema.Store {
-	t.Helper()
-	st, err := schema.Load(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := st.Registry.Add(schema.Type{
-		Name: "article",
-		Fields: []schema.Field{
-			{Name: "title", Kind: schema.Text, Required: true, MaxLen: 40,
-				Label: "Headline"},
-			{Name: "body", Kind: schema.LongText, Required: true},
-			{Name: "canonical", Kind: schema.URL},
-			{Name: "minutes", Kind: schema.Number, Min: fp(1), Max: fp(120)},
-			{Name: "featured", Kind: schema.Boolean},
-			{Name: "tags", Kind: schema.List},
-			{Name: "status", Kind: schema.Choice,
-				Choices: []string{"draft", "final"}},
-		},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := st.Bind("index", "article"); err != nil {
-		t.Fatal(err)
-	}
-	srv.CheckTypes = st.Gate
-	srv.TypeFor = func(page string) (schema.Type, bool) {
-		name, bound := st.Bound[page]
-		if !bound {
-			return schema.Type{}, false
-		}
-		return st.Registry.Get(name)
-	}
-	return st
-}
-
 func fp(v float64) *float64 { return &v }
 
 func save(t *testing.T, srv *Server, token string, form url.Values,
@@ -575,298 +387,7 @@ func save(t *testing.T, srv *Server, token string, form url.Values,
 	return w
 }
 
-// The gate has to hold in the browser, not only in the terminal. Twice before,
-// a rule this project enforced in the CLI was absent from the web UI, and the
-// web UI is where most editing happens.
-func TestTheWebEditorRefusesContentThatFailsItsType(t *testing.T) {
-	srv, token := setup(t)
-	withTypes(t, srv)
-
-	form := url.Values{
-		"__name":    {"index"},
-		"title":     {strings.Repeat("x", 60)}, // past MaxLen
-		"body":      {"Prose."},
-		"canonical": {"javascript:alert(1)"},
-		"minutes":   {"999"},
-		"status":    {"FINAL"},
-		"is_admin":  {"true"}, // undeclared
-	}
-	w := save(t, srv, token, form)
-
-	if w.Code != http.StatusUnprocessableEntity {
-		t.Fatalf("the web editor saved content that fails its type: %d", w.Code)
-	}
-	body := w.Body.String()
-	// Each refusal has to name its field, or the person is told "invalid" and
-	// left to guess which of seven inputs is wrong.
-	for _, want := range []string{"title", "canonical", "minutes", "status", "is_admin"} {
-		if !strings.Contains(body, want) {
-			t.Errorf("the refusal does not mention %s: %s", want, body)
-		}
-	}
-
-	// Nothing may have been written. A partial save into an immutable store
-	// leaves the broken version addressable forever.
-	pages, err := site.PagesAt(srv.Store, site.RefDraft)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := pages["index"].(map[string]any)["title"]; got != "Home" {
-		t.Errorf("the draft changed despite the refusal: title is now %v", got)
-	}
-}
-
-// A form submits strings and nothing else. Without coercion every typed page
-// would fail its own validation on the first save from the browser, and the fix
-// people reach for is turning validation off.
-func TestTheWebEditorSubmitsValuesInTheShapeTheTypeDeclares(t *testing.T) {
-	srv, token := setup(t)
-	withTypes(t, srv)
-
-	w := save(t, srv, token, url.Values{
-		"__name":   {"index"},
-		"title":    {"Home"},
-		"body":     {"Prose."},
-		"minutes":  {"4"},
-		"featured": {"true"},
-		"tags":     {"one\ntwo\n\n three "},
-		"status":   {"final"},
-	})
-	if w.Code != http.StatusSeeOther {
-		t.Fatalf("a valid save was refused: %d — %s", w.Code, w.Body.String())
-	}
-
-	pages, err := site.PagesAt(srv.Store, site.RefDraft)
-	if err != nil {
-		t.Fatal(err)
-	}
-	body := pages["index"].(map[string]any)
-
-	if n, ok := body["minutes"].(float64); !ok || n != 4 {
-		t.Errorf("a number field stored %#v, not a number", body["minutes"])
-	}
-	if b, ok := body["featured"].(bool); !ok || !b {
-		t.Errorf("a boolean field stored %#v, not a bool", body["featured"])
-	}
-	tags, ok := body["tags"].([]any)
-	if !ok || len(tags) != 3 {
-		t.Fatalf("a list field stored %#v", body["tags"])
-	}
-	if tags[2] != "three" {
-		t.Errorf("list items should be trimmed, got %q", tags[2])
-	}
-}
-
-// An unchecked box submits nothing at all. If absence were treated as "leave it
-// alone", a boolean could be turned on and never off again through the UI.
-func TestUncheckingABoxTurnsItOff(t *testing.T) {
-	srv, token := setup(t)
-	withTypes(t, srv)
-
-	base := url.Values{"__name": {"index"}, "title": {"Home"}, "body": {"Prose."}}
-	on := url.Values{}
-	for k, v := range base {
-		on[k] = v
-	}
-	on["featured"] = []string{"true"}
-	if w := save(t, srv, token, on); w.Code != http.StatusSeeOther {
-		t.Fatalf("setting the box failed: %d", w.Code)
-	}
-
-	// Submit the same form with the checkbox absent, as a browser does.
-	if w := save(t, srv, token, base); w.Code != http.StatusSeeOther {
-		t.Fatalf("clearing the box failed: %d", w.Code)
-	}
-	pages, _ := site.PagesAt(srv.Store, site.RefDraft)
-	if v := pages["index"].(map[string]any)["featured"]; v != false {
-		t.Errorf("featured is %#v after unchecking; a boolean that cannot be "+
-			"turned off is a one-way switch", v)
-	}
-}
-
-// The editor is built from the declaration, so an empty date field is still a
-// date picker and a choice is still a list of the allowed values.
-func TestTheEditorRendersTheDeclaredFieldsNotWhateverThePageHas(t *testing.T) {
-	srv, token := setup(t)
-	withTypes(t, srv)
-
-	w := get(t, srv, "/page/index", token)
-	if w.Code != http.StatusOK {
-		t.Fatalf("the editor returned %d", w.Code)
-	}
-	html := w.Body.String()
-
-	// Declared but absent from the page: it must still appear, or a required
-	// field nobody can see blocks every save.
-	if !strings.Contains(html, `name="minutes"`) {
-		t.Error("a declared field missing from the page was not rendered")
-	}
-	if !strings.Contains(html, `type="number"`) {
-		t.Error("a number field is not a number input")
-	}
-	if !strings.Contains(html, `type="url"`) {
-		t.Error("a URL field is not a url input")
-	}
-	if !strings.Contains(html, "<select") {
-		t.Error("a choice field is not a select, so the allowed values are a " +
-			"secret the editor keeps")
-	}
-	// The label is followed by a required marker, so match the text and the
-	// association rather than an exact closing bracket.
-	if !strings.Contains(html, `<label for="f-title">Headline`) {
-		t.Error("the author's own label was not used, or is not bound to its input")
-	}
-	if !strings.Contains(html, `maxlength="40"`) {
-		t.Error("a length limit the type declares should reach the browser too")
-	}
-
-	// And it must still pass the accessibility checks the tool enforces on
-	// content — a richer form is the easiest place to lose a label.
-	if r := a11y.Check("/page/index", html); r.Blocks() {
-		for _, f := range r.Findings {
-			if f.Severity == a11y.Blocking {
-				t.Errorf("typed editor: %s (%s) — %s", f.Rule, f.Criterion, f.Detail)
-			}
-		}
-		t.Fatal("the typed editor fails our own accessibility checks")
-	}
-}
-
 // -- security posture --------------------------------------------------------
-
-func withPosture(srv *Server, rep posture.Report) {
-	srv.Posture = func() posture.Report { return rep }
-}
-
-func brokenPosture() posture.Report {
-	return posture.Scan(posture.State{
-		Policy: &auth.Policy{},
-		Server: posture.ServerFacts{AdminAddr: "0.0.0.0:8080"},
-		Files: []posture.FileFact{{
-			Path: "tokens.json", Mode: 0o644, Exists: true,
-			Description: "token hashes"}},
-		Now: time.Now(),
-	}, nil)
-}
-
-// The dashboard lists exactly where the defences are thin, which is a target
-// list. Least privilege says the people who can read it are the people who
-// could already change it.
-func TestThePostureDashboardNeedsAdministrator(t *testing.T) {
-	srv, _ := setup(t)
-	withPosture(srv, brokenPosture())
-
-	ts := &auth.TokenStore{}
-	secret, _, err := ts.IssueSession("reader", "kit", auth.RoleReader, "/",
-		time.Hour, auth.RoleAdmin, auth.MethodPasskey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	srv.Tokens = ts
-	if err := srv.Policy.Grant(auth.Binding{
-		Principal: "kit", Role: auth.RoleReader, Resource: "/"}); err != nil {
-		t.Fatal(err)
-	}
-
-	for _, path := range []string{"/security", "/security/rules"} {
-		w := get(t, srv, path, secret)
-		if w.Code != http.StatusForbidden {
-			t.Errorf("%s returned %d to a reader; a map of the weak spots is "+
-				"not view-level information", path, w.Code)
-		}
-	}
-}
-
-// An unwired scanner rendering an empty dashboard would read as a clean one.
-// That is the single most misleading thing this page could do.
-func TestAnUnwiredScannerSaysSoRatherThanLookingClean(t *testing.T) {
-	srv, token := setup(t)
-	srv.Posture = nil
-
-	w := get(t, srv, "/security", token)
-	body := w.Body.String()
-	if strings.Contains(body, "100") && !strings.Contains(body, "not wired") {
-		t.Error("a build with no scanner showed a score")
-	}
-	if !strings.Contains(strings.ToLower(body), "nothing has been checked") {
-		t.Errorf("the page does not say it checked nothing: %s", body)
-	}
-}
-
-func TestTheDashboardShowsFindingsWithTheirFixAndControls(t *testing.T) {
-	srv, token := setup(t)
-	withPosture(srv, brokenPosture())
-
-	w := get(t, srv, "/security", token)
-	if w.Code != http.StatusOK {
-		t.Fatalf("the dashboard returned %d", w.Code)
-	}
-	body := w.Body.String()
-
-	for _, want := range []string{
-		"critical",            // the severity
-		"0.0.0.0:8080",        // the specific resource
-		"chmod 600",           // the remedy
-		"SC-7",                // the NIST control
-		"A02:2025",            // the OWASP category
-		"expose.admin-public", // the rule id, linked to its reasoning
-	} {
-		if !strings.Contains(body, want) {
-			t.Errorf("the dashboard omits %q", want)
-		}
-	}
-
-	// And it must say what it could not check, or the findings read as the
-	// complete picture.
-	if !strings.Contains(body, "Not checked") {
-		t.Error("the dashboard does not admit what it skipped")
-	}
-}
-
-// The reasoning is a page, not a tooltip: a finding somebody does not
-// understand is a finding they argue with, and the argument costs more than
-// the fix.
-func TestEveryRuleCanBeExplainedFromTheDashboard(t *testing.T) {
-	srv, token := setup(t)
-	withPosture(srv, brokenPosture())
-
-	for _, r := range posture.Rules() {
-		w := get(t, srv, "/security/rule/"+r.ID, token)
-		if w.Code != http.StatusOK {
-			t.Errorf("%s has no explanation page: %d", r.ID, w.Code)
-			continue
-		}
-		// Compared with apostrophes stripped from both sides. The template
-		// escapes them to &#39;, which is the correct output and would
-		// otherwise make this assertion a test of HTML escaping.
-		got := strings.ReplaceAll(w.Body.String(), "&#39;", "'")
-		if !strings.Contains(got, r.Why[:30]) {
-			t.Errorf("%s renders without its reasoning", r.ID)
-		}
-	}
-}
-
-// The dogfooding rule applies here too, and a table of severities is the
-// easiest place to signal meaning with colour alone.
-func TestTheSecurityPagesPassOurOwnAccessibilityChecks(t *testing.T) {
-	srv, token := setup(t)
-	withPosture(srv, brokenPosture())
-
-	for _, path := range []string{"/security", "/security/rules"} {
-		w := get(t, srv, path, token)
-		if w.Code != http.StatusOK {
-			t.Fatalf("%s returned %d", path, w.Code)
-		}
-		r := a11y.Check(path, w.Body.String())
-		if r.Blocks() {
-			for _, f := range r.Findings {
-				if f.Severity == a11y.Blocking {
-					t.Errorf("%s: %s (%s) — %s", path, f.Rule, f.Criterion, f.Detail)
-				}
-			}
-		}
-	}
-}
 
 // -- OIDC sign-in ------------------------------------------------------------
 
@@ -937,42 +458,6 @@ func TestAStateIsConsumedExactlyOnce(t *testing.T) {
 	}
 }
 
-// The session a sign-in mints cannot exceed what the policy already grants: it
-// is a session, not a promotion.
-func TestTheSessionRoleComesFromThePolicy(t *testing.T) {
-	srv, _ := setup(t)
-	if got := srv.roleFor("editor"); got != auth.RoleAdmin {
-		t.Errorf("the admin in the policy got %q", got)
-	}
-	// Somebody with no bindings falls to the lowest role rather than to
-	// whatever the caller asked for.
-	if got := srv.roleFor("stranger"); got != auth.RoleReader {
-		t.Errorf("an unknown principal got %q", got)
-	}
-	// The highest role held anywhere: an analyst administers /@security and
-	// nothing over the site, and a reader's session would refuse them the
-	// very screens their grant is for. A deny counts as it does anywhere.
-	for _, b := range append(auth.Jobs[0].Bindings,
-		auth.Binding{Role: auth.RoleAuthor, Resource: auth.DataResource("samples")}) {
-		who := "ana"
-		if b.Role == auth.RoleAuthor {
-			who = "tech"
-		}
-		b.Principal = who
-		srv.Policy.Grant(b)
-	}
-	if got := srv.roleFor("ana"); got != auth.RoleAdmin {
-		t.Errorf("an analyst's session got %q", got)
-	}
-	if got := srv.roleFor("tech"); got != auth.RoleAuthor {
-		t.Errorf("somebody who writes one collection got %q", got)
-	}
-	srv.Policy.Grant(auth.Binding{Principal: "tech", Role: auth.RoleAuthor, Resource: auth.AreaData, Deny: true})
-	if got := srv.roleFor("tech"); got != auth.RoleReader {
-		t.Errorf("a denied grant still raised the session to %q", got)
-	}
-}
-
 // Without a provider configured the routes must not exist, rather than
 // half-existing and erroring.
 func TestTheOIDCRoutesAreAbsentWhenNoProviderIsConfigured(t *testing.T) {
@@ -988,5 +473,30 @@ func TestTheOIDCRoutesAreAbsentWhenNoProviderIsConfigured(t *testing.T) {
 func oidcClaims(email string, verified bool) *oidc.Claims {
 	return &oidc.Claims{
 		Subject: "subject-1", Email: email, EmailVerified: verified,
+	}
+}
+
+// The session a sign-in mints cannot exceed what the policy already grants: it
+// is a session, not a promotion.
+func TestTheSessionRoleComesFromThePolicy(t *testing.T) {
+	srv, _ := setup(t)
+	if got := srv.roleFor("editor"); got != auth.RoleAdmin {
+		t.Errorf("the admin in the policy got %q", got)
+	}
+	// Somebody with no bindings falls to the lowest role rather than to
+	// whatever the caller asked for.
+	if got := srv.roleFor("stranger"); got != auth.RoleViewer {
+		t.Errorf("an unknown principal got %q", got)
+	}
+	// The highest role held anywhere: a responder on the security area
+	// alone gets a responder's session, or it would refuse them the very
+	// screens their grant is for. A deny counts as it does anywhere.
+	srv.Policy.Grant(auth.Binding{Principal: "res", Role: auth.RoleResponder, Resource: auth.AreaSecurity})
+	if got := srv.roleFor("res"); got != auth.RoleResponder {
+		t.Errorf("a responder on the security area got %q", got)
+	}
+	srv.Policy.Grant(auth.Binding{Principal: "res", Role: auth.RoleResponder, Resource: auth.AreaSecurity, Deny: true})
+	if got := srv.roleFor("res"); got != auth.RoleViewer {
+		t.Errorf("a denied grant still raised the session to %q", got)
 	}
 }

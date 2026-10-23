@@ -16,12 +16,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/action"
-	"github.com/quilzo/quilzo/internal/atomicfile"
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/egress"
-	"github.com/quilzo/quilzo/internal/incident"
+	"github.com/quilzo/vaigil/internal/action"
+	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/egress"
+	"github.com/quilzo/vaigil/internal/incident"
 )
 
 // Actions: the playbook step this program carries out itself.
@@ -33,7 +33,7 @@ import (
 //   - to an account the incident is already about — the entity of one of
 //     its findings, or another identifier of the same person — so an action
 //     cannot be pointed at anybody by typing their name;
-//   - after somebody other than the requester, or the commander, approved
+//   - after somebody other than the requester approved
 //     the exact call;
 //   - with the approval written down before the call and the answer after.
 //
@@ -85,7 +85,7 @@ func findAction(root, name string) (action.Action, error) {
 		}
 	}
 	return action.Action{}, fmt.Errorf("no action called %q is installed; "+
-		"quilzo action catalogue lists what ships", name)
+		"vaigil action catalogue lists what ships", name)
 }
 
 // actionSender is what sends an action's request.
@@ -107,8 +107,8 @@ func sendAction(root string, a action.Action, target string, undo bool) (int, er
 	}
 	secret := held[a.Secret]
 	if secret == "" {
-		return 0, fmt.Errorf("no credential called %q. QUILZO_CONNECT_SECRET=… "+
-			"quilzo connect secret %s", a.Secret, a.Secret)
+		return 0, fmt.Errorf("no credential called %q. VAIGIL_CONNECT_SECRET=… "+
+			"vaigil connect secret %s", a.Secret, a.Secret)
 	}
 	_, value, _ := strings.Cut(target, ":")
 	req, err := a.Build(value, undo)
@@ -243,7 +243,7 @@ func approveAct(root, id string, caller *Caller, actID int, now time.Time) (int,
 	}
 	if held[a.Secret] == "" {
 		return 0, fmt.Errorf("no credential called %q, so nothing could be "+
-			"sent. QUILZO_CONNECT_SECRET=… quilzo connect secret %s",
+			"sent. VAIGIL_CONNECT_SECRET=… vaigil connect secret %s",
 			a.Secret, a.Secret)
 	}
 	_, value, _ := strings.Cut(pending.Target, ":")
@@ -321,7 +321,7 @@ func finishAct(root, id string, actID int, name, target string, ok bool,
 	}
 	if err := recordE(root, audit.Record{Action: did,
 		Resource: "/incidents/" + id, Outcome: outcome,
-		Principal: "quilzo", Kind: audit.KindService, Verified: true,
+		Principal: "vaigil", Kind: audit.KindService, Verified: true,
 		Detail: map[string]string{"action": name, "subject": target,
 			"code": strconv.Itoa(code)}}); err != nil {
 		return err
@@ -412,7 +412,7 @@ func cmdAction(root string, args []string) error {
 		}
 		if len(all) == 0 {
 			w.Human("No action is installed, so this program can change " +
-				"nothing in any other tool. quilzo action catalogue lists " +
+				"nothing in any other tool. vaigil action catalogue lists " +
 				"what ships.\n")
 			return nil
 		}
@@ -440,7 +440,7 @@ func actionAdd(root string, args []string) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return fmt.Errorf("usage: quilzo action add NAME --org ORG")
+		return fmt.Errorf("usage: vaigil action add NAME --org ORG")
 	}
 	c, err := action.Catalogue()
 	if err != nil {
@@ -480,14 +480,14 @@ func actionAdd(root string, args []string) error {
 		w.Human("%s%s%s is installed: %s\n", bold, a.Name, reset,
 			a.Says("{"+a.Target.What+"}", false))
 		w.Human("  %sneeds %s: %s%s\n", dim, a.Secret, e.Credential, reset)
-		w.Human("  QUILZO_CONNECT_SECRET=… quilzo connect secret %s\n", a.Secret)
+		w.Human("  VAIGIL_CONNECT_SECRET=… vaigil connect secret %s\n", a.Secret)
 	}
 	return nil
 }
 
 func actionRemove(root string, args []string) error {
 	if len(args) != 1 {
-		return fmt.Errorf("usage: quilzo action remove NAME")
+		return fmt.Errorf("usage: vaigil action remove NAME")
 	}
 	caller := resolveCaller(root, flagToken)
 	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
@@ -521,14 +521,14 @@ func incidentAct(root, do string, args []string) error {
 		return err
 	}
 	if len(pos) != positional {
-		return fmt.Errorf("usage: quilzo incident %s %s", do, map[string]string{
+		return fmt.Errorf("usage: vaigil incident %s %s", do, map[string]string{
 			"act":          `ID ACTION ISSUER:VALUE --because "…"`,
 			"act-approve":  "ID N",
 			"act-undo":     `ID N --because "…"`,
 			"act-withdraw": `ID N --because "…"`}[do])
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
+	if err := authorise(root, caller, caseNeed(do), auth.AreaSecurity); err != nil {
 		return err
 	}
 	now := time.Now().UTC()
@@ -537,8 +537,7 @@ func incidentAct(root, do string, args []string) error {
 			return err
 		}
 		if !w.JSON(map[string]any{"requested": pos[1]}) {
-			w.Human("requested. Nothing has been sent: somebody else, or " +
-				"the commander, approves it\n")
+			w.Human("requested. Nothing has been sent: somebody else approves it\n")
 		}
 		return nil
 	}

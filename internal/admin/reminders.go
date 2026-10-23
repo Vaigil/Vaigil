@@ -11,7 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/remind"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/remind"
 )
 
 // Reminders is the reminder programme: what would be sent, what was, and
@@ -25,7 +26,7 @@ type Reminders struct {
 }
 
 func (s *Server) handleReminders(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActGrant)
 	if !ok {
 		return
 	}
@@ -119,7 +120,7 @@ func (s *Server) handleRemindersAct(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "use the form", http.StatusMethodNotAllowed)
 		return
 	}
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActGrant)
 	if !ok {
 		return
 	}

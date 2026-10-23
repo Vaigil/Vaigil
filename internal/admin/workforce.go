@@ -12,7 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/estate"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/estate"
 )
 
 // The workforce screens: people's risk, from what their tools say.
@@ -53,7 +54,7 @@ func (s *Server) wfLoad(w http.ResponseWriter, r *http.Request, nav,
 	title, tpl string) (principal, *estate.Estate, estate.Outcome,
 	map[string]any, bool) {
 
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActGrant)
 	if !ok {
 		return principal{}, nil, estate.Outcome{}, nil, false
 	}
@@ -818,7 +819,7 @@ func (s *Server) handleWorkforceSync(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "use the button", http.StatusMethodNotAllowed)
 		return
 	}
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActGrant)
 	if !ok {
 		return
 	}

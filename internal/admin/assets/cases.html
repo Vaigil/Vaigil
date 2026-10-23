@@ -31,7 +31,7 @@
     <span class="hint">Sev 1 and Sev 2 need a commander.</span></p>
   <fieldset class="choices"><legend>Which obligations apply to this organisation</legend>
     {{range .Scopes}}<p><label><input type="checkbox" name="regime" value="{{.Name}}"{{if .On}} checked{{end}}> <span>{{.Regimes}}</span></label></p>{{end}}
-    {{if .NoRegimes}}<p class="hint">None is set as the default. <code>quilzo incident regimes eu nis2</code> sets what a new incident starts with.</p>{{end}}
+    {{if .NoRegimes}}<p class="hint">None is set as the default. <code>vaigil incident regimes eu nis2</code> sets what a new incident starts with.</p>{{end}}
   </fieldset>
   <p><label>A finding this is about (optional) <input type="text" name="finding" value="{{.Finding}}" maxlength="200"></label></p>
   </div>

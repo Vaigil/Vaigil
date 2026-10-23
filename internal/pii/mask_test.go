@@ -9,7 +9,7 @@ import (
 )
 
 func secretsAt(text string) [][2]int {
-	// Stands in for codescan.SecretSpans: one fake key shape.
+	// Stands in for secret.Spans: one fake key shape.
 	if i := strings.Index(text, "sk-live-"); i >= 0 {
 		return [][2]int{{i, i + len("sk-live-0123456789abcdef")}}
 	}
@@ -32,13 +32,13 @@ func TestWhatLeavesIsMaskedAndWhatComesBackIsRestored(t *testing.T) {
 		t.Errorf("masked what is nobody's: %s", out)
 	}
 	// The same person is the same placeholder both times.
-	if strings.Count(out, "<quilzo:email:1>") != 2 || strings.Contains(out, "<quilzo:email:2>") {
+	if strings.Count(out, "<vaigil:email:1>") != 2 || strings.Contains(out, "<vaigil:email:2>") {
 		t.Errorf("one address, two placeholders: %s", out)
 	}
 	if c := m.Masked(); c["email"] != 1 || c["phone"] != 1 || c["card"] != 1 || c["secret"] != 1 || c["iban"] != 1 {
 		t.Errorf("counted %v", c)
 	}
-	answer := "I have refunded <quilzo:card:1> and emailed <quilzo:email:1>."
+	answer := "I have refunded <vaigil:card:1> and emailed <vaigil:email:1>."
 	if got := m.Restore(answer); got != "I have refunded 5425233430109903 and emailed ana.lopez@mailhost.net." {
 		t.Errorf("restored %q", got)
 	}
@@ -64,7 +64,7 @@ func TestOverlappingFindsAreMaskedOnce(t *testing.T) {
 		return [][2]int{{i, strings.Index(s, ") end") + 1}}
 	}}
 	out := m.Mask(text, false)
-	if out != "creds: <quilzo:secret:1> end" {
+	if out != "creds: <vaigil:secret:1> end" {
 		t.Fatalf("%q", out)
 	}
 	if m.Restore(out) != text {

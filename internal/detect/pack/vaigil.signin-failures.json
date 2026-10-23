@@ -1,10 +1,10 @@
 {
-  "id": "quilzo.signin-failures",
-  "title": "Repeated failed sign-ins to Quilzo",
+  "id": "vaigil.signin-failures",
+  "title": "Repeated failed sign-ins to Vaigil",
   "why": "somebody is guessing credentials for the admin or the API",
   "blind": "a slow guess that never crosses the failure threshold",
   "sources": [
-    "quilzo/audit"
+    "vaigil/audit"
   ],
   "severity": 3,
   "when": {
@@ -24,13 +24,13 @@
       "name": "the admin's threshold crossed",
       "match": true,
       "event": {
-        "source": "quilzo/audit",
+        "source": "vaigil/audit",
         "time": "2026-10-01T09:00:00Z",
         "received": "2026-10-01T09:00:05Z",
         "class": 6003,
         "disposition": 2,
         "actor": {
-          "issuer": "quilzo",
+          "issuer": "vaigil",
           "value": "p_1a2b3c"
         },
         "message": "auth.failures",
@@ -48,13 +48,13 @@
       "name": "an ordinary sign-in",
       "match": false,
       "event": {
-        "source": "quilzo/audit",
+        "source": "vaigil/audit",
         "time": "2026-10-01T09:00:00Z",
         "received": "2026-10-01T09:00:05Z",
         "class": 6003,
         "disposition": 1,
         "actor": {
-          "issuer": "quilzo",
+          "issuer": "vaigil",
           "value": "p_1a2b3c"
         },
         "message": "signin.oidc",

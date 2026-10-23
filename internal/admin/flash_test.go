@@ -33,22 +33,22 @@ func unsigned(loc string) string {
 // server signed it.
 func TestALinkCannotPutWordsOnAScreen(t *testing.T) {
 	srv, token := setup(t)
-	forged := "Your session expired. Sign in again at quilzo-login.example"
+	forged := "Your session expired. Sign in again at vaigil-login.example"
 	for _, path := range []string{
 		"/?e=" + url.QueryEscape(forged),
-		"/?m=" + url.QueryEscape(forged),
-		"/?m=" + url.QueryEscape(forged) + "&fs=AAAAAAAAAAAAAAAAAAAAAAAA",
-		"/media?e=" + url.QueryEscape(forged),
-		"/publishing?m=" + url.QueryEscape(forged),
+		"/today?m=" + url.QueryEscape(forged),
+		"/today?m=" + url.QueryEscape(forged) + "&fs=AAAAAAAAAAAAAAAAAAAAAAAA",
+		"/findings?e=" + url.QueryEscape(forged),
+		"/people?m=" + url.QueryEscape(forged),
 	} {
-		if body := get(t, srv, path, token).Body.String(); strings.Contains(body, "quilzo-login.example") {
+		if body := get(t, srv, path, token).Body.String(); strings.Contains(body, "vaigil-login.example") {
 			t.Errorf("%s put its words on the screen", path)
 		}
 	}
 	// A signature for one message does not carry another.
-	good := signFlash(srv.flashKey, "/?m=Published")
+	good := signFlash(srv.flashKey, "/today?m=Published")
 	swapped := strings.Replace(good, "m=Published", "m="+url.QueryEscape(forged), 1)
-	if body := get(t, srv, swapped, token).Body.String(); strings.Contains(body, "quilzo-login.example") {
+	if body := get(t, srv, swapped, token).Body.String(); strings.Contains(body, "vaigil-login.example") {
 		t.Error("a signature was reused for different words")
 	}
 }
@@ -56,12 +56,12 @@ func TestALinkCannotPutWordsOnAScreen(t *testing.T) {
 // TestTheServersOwnMessagesStillShow, after a real round trip.
 func TestTheServersOwnMessagesStillShow(t *testing.T) {
 	srv, token := setup(t)
-	signed := signFlash(srv.flashKey, "/?m="+url.QueryEscape("Saved the draft of about"))
+	signed := signFlash(srv.flashKey, "/today?m="+url.QueryEscape("Saved the draft of about"))
 	if body := get(t, srv, signed, token).Body.String(); !strings.Contains(body, "Saved the draft of about") {
 		t.Fatal("a signed message did not show")
 	}
 	// And the middleware signs a redirect as it goes out.
-	w := signInPost(srv, "qz_wrong")
+	w := signInPost(srv, "vg_wrong")
 	loc := w.Header().Get("Location")
 	if !strings.Contains(loc, flashSig+"=") {
 		t.Fatalf("a redirect with a message went out unsigned: %q", loc)

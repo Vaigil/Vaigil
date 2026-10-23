@@ -4,12 +4,12 @@
 package admin
 
 import (
-	"net/http"
+	"github.com/quilzo/vaigil/internal/enrol"
+
+	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
-
-	"github.com/quilzo/quilzo/internal/site"
 )
 
 // A write through the browser is recorded, the same as a write from anywhere
@@ -21,7 +21,7 @@ import (
 // the assertion that later satisfies the Article 50 gate, so the one whose
 // authorship somebody asking questions most needs — recorded nothing.
 //
-// Every other surface already did. `quilzo add` writes content.add, the agent
+// Every other surface already did. `vaigil add` writes content.add, the agent
 // interface writes mcp.write_page, and the content API writes through
 // OnWrite. This interface recorded deleting a
 // page, editing its sections and removing a selection of them, so the gap did
@@ -34,14 +34,13 @@ func TestEveryWriteThroughTheBrowserIsRecorded(t *testing.T) {
 	for _, tc := range []struct {
 		what, path, body, action string
 	}{
-		{"saving a page", "/save",
-			"__name=index&__base=&title=Home&body=Edited", "content.save"},
-		{"recording provenance", "/provenance/set",
-			"page=index&source=humanEdits", "provenance.set"},
-		{"deleting a page", "/page/delete", "name=about", "page.delete"},
+		{"granting a role", "/people/grant",
+			"principal=sam&role=viewer&resource=/", "access.grant"},
+		{"issuing an enrolment link", "/people/enrol", "principal=editor", "enrol.issued"},
 	} {
 		t.Run(tc.what, func(t *testing.T) {
 			srv, token := setup(t)
+			srv.Enrol = &enrol.Store{Path: filepath.Join(t.TempDir(), "enrolments.json")}
 			var got []string
 			srv.Audit = func(action, resource string, _ map[string]string) {
 				got = append(got, action+" "+resource)
@@ -60,31 +59,6 @@ func TestEveryWriteThroughTheBrowserIsRecorded(t *testing.T) {
 					"than of what happened", tc.what, tc.action, got)
 			}
 		})
-	}
-}
-
-// Rolling back is recorded. Separate because it needs something to roll back
-// to, which means publishing first.
-func TestRollingBackThroughTheBrowserIsRecorded(t *testing.T) {
-	srv, token := setup(t)
-	if w := postForm(t, srv, "/publish", token, "reason=a test needs something live"); w.Code != http.StatusOK {
-		t.Fatalf("the first publish answered %d", w.Code)
-	}
-	live := srv.Store.GetRef(site.RefLive)
-	if live == "" {
-		t.Skip("nothing was published, so there is nothing to roll back to")
-	}
-
-	var got []string
-	srv.Audit = func(action, resource string, _ map[string]string) {
-		got = append(got, action+" "+resource)
-	}
-	if w := postForm(t, srv, "/rollback", token, "commit="+live); w.Code >= 400 {
-		t.Fatalf("rollback answered %d", w.Code)
-	}
-	if !recorded(got, "rollback") {
-		t.Errorf("rolling back left no entry; it recorded %v. `quilzo "+
-			"rollback` records it, and this moves the same pointer", got)
 	}
 }
 

@@ -49,7 +49,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"github.com/quilzo/quilzo/internal/egress"
+	"github.com/quilzo/vaigil/internal/egress"
 	"io"
 	"net"
 	"net/http"
@@ -270,7 +270,7 @@ func (c *Client) checkIP(ip net.IP) string {
 // New returns a Client with the defaults.
 func New() *Client {
 	return &Client{Limits: Limits{}.withDefaults(),
-		UserAgent: "quilzo/1 (+content import)"}
+		UserAgent: "vaigil/1 (+content import)"}
 }
 
 // For returns a Client with the defaults, for one declared purpose
@@ -279,7 +279,7 @@ func New() *Client {
 func For(purpose string) *Client {
 	c := New()
 	c.Purpose = purpose
-	c.UserAgent = "quilzo/1 (+" + purpose + ")"
+	c.UserAgent = "vaigil/1 (+" + purpose + ")"
 	return c
 }
 

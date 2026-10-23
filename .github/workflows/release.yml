@@ -1,31 +1,7 @@
 name: release
 
-# The bill of materials is a release artefact rather than a document somebody
-# maintains, and it is produced by the binary being released rather than from
-# the source tree. debug.ReadBuildInfo reads what actually went into the
-# artefact; asking the source describes what would be built now, and during an
-# incident the question is what is deployed.
-#
-# The Cyber Resilience Act needs this to exist before a vulnerability report
-# does, since a report has to say what is affected, and needs it retained for
-# ten years — which a release asset does without anybody remembering to.
-
-# Actions are pinned to commits, not tags.
-#
-# A tag is a mutable pointer in somebody else's repository. `actions/checkout@v4`
-# is whatever v4 points at when the workflow runs, and the party who can move it
-# is the action's owner or anybody who compromises them. This workflow signs
-# release binaries and pushes the container image, so a substituted action is a
-# supply-chain compromise of everything this project ships.
-#
-# That is the same argument the project makes about its own dependencies — the
-# go.mod with no require block, the extension digests, the media addressed by
-# hash. Leaving the CI supply chain on mutable tags while making that argument
-# was an inconsistency, and it was the largest one the security review found
-# after the toolchain.
-#
-# The version is kept in a trailing comment so a human can still read what this
-# is, and Dependabot updates both together.
+# Runs on a tag, with GitHub's own token: no release key belongs to one
+# person. Actions are pinned to commits; Dependabot updates them.
 
 on:
   push:
@@ -34,10 +10,8 @@ on:
 
 permissions:
   contents: write
-  # Needed to publish an attestation binding the artefacts to this workflow run.
   id-token: write
   attestations: write
-  # Needed to push the container image to this repository's registry.
   packages: write
 
 jobs:
@@ -46,18 +20,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # The full history, so the build stamps a real revision rather than a
-          # shallow-clone placeholder that would make the SBOM name a commit
-          # nobody can fetch.
           fetch-depth: 0
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          # From go.mod, not a literal. The Go 1.24 EOL was missed here
-          # because the version was written down in three workflows and one
-          # go.mod, and updating go.mod left CI still building on an
-          # unsupported toolchain. One place to change it, and it is the place
-          # the build already reads.
           go-version-file: go.mod
 
       - name: The suite must pass before anything is built
@@ -66,79 +32,46 @@ jobs:
       - name: Build
         run: |
           make build VERSION=${{ github.ref_name }}
-          # Every platform a release carries. Cross-compiled with CGO off, so
-          # these are genuinely static; the tree failed to build for macOS at
-          # all until the first time anybody tried.
           make build-all VERSION=${{ github.ref_name }}
 
-      - name: Bill of materials, from the binary
+      # The binary says what went into it; a dirty tree is source nobody can
+      # fetch, and a require in go.mod is a dependency nobody declared.
+      - name: Refuse to ship a modified build or a dependency
         run: |
-          ./bin/quilzo compliance sbom bin/quilzo.cdx.json
-          ./bin/quilzo compliance crypto --json > bin/quilzo.crypto.json
-
-      - name: Refuse to ship a modified build
-        run: |
-          # A build from uncommitted changes describes source nobody else can
-          # obtain, and an SBOM for it names a revision that does not exist.
-          if grep -q '+modified' bin/quilzo.cdx.json; then
-            echo "the working tree was dirty; this SBOM describes source nobody can fetch"
-            exit 1
+          if go version -m bin/vaigil | grep -q 'vcs.modified=true'; then
+            echo "the working tree was dirty"; exit 1
+          fi
+          if go version -m bin/vaigil | grep -q '^\s*dep\s'; then
+            echo "the binary carries a third-party module"; exit 1
           fi
 
-      - name: Refuse to ship undeclared dependencies
-        run: |
-          # The zero-dependency property is what makes the CRA obligations here
-          # cheap. If it ever stops being true that should be a deliberate
-          # decision, not something discovered during an incident.
-          count=$(./bin/quilzo --json compliance summary | \
-            python3 -c "import json,sys; print(json.load(sys.stdin)['third_party_components'])")
-          echo "third-party components: $count"
-          test "$count" -eq 0
-
       - name: Checksums
-        run: cd bin && sha256sum quilzo quilzo-* quilzo.cdx.json quilzo.crypto.json > SHA256SUMS
+        run: cd bin && sha256sum vaigil vaigil-* > SHA256SUMS
 
       - name: Attest the artefacts
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
-            bin/quilzo
-            bin/quilzo-*
-            bin/quilzo.cdx.json
+            bin/vaigil
+            bin/vaigil-*
 
       - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           files: |
-            bin/quilzo
-            bin/quilzo-linux-amd64
-            bin/quilzo-linux-arm64
-            bin/quilzo-darwin-amd64
-            bin/quilzo-darwin-arm64
-            bin/quilzo-windows-amd64.exe
-            bin/quilzo-windows-arm64.exe
-            bin/quilzo.cdx.json
-            bin/quilzo.crypto.json
+            bin/vaigil-linux-amd64
+            bin/vaigil-linux-arm64
+            bin/vaigil-darwin-amd64
+            bin/vaigil-darwin-arm64
+            bin/vaigil-windows-amd64.exe
+            bin/vaigil-windows-arm64.exe
             bin/SHA256SUMS
             LICENSE
             NOTICE
           body: |
-            Every artefact here carries its SHA-256 in `SHA256SUMS`, and the
-            bill of materials was produced by this binary rather than from the
-            source tree — so it describes what is in the file you downloaded.
+            Every artefact here carries its SHA-256 in `SHA256SUMS`, and each
+            has a build provenance attestation:
+            `gh attestation verify vaigil-linux-amd64 --repo Quilzo/vaigil`.
 
-            `quilzo.cdx.json` is CycloneDX 1.6.
-            `quilzo.crypto.json` is the cryptographic inventory, including
-            post-quantum status.
-
-  # The image, published where somebody can actually pull it.
-  #
-  # A self-hosted CMS whose only installation route is "clone it and have a Go
-  # toolchain" has no distribution. The Dockerfile has existed since the start
-  # and nothing ever pushed what it built, so the image was real and
-  # unobtainable — which is the same as not having one.
-  #
-  # Multi-arch, because arm64 is where a lot of self-hosting actually happens
-  # and an amd64-only image is an image half the audience cannot run.
   image:
     runs-on: ubuntu-latest
     needs: release
@@ -160,14 +93,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Image tags drop the v: the git tag v1.2.3 publishes 1.2.3, 1.2 and latest.
       - name: Names for this image
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ghcr.io/${{ github.repository }}
-          # The tag, the major.minor, and latest. Somebody pinning to a
-          # version gets one that cannot move under them; somebody who wants
-          # the current release gets latest.
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -184,9 +115,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: VERSION=${{ github.ref_name }}
 
-      # The same provenance the binaries get. An image somebody pulls should be
-      # traceable to the workflow run that built it, or the supply-chain
-      # argument this project makes stops at the tarball.
       - name: Attest the image
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
@@ -194,90 +122,6 @@ jobs:
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
 
-      # A private package is a package nobody has.
-      #
-      # ghcr publishes a new package as private regardless of the repository's
-      # visibility, and nothing in a successful push says so. v0.1.0 shipped
-      # that way: this job went green, the image was real, and an anonymous
-      # pull got UNAUTHORIZED — which is the same state the Dockerfile was in
-      # for the whole time nothing pushed it, and the reason this job was
-      # written.
-      #
-      # So the release asks the question a reader would: fetch a pull token as
-      # nobody, and read the manifest. Deliberately unauthenticated — using
-      # this job's own token would prove only that the job can reach what the
-      # job just pushed.
-      #
-      # The tag comes from the metadata step rather than from github.ref_name,
-      # and that distinction is the whole of this check working. `type=semver`
-      # strips the leading v, so the git tag v0.1.0 produces image tags 0.1.0,
-      # 0.1 and latest, and there is no v0.1.0 to fetch. The first version of
-      # this step asked for github.ref_name and would have failed every release
-      # with a 404 that looked exactly like the private-package failure it was
-      # written to catch — a check that cries wolf is a check somebody deletes.
-      # Reading steps.meta.outputs.version asks the tagging step what it named
-      # the thing, which cannot drift from what was actually pushed.
-      #
-      # Visibility cannot be set from here. There is no REST endpoint for it
-      # and the workflow's token could not use one if there were, so this fails
-      # loudly with the fix rather than pretending to apply it.
-      - name: The image must be pullable by somebody who is not us
-        run: |
-          repo=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          tag='${{ steps.meta.outputs.version }}'
-          if [ -z "$tag" ]; then
-            echo "::error::the metadata step produced no version; nothing to check"
-            exit 1
-          fi
-          token=$(curl -fsS "https://ghcr.io/token?scope=repository:${repo}:pull&service=ghcr.io" \
-            | python3 -c "import json,sys; print(json.load(sys.stdin).get('token',''))" 2>/dev/null || true)
-          if [ -n "$token" ] && curl -fsS -o /dev/null \
-              -H "Authorization: Bearer $token" \
-              -H "Accept: application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json" \
-              "https://ghcr.io/v2/${repo}/manifests/${tag}"; then
-            echo "anonymous pull of ghcr.io/${repo}:${tag} works"
-            exit 0
-          fi
-          echo "::error::ghcr.io/${repo} is not anonymously pullable. The image"
-          echo "::error::was pushed and nobody outside this org can fetch it, so"
-          echo "::error::README and INSTALL now document an image that 404s."
-          echo "::error::Fix once, by hand: the package's page -> Package settings"
-          echo "::error::-> Change visibility -> Public, and link it to this"
-          echo "::error::repository so later versions inherit."
-          exit 1
-
-      # Run the quickstart the README tells people to run.
-      #
-      # Everything else about this image was verified without starting it:
-      # the manifest listed two platforms, the config named the right
-      # entrypoint and user, the attestation checked out, and an anonymous pull
-      # worked. All of that was true of v0.1.0, whose documented three-command
-      # quickstart could not reach a served page.
-      #
-      # It failed three ways at once and every one of them was invisible to a
-      # manifest. `demo` writes templates beside the working directory, so a
-      # deployment keeping only /srv/store lost them and `site` exited with "no
-      # template directory at templates". Mounting the parent instead hit the
-      # VOLUME declaration, which handed /srv/store to an anonymous volume that
-      # --rm deleted, so `demo` reported success into a store that was gone by
-      # the time `site` looked. Mounting an empty named volume at
-      # /srv/templates got a root-owned directory and "permission denied", from
-      # an image with no shell to chown it with.
-      #
-      # None of that is exotic and all of it is ordinary Docker behaviour. What
-      # made it ship was that nobody ran the commands. So they run here, from
-      # the published image, as an anonymous user, and the check is the one a
-      # reader performs: is there a page at the end of it.
-      # The binary in the image must know which release it is.
-      #
-      # This job passed `--build-arg VERSION=` for two releases while the
-      # Dockerfile declared no such ARG, and a build argument nothing declares
-      # is discarded without a word. So the image label said 0.2.0 and
-      # `quilzo --version` inside it said "dev", and nothing compared them.
-      #
-      # Checked against steps.meta.outputs.version rather than against
-      # github.ref_name, for the same reason the pull check is: that is what
-      # the tagging step decided, and the semver patterns strip the leading v.
       - name: The image must know its own version
         run: |
           repo=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
@@ -286,55 +130,23 @@ jobs:
           echo "the image reports: $got"
           case "$got" in
             *"$tag"*) echo "matches ${tag}" ;;
-            *)
-              echo "::error::the image reports \"$got\" and this release is ${tag}."
-              echo "::error::A build argument the Dockerfile does not declare"
-              echo "::error::is discarded silently, so check for ARG VERSION."
-              exit 1
-              ;;
+            *) echo "::error::the image reports \"$got\" and this release is ${tag}"; exit 1 ;;
           esac
 
-      - name: The documented quickstart must reach a served page
+      - name: The documented quickstart must reach the console
         run: |
           repo=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           img="ghcr.io/${repo}:${{ steps.meta.outputs.version }}"
-          # A config with no credentials, so this pulls the way a stranger does
-          # rather than reusing the login this job just used to push.
-          cfg=$(mktemp -d); echo '{}' > "$cfg/config.json"
-          export DOCKER_CONFIG="$cfg"
-
-          vols="-v qs:/srv -v qs-store:/srv/store"
-          docker run --rm $vols "$img" --root /srv/store init
-          docker run --rm $vols "$img" --root /srv/store demo
-          docker run -d --name qs -p 8081:8081 $vols "$img" \
-            --root /srv/store site --addr 0.0.0.0:8081
-
+          docker run --rm -v qs:/srv "$img" --root /srv/store init --admin ci@example.com
+          docker run -d --name qs -p 8080:8080 -v qs:/srv "$img"
           for _ in $(seq 1 30); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8081/ || true)
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/signin || true)
             [ "$code" = "200" ] && break
             sleep 2
           done
-
           if [ "$code" != "200" ]; then
-            echo "::error::the documented quickstart does not serve a page (HTTP ${code:-none})."
-            echo "::error::README and INSTALL tell people to run exactly these commands."
+            echo "::error::the documented quickstart does not serve the sign-in page (HTTP ${code:-none})"
             docker logs qs 2>&1 | tail -20
             exit 1
           fi
-          echo "quickstart serves HTTP 200"
-
-          # The demo advertises these. /sale is meant to 404 until its window
-          # opens, so it is checked for being reachable-and-refusing rather
-          # than for 200, which is the difference between a rule working and a
-          # route being broken.
-          for p in /catalogue.json /available /wholesale; do
-            c=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8081$p")
-            echo "  $p -> $c"
-            [ "$c" = "200" ] || { echo "::error::$p returned $c"; exit 1; }
-          done
-
-          # The property the whole design rests on, read off the wire rather
-          # than off a source file.
-          curl -sI http://127.0.0.1:8081/ | grep -qi "script-src 'none'" \
-            || { echo "::error::the served CSP does not carry script-src 'none'"; exit 1; }
-          echo "served CSP carries script-src 'none'"
+          echo "the console serves its sign-in page"

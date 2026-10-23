@@ -29,7 +29,7 @@ func endpoint(t *testing.T) (*Endpoint, *[]called) {
 			return nil, errors.New("no such token")
 		},
 		Build: func(r *http.Request, c *Caller) (*Server, error) {
-			s := NewServer("quilzo", "test")
+			s := NewServer("vaigil", "test")
 			s.Authorise = func(op Operation) error {
 				if op.Writes && c.Data == "reader" {
 					return &ScopeError{Scope: "mcp:write", Reason: "this token reads only"}
@@ -217,7 +217,7 @@ func TestModernResults(t *testing.T) {
 	}
 	b, _ := json.Marshal(resp.Result)
 	for _, want := range []string{`"resultType":"complete"`, `"cacheScope":"private"`, `"ttlMs":3600000`,
-		`"io.modelcontextprotocol/serverInfo":{"name":"quilzo"`, `"readOnlyHint":true`, `"name":"quilzo_find"`} {
+		`"io.modelcontextprotocol/serverInfo":{"name":"vaigil"`, `"readOnlyHint":true`, `"name":"vaigil_find"`} {
 		if !strings.Contains(string(b), want) {
 			t.Errorf("tools/list lacks %s: %s", want, b)
 		}
@@ -231,14 +231,14 @@ func TestModernResults(t *testing.T) {
 
 func TestCallsAndScope(t *testing.T) {
 	e, calls := endpoint(t)
-	params := `"name":"quilzo_read","arguments":{"operation":"list_pages"}`
-	w, resp := modern("tools/call", "quilzo_read", params).do(t, e)
+	params := `"name":"vaigil_read","arguments":{"operation":"list_pages"}`
+	w, resp := modern("tools/call", "vaigil_read", params).do(t, e)
 	b, _ := json.Marshal(resp.Result)
 	if w.Code != 200 || !strings.Contains(string(b), "home, about") || !strings.Contains(string(b), `"resultType":"complete"`) {
 		t.Fatalf("%d %s", w.Code, w.Body.String())
 	}
 	// The name in the header must be the body's.
-	c := modern("tools/call", "quilzo_write", params)
+	c := modern("tools/call", "vaigil_write", params)
 	if w, resp := c.do(t, e); w.Code != 400 || resp.Error.Code != CodeHeaderMismatch {
 		t.Fatalf("name mismatch: %d", w.Code)
 	}
@@ -247,7 +247,7 @@ func TestCallsAndScope(t *testing.T) {
 		t.Fatal("missing Mcp-Name accepted")
 	}
 	// Base64 sentinel is decoded before comparing.
-	c.name = "=?base64?" + base64.StdEncoding.EncodeToString([]byte("quilzo_read")) + "?="
+	c.name = "=?base64?" + base64.StdEncoding.EncodeToString([]byte("vaigil_read")) + "?="
 	if w, _ := c.do(t, e); w.Code != 200 {
 		t.Fatalf("encoded name: %d", w.Code)
 	}
@@ -256,7 +256,7 @@ func TestCallsAndScope(t *testing.T) {
 		t.Fatal("broken base64 accepted")
 	}
 	// A scope too small is a 403 that asks for the scope.
-	wc := modern("tools/call", "quilzo_write", `"name":"quilzo_write","arguments":{"operation":"write_page"}`)
+	wc := modern("tools/call", "vaigil_write", `"name":"vaigil_write","arguments":{"operation":"write_page"}`)
 	wc.token = "reader"
 	w, resp = wc.do(t, e)
 	if string(resp.ID) != "1" {
@@ -271,7 +271,7 @@ func TestCallsAndScope(t *testing.T) {
 		t.Fatalf("writer: %d", w.Code)
 	}
 	// Any other refusal is an answer, not an HTTP error.
-	fc := modern("tools/call", "quilzo_read", `"name":"quilzo_read","arguments":{"operation":"forbidden"}`)
+	fc := modern("tools/call", "vaigil_read", `"name":"vaigil_read","arguments":{"operation":"forbidden"}`)
 	w, resp = fc.do(t, e)
 	if w.Code != 200 || resp.Error == nil || resp.Error.Code != CodeRefused || strings.Contains(w.Body.String(), "should not run") {
 		t.Fatalf("%d %s", w.Code, w.Body.String())
@@ -280,7 +280,7 @@ func TestCallsAndScope(t *testing.T) {
 	for _, c := range *calls {
 		got = append(got, c.tool+"/"+c.op)
 	}
-	if strings.Join(got, " ") != "quilzo_read/list_pages quilzo_read/list_pages quilzo_write/write_page quilzo_write/write_page quilzo_read/forbidden" {
+	if strings.Join(got, " ") != "vaigil_read/list_pages vaigil_read/list_pages vaigil_write/write_page vaigil_write/write_page vaigil_read/forbidden" {
 		t.Fatalf("calls %v", got)
 	}
 }
@@ -306,7 +306,7 @@ func TestLegacyClientsAreAnsweredWithoutASession(t *testing.T) {
 	list := hcall{token: "writer", version: "2025-06-18", body: `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`}
 	w, resp = list.do(t, e)
 	b, _ = json.Marshal(resp.Result)
-	if w.Code != 200 || strings.Contains(string(b), "resultType") || !strings.Contains(string(b), "quilzo_find") {
+	if w.Code != 200 || strings.Contains(string(b), "resultType") || !strings.Contains(string(b), "vaigil_find") {
 		t.Fatalf("%d %s", w.Code, b)
 	}
 	// Unknown method: a JSON-RPC error, not a 404 a legacy client would

@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/finding"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/finding"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // riskEstate is a register where one person has three medium findings from
@@ -127,20 +127,26 @@ func TestAPersonsPageGathersEveryIdentifierTheyAreKnownBy(t *testing.T) {
 	}
 }
 
-func TestOnlyAnAdministratorSeesRisk(t *testing.T) {
+// Risk is the queue ranked, which a viewer reads; somebody granted only
+// the audit log does not.
+func TestAViewerSeesRiskAndALogGrantDoesNot(t *testing.T) {
 	srv, _ := setup(t)
 	riskEstate(t, srv)
-	if err := srv.Policy.Grant(auth.Binding{Principal: "writer",
-		Role: auth.RoleAuthor, Resource: "/"}); err != nil {
-		t.Fatal(err)
+	for who, b := range map[string]auth.Binding{
+		"watcher": {Role: auth.RoleViewer, Resource: "/"},
+		"logonly": {Role: auth.RoleViewer, Resource: auth.AreaLog},
+	} {
+		b.Principal = who
+		if err := srv.Policy.Grant(b); err != nil {
+			t.Fatal(err)
+		}
 	}
-	secret, _, err := srv.Tokens.IssueSession("w", "writer", auth.RoleAuthor, "/",
-		time.Hour, auth.RoleAdmin, auth.MethodPasskey)
-	if err != nil {
-		t.Fatal(err)
+	watcher, _, _ := srv.Tokens.IssueSession("w", "watcher", auth.RoleViewer, "/", time.Hour, auth.RoleAdmin, auth.MethodPasskey)
+	logonly, _, _ := srv.Tokens.IssueSession("l", "logonly", auth.RoleViewer, "/", time.Hour, auth.RoleAdmin, auth.MethodPasskey)
+	if w := get(t, srv, "/security/risk", watcher); w.Code != 200 {
+		t.Errorf("a viewer cannot read the risk list: %d", w.Code)
 	}
-	w := get(t, srv, "/security/risk", secret)
-	if w.Code == 200 || strings.Contains(w.Body.String(), "dana@acme.com") {
-		t.Errorf("an author read the risk list: %d", w.Code)
+	if w := get(t, srv, "/security/risk", logonly); w.Code == 200 || strings.Contains(w.Body.String(), "dana@acme.com") {
+		t.Errorf("a grant on the log alone read the risk list: %d", w.Code)
 	}
 }

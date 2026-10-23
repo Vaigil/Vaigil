@@ -18,7 +18,7 @@
 //
 // # Why this, and not a daemon for everything
 //
-// `quilzo schedule run` deliberately does not daemonise, and says why: "a
+// `vaigil schedule run` deliberately does not daemonise, and says why: "a
 // scheduler that is also a long-lived process is a second thing that can be
 // down, and the machinery for running something every minute already exists on
 // every system this runs on." That argument is right and this does not

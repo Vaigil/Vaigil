@@ -20,7 +20,7 @@ func TestSiemVerifyNamesAFormatItCannotCheck(t *testing.T) {
 	}
 	for name, line := range map[string]string{
 		"OCSF": `{"class_uid":3002,"metadata":{"uid":"ab"}}`,
-		"CEF":  `CEF:0|rsh1k|quilzo|1|auth.granted|auth.granted|3|cs3Label=eventHash cs3=ab cs4Label=sequence cs4=1`,
+		"CEF":  `CEF:0|rsh1k|vaigil|1|auth.granted|auth.granted|3|cs3Label=eventHash cs3=ab cs4Label=sequence cs4=1`,
 	} {
 		file := filepath.Join(dir, name+".log")
 		if err := os.WriteFile(file, []byte(line+"\n"), 0o600); err != nil {

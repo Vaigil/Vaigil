@@ -8,8 +8,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/quilzo/quilzo/internal/detect"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/detect"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Pipeline adapts a rule's field names to a deployment's events.

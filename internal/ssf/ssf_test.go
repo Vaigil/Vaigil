@@ -17,15 +17,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/fetch"
-	"github.com/quilzo/quilzo/internal/oidc"
+	"github.com/quilzo/vaigil/internal/fetch"
+	"github.com/quilzo/vaigil/internal/oidc"
 )
 
 var now = time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)
 
 const (
 	iss = "https://acme.okta.com"
-	aud = "https://quilzo.acme.example/feeds/ssf/okta"
+	aud = "https://vaigil.acme.example/feeds/ssf/okta"
 )
 
 func b64(b []byte) string { return base64.RawURLEncoding.EncodeToString(b) }
@@ -292,7 +292,7 @@ func TestAStreamIsAskedForAndVerified(t *testing.T) {
 	if err != nil || tok != "at-1" {
 		t.Fatalf("%q %v", tok, err)
 	}
-	s, err := tr.CreateStream(context.Background(), f, tok, aud, "Bearer push-secret", "Quilzo", Requested)
+	s, err := tr.CreateStream(context.Background(), f, tok, aud, "Bearer push-secret", "Vaigil", Requested)
 	if err != nil || s.ID != "s-1" || s.Audiences()[0] != aud {
 		t.Fatalf("%+v %v", s, err)
 	}
@@ -308,7 +308,7 @@ func TestAStreamIsAskedForAndVerified(t *testing.T) {
 	if err := tr.RequestVerification(context.Background(), f, tok, "s-1", "st"); err != nil {
 		t.Error(err)
 	}
-	if _, err := tr.CreateStream(context.Background(), f, tok, "http://quilzo.example/x", "", "", nil); err == nil {
+	if _, err := tr.CreateStream(context.Background(), f, tok, "http://vaigil.example/x", "", "", nil); err == nil {
 		t.Error("a stream to a plain-http endpoint was asked for")
 	}
 }

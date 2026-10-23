@@ -200,7 +200,7 @@ func TestTheShippedPlaybooksAreWorkable(t *testing.T) {
 			}
 			// The words of an action this program cannot take. A step
 			// that reads as if it will be done for you is one nobody does.
-			for _, claim := range []string{"automatically", "quilzo will"} {
+			for _, claim := range []string{"automatically", "vaigil will"} {
 				if strings.Contains(strings.ToLower(s.Title+s.Why), claim) {
 					t.Errorf("%s/%s reads as if it does itself", p.ID, s.ID)
 				}
@@ -486,18 +486,19 @@ func TestAnActIsAskedForApprovedBySomebodyElseAndItsOutcomeRecorded(t *testing.T
 	}
 	record := strings.Join(said, "\n")
 	for _, want := range []string{"dana requested okta-suspend-user on okta:00u1a2b3c4d5: sessions from two countries",
-		"sam approved okta-suspend-user", "quilzo okta-suspend-user on okta:00u1a2b3c4d5 done (the tool answered 200)",
+		"sam approved okta-suspend-user", "vaigil okta-suspend-user on okta:00u1a2b3c4d5 done (the tool answered 200)",
 		"failed (the tool answered 500); it is still in force", "undone (the tool answered 200)"} {
 		if !strings.Contains(record, want) {
 			t.Errorf("the record lacks %q", want)
 		}
 	}
-	// The commander may approve what they asked for; and there is a limit.
+	// Not even the commander approves what they asked for; and there is a
+	// limit.
 	j := kept(t)
 	_ = j.Apply(Action{Do: "assign", Role: Commander, Who: "dana"}, "dana", day0)
 	jid, _ := j.RequestAct(spec, "dana", "x", day0)
-	if _, err := j.ApproveAct(jid, "dana", day0); err != nil {
-		t.Errorf("the commander could not approve: %v", err)
+	if _, err := j.ApproveAct(jid, "dana", day0); err == nil {
+		t.Error("the commander approved an act they asked for")
 	}
 	k := kept(t)
 	for n := 0; n < MaxActs; n++ {

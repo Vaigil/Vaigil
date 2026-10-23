@@ -30,7 +30,7 @@ func TestANationalIdentityNumberIsFound(t *testing.T) {
 			t.Errorf("%s: shown whole: %s", name, hits[0].Shown)
 		}
 		var m Masker
-		if out := m.Mask(text, false); strings.Contains(out, "<quilzo:national_id:1>") == false {
+		if out := m.Mask(text, false); strings.Contains(out, "<vaigil:national_id:1>") == false {
 			t.Errorf("%s: not masked: %s", name, out)
 		} else if m.Restore(out) != text {
 			t.Errorf("%s: not restored", name)

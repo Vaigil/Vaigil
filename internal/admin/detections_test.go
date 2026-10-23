@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/detect"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/detect"
 )
 
 type fakeDetections struct {
@@ -121,7 +121,7 @@ func TestASingleFalsePositiveIsNotOfferedForSuppression(t *testing.T) {
 	}
 }
 
-func TestChangingADetectionIsAnAdministratorsAndAPersons(t *testing.T) {
+func TestChangingADetectionTakesTuneAndAPerson(t *testing.T) {
 	srv, token := setup(t)
 	f := &fakeDetections{}
 	srv.Detections = f.wire()
@@ -151,12 +151,13 @@ func TestChangingADetectionIsAnAdministratorsAndAPersons(t *testing.T) {
 		t.Error("the suppression was not removed")
 	}
 
-	// An author can do none of it, and sees none of it.
+	// An analyst sees the rules and changes none of them: changing what
+	// counts as wrong takes tune, which an engineer holds.
 	if err := srv.Policy.Grant(auth.Binding{Principal: "writer",
-		Role: auth.RoleAuthor, Resource: "/"}); err != nil {
+		Role: auth.RoleAnalyst, Resource: "/"}); err != nil {
 		t.Fatal(err)
 	}
-	secret, _, err := srv.Tokens.IssueSession("w", "writer", auth.RoleAuthor, "/",
+	secret, _, err := srv.Tokens.IssueSession("w", "writer", auth.RoleAnalyst, "/",
 		time.Hour, auth.RoleAdmin, auth.MethodPasskey)
 	if err != nil {
 		t.Fatal(err)
@@ -166,9 +167,9 @@ func TestChangingADetectionIsAnAdministratorsAndAPersons(t *testing.T) {
 	postDetect(t, srv, secret, url.Values{"do": {"ring"},
 		"rule": {"auth.privileged-failed"}, "ring": {"off"}, "because": {"x"}})
 	if g.ring != "" {
-		t.Error("an author switched a detection off")
+		t.Error("an analyst switched a detection off")
 	}
-	if w := get(t, srv, "/security/detections", secret); w.Code == 200 {
-		t.Error("an author opened the detections screen")
+	if w := get(t, srv, "/security/detections", secret); w.Code != 200 {
+		t.Errorf("an analyst cannot read the detections: %d", w.Code)
 	}
 }

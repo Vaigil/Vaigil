@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/vendor"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/vendor"
 )
 
 // Third-party risk, tiered by what a vendor can reach rather than by what
@@ -29,7 +29,7 @@ import (
 // typed in is behind; internal/connector holds facts.
 
 func vendorsPath(root string) string {
-	return filepath.Join(assuranceDir(root), "vendors.jsonl")
+	return filepath.Join(root, "vendors.jsonl")
 }
 
 func cmdVendor(root string, args []string) error {
@@ -88,7 +88,7 @@ func vendorList(root string) error {
 	}
 	if len(all) == 0 {
 		w.Human("no vendors in %s\n", vendorsPath(root))
-		w.Human("  %squilzo vendor reconcile finds the ones a connector "+
+		w.Human("  %svaigil vendor reconcile finds the ones a connector "+
 			"already holds a credential to%s\n", dim, reset)
 		return nil
 	}
@@ -109,7 +109,7 @@ func vendorList(root string) error {
 func vendorShow(root string, args []string) error {
 	pos, _ := leadingArgs(args, 1)
 	if len(pos) != 1 {
-		return fmt.Errorf("usage: quilzo vendor show ID")
+		return fmt.Errorf("usage: vaigil vendor show ID")
 	}
 	r, err := loadVendors(root)
 	if err != nil {
@@ -260,7 +260,7 @@ func vendorReview(root string, args []string) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return fmt.Errorf("usage: quilzo vendor review ID [--note \"...\"]")
+		return fmt.Errorf("usage: vaigil vendor review ID [--note \"...\"]")
 	}
 	r, err := loadVendors(root)
 	if err != nil {
@@ -273,7 +273,7 @@ func vendorReview(root string, args []string) error {
 	caller := resolveCaller(root, flagToken)
 	// Signing off a third party's access is a statement the organisation
 	// stands behind: the same authority as publishing.
-	if err := authorise(root, caller, auth.ActPublish, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
 		return err
 	}
 	at := time.Now().UTC()

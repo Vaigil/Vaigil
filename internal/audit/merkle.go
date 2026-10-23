@@ -11,7 +11,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/translog"
+	"github.com/quilzo/vaigil/internal/translog"
 )
 
 // The hash chain says whether this log was altered. A Merkle tree over the same
@@ -100,7 +100,7 @@ func LeafHash(e Event) ([]byte, error) {
 	h := sha256.New()
 	// Domain-separated and length-prefixed, so no pair of fields can be slid
 	// across the boundary to produce another pair's leaf.
-	h.Write([]byte("quilzo.audit.leaf.v1\n"))
+	h.Write([]byte("vaigil.audit.leaf.v1\n"))
 	writeField(h, want)
 	writeField(h, e.Hash)
 	writeField(h, e.Prev)

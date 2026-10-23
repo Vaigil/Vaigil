@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/source"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/source"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // What a fetched record means.
@@ -126,7 +126,7 @@ func sourceCheck(args []string) error {
 	}
 	s, found := source.Find(issuer, stream)
 	if !found {
-		return fmt.Errorf("no mapping for %q; try `quilzo source list`",
+		return fmt.Errorf("no mapping for %q; try `vaigil source list`",
 			*name)
 	}
 

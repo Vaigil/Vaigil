@@ -187,7 +187,7 @@
      the same size, which is the Expressive hierarchy device: emphasis comes
      from weight and size rather than from colour, so it survives being read
      in monochrome. */
-  --font: "Quilzo UI", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font: "Vaigil UI", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --display-lg: 3.5625rem/1.12 var(--font);   /* 57 */
@@ -2143,8 +2143,8 @@ ol.thread .who { display: block; font: var(--label-md); font-weight: 700; margin
    not cover, fall back to the system's own interface font. "swap" so text
    is never invisible while it loads. */
 @font-face {
-  font-family: "Quilzo UI";
-  src: url("/fonts/quilzo-ui.woff2") format("woff2");
+  font-family: "Vaigil UI";
+  src: url("/fonts/vaigil-ui.woff2") format("woff2");
   font-weight: 300 700;
   font-style: normal;
   font-display: swap;
@@ -2887,7 +2887,7 @@ td code.cmd, th code.cmd, .run-steps td:nth-child(2) code { display: inline; max
 .fleetmap .box.person { fill: var(--surface-container-high); }
 .fleetmap .box.agent { fill: var(--primary-container); stroke: var(--primary); }
 .fleetmap .box.external-agent, .fleetmap .box.app { fill: var(--secondary-container); }
-.fleetmap .box.tool-server, .fleetmap .box.model-route, .fleetmap .box.Quilzo { fill: var(--surface-container-low); }
+.fleetmap .box.tool-server, .fleetmap .box.model-route, .fleetmap .box.Vaigil { fill: var(--surface-container-low); }
 .fleetmap .box.host { fill: var(--warning-container); stroke: var(--viz-warning); }
 
 

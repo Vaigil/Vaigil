@@ -32,7 +32,7 @@ import "net/http"
 
 // SidebarCookie holds the choice. Absent means shown, which is the default and
 // stays the default for anybody who never touches the control.
-const SidebarCookie = "quilzo_sidebar"
+const SidebarCookie = "vaigil_sidebar"
 
 // sidebarHidden reports whether this request asked for the navigation hidden.
 func sidebarHidden(r *http.Request) bool {

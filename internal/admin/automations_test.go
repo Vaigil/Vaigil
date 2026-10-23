@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/automate"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/automate"
 )
 
 func wireAutomations(t *testing.T, srv *Server) *automate.Engine {
@@ -28,17 +28,17 @@ func wireAutomations(t *testing.T, srv *Server) *automate.Engine {
 	return e
 }
 
-// An analyst runs security operations and is not an administrator of the
-// whole site: they may add a rule that opens cases, and not one that acts
-// on people's access, and may not approve one that waits.
-func TestAnAnalystCannotAutomatePeoplesAccess(t *testing.T) {
-	srv, token := asJob(t, "analyst")
+// An engineer writes rules and is not an administrator of everything: they
+// may add a rule that opens cases, and not one that acts on people's access,
+// and may not approve one that waits.
+func TestAnEngineerCannotAutomatePeoplesAccess(t *testing.T) {
+	srv, token := asJob(t, "engineer")
 	e := wireAutomations(t, srv)
 	postForm(t, srv, "/security/automations/act", token, "do=template&id=tpl-impossible-travel")
 	postForm(t, srv, "/security/automations/act", token, "do=template&id=tpl-critical-case")
 	rules, _ := e.Rules()
 	if len(rules) != 1 || rules[0].Name != "A critical finding: open a case" {
-		t.Fatalf("an analyst added %+v", rules)
+		t.Fatalf("an engineer added %+v", rules)
 	}
 	// A watching copy is theirs to write; turning it to act is not.
 	w := postForm(t, srv, "/security/automations/act", token,
@@ -57,7 +57,7 @@ func TestAnAnalystCannotAutomatePeoplesAccess(t *testing.T) {
 	rules, _ = e.Rules()
 	for _, r := range rules {
 		if r.Name == "mine" && r.Mode != "watch" {
-			t.Error("an analyst set a rule on people's access to act")
+			t.Error("an engineer set a rule on people's access to act")
 		}
 	}
 	// A run waiting to sign somebody out is not theirs to approve.
@@ -68,7 +68,7 @@ func TestAnAnalystCannotAutomatePeoplesAccess(t *testing.T) {
 	runs, _ := e.Runs()
 	for _, r := range runs {
 		if r.ID == out.Runs[0].ID && r.State != "waiting" {
-			t.Errorf("an analyst's approval was taken: %s", r.State)
+			t.Errorf("an engineer's approval was taken: %s", r.State)
 		}
 	}
 }
@@ -89,8 +89,8 @@ func TestASiteAdministratorAutomatesAccess(t *testing.T) {
 }
 
 // Vouching for somebody takes at least their standing.
-func TestAnAnalystCannotLetAnAdministratorPastAStepUp(t *testing.T) {
-	srv, token := asJob(t, "analyst")
+func TestAResponderCannotLetAnAdministratorPastAStepUp(t *testing.T) {
+	srv, token := asRole(t, auth.RoleResponder)
 	if err := srv.Policy.Grant(auth.Binding{Principal: "boss", Role: auth.RoleAdmin, Resource: "/"}); err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestAnAnalystCannotLetAnAdministratorPastAStepUp(t *testing.T) {
 	postForm(t, srv, "/security/signins/act", token, "do=letin&session="+tok.ID)
 	for _, x := range srv.Tokens.Snapshot() {
 		if x.ID == tok.ID && x.StepUp == "" {
-			t.Error("an analyst let a site administrator in")
+			t.Error("a responder let an administrator in")
 		}
 	}
 }

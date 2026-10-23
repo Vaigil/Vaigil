@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/fetch"
-	"github.com/quilzo/quilzo/internal/oidc"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/fetch"
+	"github.com/quilzo/vaigil/internal/oidc"
 )
 
 func oidcPath(root string) string { return filepath.Join(root, "oidc.json") }
@@ -29,7 +29,7 @@ type oidcConfig struct {
 	Issuer      string `json:"issuer"`
 	ClientID    string `json:"client_id"`
 	RedirectURI string `json:"redirect_uri"`
-	// Claim is which claim becomes the quilzo principal. Defaults to email,
+	// Claim is which claim becomes the vaigil principal. Defaults to email,
 	// because that is what an access policy is written in terms of — but sub is
 	// the stable one, and an operator whose provider recycles addresses should
 	// say so.
@@ -65,7 +65,7 @@ func (c *oidcConfig) providerLabel() string {
 	return ""
 }
 
-const oidcSecretEnv = "QUILZO_OIDC_SECRET"
+const oidcSecretEnv = "VAIGIL_OIDC_SECRET"
 
 var (
 	reDomain = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$`)
@@ -160,7 +160,7 @@ func oidcConfigure(root string, args []string) error {
 	}
 	if *issuer == "" || *clientID == "" || *redirect == "" {
 		return fmt.Errorf(
-			"usage: quilzo oidc configure --issuer https://idp.example \\\n" +
+			"usage: vaigil oidc configure --issuer https://idp.example \\\n" +
 				"    --client-id ... --redirect-uri https://cms.example/auth/callback")
 	}
 	if _, err := fetch.ValidateURL(*issuer); err != nil {
@@ -208,7 +208,7 @@ func oidcConfigure(root string, args []string) error {
 	w.Human("  %sa secret kept beside the data it protects travels with every "+
 		"backup%s\n", dim, reset)
 	w.Human("\n  %s%s%s\n", dim, secondFactorHint(cfg), reset)
-	w.Human("\n  %squilzo oidc check — talk to the provider and report what it "+
+	w.Human("\n  %svaigil oidc check — talk to the provider and report what it "+
 		"offers%s\n", dim, reset)
 	return nil
 }
@@ -242,9 +242,9 @@ func oidcStatus(root string) error {
 			return nil
 		}
 		w.Human("no identity provider is configured\n")
-		w.Human("  %squilzo oidc configure --issuer ... --client-id ...%s\n",
+		w.Human("  %svaigil oidc configure --issuer ... --client-id ...%s\n",
 			dim, reset)
-		w.Human("\n  %sSAML identity providers are set up with quilzo saml add.%s\n", dim, reset)
+		w.Human("\n  %sSAML identity providers are set up with vaigil saml add.%s\n", dim, reset)
 		return nil
 	}
 	if w.JSON(map[string]any{

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/vuln"
+	"github.com/quilzo/vaigil/internal/vuln"
 )
 
 const billOfProxy = `{"bomFormat":"CycloneDX","specVersion":"1.5",

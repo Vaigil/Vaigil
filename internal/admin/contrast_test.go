@@ -318,27 +318,6 @@ func TestEveryStylesheetDeclaresAColourScheme(t *testing.T) {
 	}
 }
 
-// The playground builds its own page rather than using the layout, so it is
-// checked separately — which is exactly why it had neither the declaration nor
-// a palette when it shipped.
-func TestThePlaygroundDeclaresAColourSchemeToo(t *testing.T) {
-	body, _ := fetchPlayground(t)
-	if !strings.Contains(body, "color-scheme") {
-		t.Error("the playground page does not declare color-scheme")
-	}
-	// And it must not hand its controls the page's colour with the browser's
-	// background, which is the pair that does not match.
-	if strings.Contains(body, "background: inherit") ||
-		strings.Contains(body, "color: inherit;") {
-		t.Error("a form control inherits its colours, which is how the " +
-			"select's options became invisible")
-	}
-	// Options styled explicitly, because the popup is the part that breaks.
-	if !strings.Contains(body, ".pg option") {
-		t.Error("the option elements are not given an explicit surface")
-	}
-}
-
 // An explicit choice has to be able to beat the system, in both directions.
 //
 // This is the bug the light-dark() rewrite fixed, and it is worth a test that
@@ -379,50 +358,5 @@ func TestTheTwoSchemesAreNotTheSame(t *testing.T) {
 				"every contrast assertion is checking light twice",
 				role, light[role])
 		}
-	}
-}
-
-// The playground builds its own document, so it has to carry the choice itself.
-//
-// It did not, which is the half of the theme bug somebody actually reported:
-// the rest of the admin followed the person and the API console followed the
-// machine, so walking from one to the other changed the colours back.
-func TestThePlaygroundCarriesTheChosenTheme(t *testing.T) {
-	for _, tc := range []struct {
-		cookie string
-		want   string
-	}{
-		{"dark", ` data-theme="dark"`},
-		{"light", ` data-theme="light"`},
-	} {
-		body := fetchPlaygroundWithTheme(t, tc.cookie)
-		if !strings.Contains(body, tc.want) {
-			t.Errorf("with the theme set to %q the playground did not emit %q; "+
-				"it renders its own <html> and has to put the choice on it the "+
-				"way the layout does", tc.cookie, tc.want)
-		}
-	}
-
-	// No cookie means no attribute, so the stylesheet follows the system.
-	// Emitting data-theme="" or a default of "light" here would take away the
-	// "follow my machine" state that the three-way toggle exists to keep.
-	body, _ := fetchPlayground(t)
-	if strings.Contains(body, "data-theme=") {
-		t.Error("the playground emitted a data-theme with no choice stored; " +
-			"unset has to mean follow the system, not light")
-	}
-}
-
-// Anything a keyboard can reach must show where it is. A focus ring that
-// inherits from a theme that does not define one is no focus ring.
-func TestFocusIsVisible(t *testing.T) {
-	css := string(mustAsset(t, "style.css"))
-	if !strings.Contains(css, "focus-visible") {
-		t.Error("nothing declares a focus style, so keyboard users cannot " +
-			"see where they are")
-	}
-	body, _ := fetchPlayground(t)
-	if !strings.Contains(body, "focus-visible") {
-		t.Error("the playground has no focus style")
 	}
 }

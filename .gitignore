@@ -1,17 +1,17 @@
 # Build output
 bin/
 # Anchored to the root, because the binary and the command's source directory
-# now share a name. An unanchored `quilzo` matches any path segment, so it
-# swallowed cmd/quilzo/ — git silently refused to add 48 source files, and a
+# now share a name. An unanchored `vaigil` matches any path segment, so it
+# swallowed cmd/vaigil/ — git silently refused to add 48 source files, and a
 # commit that deleted cmd/scrivet/ without adding its replacement looked
 # perfectly normal in `git status`.
-/quilzo
+/vaigil
 *.exe
 
-# A store, which is data and not source. `quilzo init` makes one in the
+# A store, which is data and not source. `vaigil init` makes one in the
 # working directory, so this is the file every contributor would otherwise
 # commit on their first run.
-.quilzo/
+.vaigil/
 
 # What a running site writes beside its store.
 #
@@ -39,4 +39,4 @@ __pycache__/
 
 # built by "make submission"
 submission/
-quilzo-submission-*.zip
+vaigil-submission-*.zip

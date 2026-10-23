@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
 )
 
 func logServer(t *testing.T, events []audit.Event, sep bool) (*Server, string) {
@@ -177,12 +177,12 @@ func TestNoAccessIsNotAnEmptyLog(t *testing.T) {
 // and is worth reading to plan an attack as well as to investigate one.
 func TestTheLogNeedsAdmin(t *testing.T) {
 	s, _ := logServer(t, realLog(t, 2), true)
-	reader, _, err := s.Tokens.IssueSession("r", "kit", auth.RoleReader, "/",
+	reader, _, err := s.Tokens.IssueSession("r", "kit", auth.RoleViewer, "/",
 		time.Hour, auth.RoleAdmin, auth.MethodPasskey)
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.Policy.Grant(auth.Binding{Principal: "kit", Role: auth.RoleReader,
+	s.Policy.Grant(auth.Binding{Principal: "kit", Role: auth.RoleViewer,
 		Resource: "/"})
 	_, code := getLogs(t, s, reader, "")
 	if code == http.StatusOK {
@@ -273,7 +273,7 @@ func TestTheNavPositionToggleIsGone(t *testing.T) {
 			"not merely unreferenced", w.Code)
 	}
 	for _, c := range w.Result().Cookies() {
-		if c.Name == "quilzo_nav" {
+		if c.Name == "vaigil_nav" {
 			t.Error("the removed toggle still set its cookie")
 		}
 	}
@@ -281,7 +281,7 @@ func TestTheNavPositionToggleIsGone(t *testing.T) {
 	// And an old cookie cannot bring the old layout back.
 	r = httptest.NewRequest("GET", "http://h/logs", nil)
 	r.Header.Set("Authorization", "Bearer "+tok)
-	r.AddCookie(&http.Cookie{Name: "quilzo_nav", Value: "top"})
+	r.AddCookie(&http.Cookie{Name: "vaigil_nav", Value: "top"})
 	w = httptest.NewRecorder()
 	s.Handler().ServeHTTP(w, r)
 	if body := w.Body.String(); strings.Contains(body, "nav-top") ||

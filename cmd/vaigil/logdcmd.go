@@ -13,7 +13,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/quilzo/quilzo/internal/logd"
+	"github.com/quilzo/vaigil/internal/logd"
 )
 
 // The socket lives beside the log, not inside the store.
@@ -34,8 +34,8 @@ func logSocketPath(root string) string {
 // cmdLogd runs the log writer.
 //
 // Meant to run as its own account, started by systemd or a container's init.
-// The CMS then reaches it over a socket and never opens the log file — so
-// anything that can execute code as the CMS can add records, which is
+// The Vaigil then reaches it over a socket and never opens the log file — so
+// anything that can execute code as Vaigil can add records, which is
 // unavoidable, but cannot rewrite what is already there.
 func cmdLogd(root string, args []string) error {
 	fs := flag.NewFlagSet("logd", flag.ContinueOnError)
@@ -66,7 +66,7 @@ func cmdLogd(root string, args []string) error {
 	// The store is deliberately not consulted to check the two agree. This
 	// account may have no access to the store at all, which is the point of
 	// the separation, so a check here would report a disagreement precisely
-	// when the deployment is correct. `quilzo logd status`, run by the
+	// when the deployment is correct. `vaigil logd status`, run by the
 	// account that does own the store, is where they are compared.
 	if *logDir != "" {
 		if err := os.MkdirAll(*logDir, 0o750); err != nil {
@@ -119,7 +119,7 @@ func cmdLogd(root string, args []string) error {
 	}
 
 	fmt.Fprintf(os.Stderr, "%slog writer on %s%s\n", dim, path, reset)
-	fmt.Fprintf(os.Stderr, "  %srunning as uid %d; the CMS submits over this "+
+	fmt.Fprintf(os.Stderr, "  %srunning as uid %d; Vaigil submits over this "+
 		"socket and never opens the log%s\n", dim, os.Geteuid(), reset)
 	if len(uids) > 0 {
 		fmt.Fprintf(os.Stderr, "  %saccepting submissions from uid %v only%s\n",
@@ -161,9 +161,9 @@ func cmdLogdStatus(root string) error {
 		w.Human("  %sthis process writes the audit log itself, so anything that "+
 			"can\n  execute code as this account can rewrite the record of what "+
 			"it did%s\n", yellow, reset)
-		w.Human("\n  %srun `quilzo logd` as a separate account that owns %s%s\n",
+		w.Human("\n  %srun `vaigil logd` as a separate account that owns %s%s\n",
 			dim, logPath, reset)
-		w.Human("  %sthat moves the requirement from code execution as the CMS "+
+		w.Human("  %sthat moves the requirement from code execution as Vaigil "+
 			"to root%s\n", dim, reset)
 		return nil
 	}
@@ -178,7 +178,7 @@ func cmdLogdStatus(root string) error {
 			yellow, reset)
 	}
 	w.Human("\n  %sroot can still rewrite the log. What stops that being "+
-		"deniable is a\n  published tree head — `quilzo auditlog anchor`%s\n",
+		"deniable is a\n  published tree head — `vaigil auditlog anchor`%s\n",
 		dim, reset)
 	return nil
 }

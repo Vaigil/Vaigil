@@ -8,8 +8,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/quilzo/quilzo/internal/webhook"
 )
 
 type posted struct {
@@ -79,13 +77,13 @@ func TestThePayloadIsSignedAndVerifiesWithTheSharedScheme(t *testing.T) {
 		t.Fatalf("%d posts", len(p.got))
 	}
 	got := p.got[0]
-	// The receiver verifies it exactly as they verify a publication webhook.
-	if err := webhook.Verify("shhh", got.headers["Quilzo-Signature"], now,
+	// The receiver verifies it with Verify.
+	if err := Verify("shhh", got.headers["Vaigil-Signature"], now,
 		got.body, now); err != nil {
 		t.Fatalf("the signature does not verify under the shared scheme: %v",
 			err)
 	}
-	if got.headers["Quilzo-Delivery"] != "delivery-key" {
+	if got.headers["Vaigil-Delivery"] != "delivery-key" {
 		t.Error("the receiver cannot deduplicate a retry")
 	}
 }

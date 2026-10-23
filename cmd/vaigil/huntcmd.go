@@ -11,8 +11,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/quilzo/quilzo/internal/baseline"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/baseline"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Stacking: sort by how rare a thing is and read the top.
@@ -38,8 +38,8 @@ func cmdHunt(root string, args []string) error {
 	}
 	if strings.TrimSpace(*field) == "" {
 		return fmt.Errorf(
-			"usage: quilzo hunt --field FIELD [--by actor] [FILE]\n" +
-				"  quilzo telemetry fields FILE lists what a file carries")
+			"usage: vaigil hunt --field FIELD [--by actor] [FILE]\n" +
+				"  vaigil telemetry fields FILE lists what a file carries")
 	}
 
 	in := os.Stdin

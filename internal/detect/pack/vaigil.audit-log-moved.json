@@ -1,10 +1,10 @@
 {
-  "id": "quilzo.audit-log-moved",
+  "id": "vaigil.audit-log-moved",
   "title": "The audit log was moved",
   "why": "moving the log is how a trail is cut in two",
   "blind": "a log copied away and the original left in place",
   "sources": [
-    "quilzo/audit"
+    "vaigil/audit"
   ],
   "severity": 4,
   "when": {
@@ -24,13 +24,13 @@
       "name": "log moved",
       "match": true,
       "event": {
-        "source": "quilzo/audit",
+        "source": "vaigil/audit",
         "time": "2026-10-01T09:00:00Z",
         "received": "2026-10-01T09:00:05Z",
         "class": 6003,
         "disposition": 1,
         "actor": {
-          "issuer": "quilzo",
+          "issuer": "vaigil",
           "value": "p_1a2b3c"
         },
         "message": "auditlog.dir",
@@ -46,13 +46,13 @@
       "name": "log exported",
       "match": false,
       "event": {
-        "source": "quilzo/audit",
+        "source": "vaigil/audit",
         "time": "2026-10-01T09:00:00Z",
         "received": "2026-10-01T09:00:05Z",
         "class": 6003,
         "disposition": 1,
         "actor": {
-          "issuer": "quilzo",
+          "issuer": "vaigil",
           "value": "p_1a2b3c"
         },
         "message": "auditlog.export",

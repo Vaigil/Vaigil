@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/httpsig"
+	"github.com/quilzo/vaigil/internal/httpsig"
 )
 
 func at() time.Time { return time.Unix(1787000000, 0) }

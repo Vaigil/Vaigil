@@ -14,11 +14,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/connector"
-	"github.com/quilzo/quilzo/internal/out"
-	"github.com/quilzo/quilzo/internal/spool"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/connector"
+	"github.com/quilzo/vaigil/internal/out"
+	"github.com/quilzo/vaigil/internal/spool"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // fakeTool answers a connector's requests from a function, and remembers
@@ -53,7 +53,7 @@ func collectSite(t *testing.T, tool *fakeTool) string {
 	if err := cmdConnect(root, []string{"add", "okta", "--org", "acme"}); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("QUILZO_CONNECT_SECRET", "00abcdefghijklmnopqrstuvwxyz0123456789ABCD")
+	t.Setenv("VAIGIL_CONNECT_SECRET", "00abcdefghijklmnopqrstuvwxyz0123456789ABCD")
 	if err := cmdConnect(root, []string{"secret", "okta-api-token"}); err != nil {
 		t.Fatal(err)
 	}

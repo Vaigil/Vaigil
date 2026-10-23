@@ -38,7 +38,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Kind is what a record describes: the Produces of the endpoint it came from.
@@ -57,7 +57,7 @@ const (
 	KindControl       Kind = "control"
 )
 
-// Line is one record as `quilzo connect run` writes it: the mapped fields,
+// Line is one record as `vaigil connect run` writes it: the mapped fields,
 // with _source, _endpoint and _produces saying where it came from.
 type Line map[string]string
 

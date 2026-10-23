@@ -5,25 +5,11 @@ package admin
 
 import (
 	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 
-	"github.com/quilzo/quilzo/internal/throttle"
+	"github.com/quilzo/vaigil/internal/throttle"
 )
-
-// signInPost submits the form from one address, as a browser on this site.
-func signInPost(srv *Server, token string) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(http.MethodPost, "/signin",
-		strings.NewReader("token="+url.QueryEscape(token)))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Sec-Fetch-Site", "same-origin")
-	req.RemoteAddr = "203.0.113.9:5555"
-	w := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(w, req)
-	return w
-}
 
 // TestAThrottledSignInLeavesNothingToResubmit.
 //
@@ -40,7 +26,7 @@ func TestAThrottledSignInLeavesNothingToResubmit(t *testing.T) {
 	srv.Throttle = throttle.New(throttle.Default())
 
 	for i := 0; i < 30; i++ {
-		signInPost(srv, "qz_wrong")
+		signInPost(srv, "vg_wrong")
 	}
 	w := signInPost(srv, token)
 	if w.Code != http.StatusSeeOther {
@@ -64,7 +50,7 @@ func TestEveryRefusalIsARedirect(t *testing.T) {
 	srv, _ := setup(t)
 	for token, want := range map[string]string{
 		"not-a-token": "/signin?e=format",
-		"qz_nonsense": "/signin?e=refused",
+		"vg_nonsense": "/signin?e=refused",
 		"":            "/signin?e=format",
 	} {
 		w := signInPost(srv, token)
@@ -110,7 +96,7 @@ func TestSigningInWithTheRightTokenStillWorks(t *testing.T) {
 	}
 	var session bool
 	for _, c := range w.Result().Cookies() {
-		if c.Name == "quilzo_token" && c.Value != "" {
+		if c.Name == "vaigil_token" && c.Value != "" {
 			session = true
 		}
 	}

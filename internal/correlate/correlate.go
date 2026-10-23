@@ -54,8 +54,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/sigma"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/sigma"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // Type is which of the four correlations this is.

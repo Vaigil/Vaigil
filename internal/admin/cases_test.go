@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/incident"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/incident"
 )
 
 // wireCases keeps incidents in memory, through the same Apply the store
@@ -211,7 +211,9 @@ func TestClosingOnTheScreenIsRefusedOverAnOpenObligation(t *testing.T) {
 	}
 }
 
-func TestOnlyAnAdministratorSeesOrChangesAnIncident(t *testing.T) {
+// A viewer reads a case and changes nothing; an analyst notes and declares,
+// and does not run one; a responder does.
+func TestEachRoleDoesItsPartOfACase(t *testing.T) {
 	srv, token := setup(t)
 	kept := wireCases(srv)
 	caseAct(t, srv, token, url.Values{"do": {"declare"},
@@ -220,29 +222,39 @@ func TestOnlyAnAdministratorSeesOrChangesAnIncident(t *testing.T) {
 	for k := range kept {
 		id = k
 	}
-	if err := srv.Policy.Grant(auth.Binding{Principal: "writer",
-		Role: auth.RoleAuthor, Resource: "/"}); err != nil {
-		t.Fatal(err)
+	as := func(who string, role auth.Role) string {
+		if err := srv.Policy.Grant(auth.Binding{Principal: who, Role: role, Resource: "/"}); err != nil {
+			t.Fatal(err)
+		}
+		secret, _, err := srv.Tokens.IssueSession(who, who, role, "/", time.Hour, auth.RoleAdmin, auth.MethodPasskey)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return secret
 	}
-	secret, _, err := srv.Tokens.IssueSession("w", "writer", auth.RoleAuthor, "/",
-		time.Hour, auth.RoleAdmin, auth.MethodPasskey)
-	if err != nil {
-		t.Fatal(err)
-	}
+	viewer, analyst, responder := as("vi", auth.RoleViewer), as("an", auth.RoleAnalyst), as("re", auth.RoleResponder)
 	for _, path := range []string{"/security/cases", "/security/case/" + id} {
-		w := get(t, srv, path, secret)
-		if w.Code == 200 || strings.Contains(w.Body.String(), "Payroll") {
-			t.Errorf("an author opened %s: %d", path, w.Code)
+		if w := get(t, srv, path, viewer); w.Code != 200 || !strings.Contains(w.Body.String(), "Payroll") {
+			t.Errorf("a viewer cannot read %s: %d", path, w.Code)
 		}
 	}
 	before := len(kept[id].Log)
-	_, loc := caseAct(t, srv, secret, url.Values{"do": {"note"}, "id": {id},
-		"text": {"nothing to see"}})
-	caseAct(t, srv, secret, url.Values{"do": {"declare"}, "title": {"mine"},
-		"grade": {"sev4"}})
-	if len(kept[id].Log) != before || len(kept) != 1 ||
-		strings.HasPrefix(loc, "/security/case/") {
-		t.Error("an author wrote to an incident, or declared one")
+	caseAct(t, srv, viewer, url.Values{"do": {"note"}, "id": {id}, "text": {"nothing to see"}})
+	if len(kept[id].Log) != before {
+		t.Error("a viewer wrote to a case")
+	}
+	caseAct(t, srv, analyst, url.Values{"do": {"note"}, "id": {id}, "text": {"seen it"}})
+	if len(kept[id].Log) == before {
+		t.Error("an analyst could not note on a case")
+	}
+	before = len(kept[id].Log)
+	caseAct(t, srv, analyst, url.Values{"do": {"assign"}, "id": {id}, "role": {"commander"}, "who": {"an"}})
+	if len(kept[id].Log) != before {
+		t.Error("an analyst ran a case")
+	}
+	caseAct(t, srv, responder, url.Values{"do": {"assign"}, "id": {id}, "role": {"commander"}, "who": {"re"}})
+	if len(kept[id].Log) == before {
+		t.Error("a responder could not run a case")
 	}
 }
 

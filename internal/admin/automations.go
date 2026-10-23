@@ -5,7 +5,7 @@ package admin
 
 import (
 	"fmt"
-	"github.com/quilzo/quilzo/internal/clientip"
+	"github.com/quilzo/vaigil/internal/clientip"
 	"net/http"
 	"net/url"
 	"sort"
@@ -16,9 +16,9 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/automate"
-	"github.com/quilzo/quilzo/internal/travel"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/automate"
+	"github.com/quilzo/vaigil/internal/travel"
 )
 
 // Automations, and the sign-in check that is their real-time half.
@@ -90,13 +90,7 @@ func (s *Server) clientAddr(r *http.Request) string { return clientip.AddrFrom(r
 // decide at all is theirs to report: an unreadable rules file lets sign-ins
 // through and says so loudly, rather than locking every administrator out.)
 func (s *Server) signInCheck(r *http.Request, name, sessionID, how string, verifying bool) (bool, error) {
-	up, err := s.signInRisk(r, name, sessionID, how, verifying)
-	// A passkey or single sign-on nothing held back is an administrator
-	// where they are: the shield never blocks that source from the admin.
-	if err == nil && !up && (how == "passkey" || how == "sso") && s.OnStrongSignIn != nil {
-		s.OnStrongSignIn(r, name)
-	}
-	return up, err
+	return s.signInRisk(r, name, sessionID, how, verifying)
 }
 
 // signInRisk puts a sign-in to the automations' risk rules.
@@ -305,7 +299,7 @@ func (s *Server) handleStepUpReport(w http.ResponseWriter, r *http.Request) {
 	if s.Reported != nil {
 		s.Reported(p.Name, p.TokenID)
 	}
-	s.clearCookie(w, r, "quilzo_token")
+	s.clearCookie(w, r, "vaigil_token")
 	http.Redirect(w, r, "/signin?e=reported", http.StatusSeeOther)
 }
 
@@ -349,7 +343,7 @@ type waitingRow struct {
 }
 
 func (s *Server) handleSignIns(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActTriage)
 	if !ok {
 		return
 	}
@@ -367,6 +361,7 @@ func (s *Server) handleSignIns(w http.ResponseWriter, r *http.Request) {
 	}
 	data["Waiting"] = waiting
 	data["Held"] = s.heldRows(now)
+	data["Throttled"] = s.throttled()
 	if s.Automations == nil || s.Automations.SignIns == nil {
 		data["NoHistory"] = "This build was started without sign-in checks, so where people signed in from is not kept."
 		s.render(w, r, "signins.html", data)
@@ -410,7 +405,7 @@ func (s *Server) handleSignInsAct(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "POST only", http.StatusMethodNotAllowed)
 		return
 	}
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActRespond)
 	if !ok {
 		return
 	}
@@ -554,7 +549,7 @@ var runWord = map[string]string{"done": "Done", "approved": "Approved", "watched
 	"waiting": "Waiting", "declined": "Declined", "limited": "Over its limit"}
 
 func (s *Server) handleAutomations(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActView)
 	if !ok {
 		return
 	}
@@ -616,7 +611,7 @@ func (s *Server) handleAutomations(w http.ResponseWriter, r *http.Request) {
 
 // handleAutomationRule is the builder: a new rule, or one to change.
 func (s *Server) handleAutomationRule(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActTune)
 	if !ok {
 		return
 	}
@@ -703,7 +698,13 @@ func (s *Server) handleAutomationsAct(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "POST only", http.StatusMethodNotAllowed)
 		return
 	}
-	p, ok := s.securityReader(w, r)
+	// Deciding a held run takes the approve permission; changing the rules
+	// takes tune, which an engineer holds.
+	need := auth.ActTune
+	if do := r.FormValue("do"); do == "approve" || do == "decline" {
+		need = auth.ActApprove
+	}
+	p, ok := s.securityCan(w, r, need)
 	if !ok {
 		return
 	}

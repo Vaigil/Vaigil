@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/incident"
-	"github.com/quilzo/quilzo/internal/spool"
-	"github.com/quilzo/quilzo/internal/telemetry"
-	"github.com/quilzo/quilzo/internal/vuln"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/incident"
+	"github.com/quilzo/vaigil/internal/spool"
+	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/vuln"
 )
 
 // entityEstate is a store where okta:dana has a finding, an incident about
@@ -140,14 +140,16 @@ func TestTheLookupLandsOnThePathAndRefusesWhatIsNotAName(t *testing.T) {
 	}
 }
 
-func TestOnlyAnAdministratorOpensAnEntityAndAnAuthorLeavesNoRecord(t *testing.T) {
+func TestAViewerCannotOpenAnEntityAndLeavesNoRecord(t *testing.T) {
 	srv, _ := setup(t)
 	viewed := entityEstate(t, srv)
-	if err := srv.Policy.Grant(auth.Binding{Principal: "writer",
-		Role: auth.RoleAuthor, Resource: "/"}); err != nil {
+	// An entity's page holds what somebody did, which is an analyst's to
+	// read; a viewer reads the queue.
+	if err := srv.Policy.Grant(auth.Binding{Principal: "watcher",
+		Role: auth.RoleViewer, Resource: "/"}); err != nil {
 		t.Fatal(err)
 	}
-	secret, _, err := srv.Tokens.IssueSession("w", "writer", auth.RoleAuthor, "/",
+	secret, _, err := srv.Tokens.IssueSession("w", "watcher", auth.RoleViewer, "/",
 		time.Hour, auth.RoleAdmin, auth.MethodPasskey)
 	if err != nil {
 		t.Fatal(err)
@@ -155,7 +157,7 @@ func TestOnlyAnAdministratorOpensAnEntityAndAnAuthorLeavesNoRecord(t *testing.T)
 	w := get(t, srv, "/security/entity/okta:dana", secret)
 	if w.Code == 200 || strings.Contains(w.Body.String(), "Failed sign-in") ||
 		strings.Contains(w.Body.String(), "203.0.113") {
-		t.Errorf("an author opened an entity: %d", w.Code)
+		t.Errorf("a viewer opened an entity: %d", w.Code)
 	}
 	if len(*viewed) != 0 {
 		t.Error("a refused view was recorded as a view")

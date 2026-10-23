@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 var base = time.Date(2026, 9, 25, 12, 0, 0, 0, time.UTC)

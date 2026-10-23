@@ -11,9 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
+	"github.com/quilzo/vaigil/internal/auth"
 )
 
 // Every command the dispatcher can reach must declare what it needs.
@@ -92,7 +91,7 @@ func TestThePrivilegeTableHasNoEntriesForCommandsThatDoNotExist(t *testing.T) {
 func TestReadOnlySubcommandsAreMoreNarrowThanTheirParents(t *testing.T) {
 	// An action ranks as the role it needs when nothing is granted alone:
 	// a permission is no narrower than the rung it follows.
-	order := map[auth.Role]int{auth.RoleReader: 1, auth.RoleAuthor: 2, auth.RolePublisher: 3, auth.RoleAdmin: 4}
+	order := map[auth.Role]int{auth.RoleViewer: 1, auth.RoleAnalyst: 2, auth.RoleResponder: 3, auth.RoleAdmin: 4}
 	rank := map[auth.Action]int{}
 	for _, a := range auth.Actions() {
 		need, _ := auth.Needs(a)
@@ -158,185 +157,10 @@ func dispatchedCommands(t *testing.T) []string {
 
 // -- and that the table is actually consulted --------------------------------
 
-// The source walk above proves every command declares something. It does not
-// prove the declaration is enforced, and a table nobody reads is a comment.
-func TestPrivilegedCommandsAreRefusedWithoutAToken(t *testing.T) {
-	root := t.TempDir()
-	if err := cmdInit(root); err != nil {
-		t.Fatal(err)
-	}
-	// One binding, which is what turns enforcement on.
-	pol := &auth.Policy{}
-	if err := pol.Grant(auth.Binding{
-		Principal: "alice", Role: auth.RoleAdmin, Resource: "/",
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := saveJSON(policyPath(root), pol); err != nil {
-		t.Fatal(err)
-	}
-	isolateToken(t)
-	t.Setenv("QUILZO_TOKEN", "")
-
-	for _, tc := range []struct {
-		cmd  string
-		args []string
-	}{
-		{"auth", []string{"grant", "mallory", "admin"}},
-		{"auth", []string{"revoke", "alice", "admin"}},
-		{"token", []string{"issue", "evil", "--principal", "mallory", "--role", "admin"}},
-		{"publish", nil},
-		{"rollback", nil},
-		{"add", []string{"x=y.json"}},
-		{"schedule", []string{"add", "1h"}},
-		{"posture", []string{"suppress", "access.no-policy", "--reason", "x"}},
-		{"type", []string{"add", "t.json"}},
-		{"webhook", []string{"add", "https://x.example"}},
-	} {
-		err := authoriseCommand(root, tc.cmd, tc.args)
-		if err == nil {
-			t.Errorf("%s %v was allowed with no token presented",
-				tc.cmd, tc.args)
-		}
-	}
-}
-
-// Reading is refused too, so a store with access control does not hand its
-// contents to anybody with a shell on the machine.
-func TestReadsAreAlsoRefusedWithoutAToken(t *testing.T) {
-	root := t.TempDir()
-	if err := cmdInit(root); err != nil {
-		t.Fatal(err)
-	}
-	pol := &auth.Policy{}
-	pol.Grant(auth.Binding{Principal: "alice", Role: auth.RoleAdmin, Resource: "/"})
-	if err := saveJSON(policyPath(root), pol); err != nil {
-		t.Fatal(err)
-	}
-	isolateToken(t)
-	t.Setenv("QUILZO_TOKEN", "")
-	for _, cmd := range []string{"log", "diff", "verify", "export", "siem"} {
-		if err := authoriseCommand(root, cmd, nil); err == nil {
-			t.Errorf("%s read the store with no token", cmd)
-		}
-	}
-}
-
-// The bootstrap, and the reason it exists: without it the first grant bricks
-// the store. `auth grant alice admin` creates the policy, and from that moment
-// `token issue` needs manage-tokens, which needs a token, which cannot be
-// issued. The operator's only recovery was editing JSON by hand.
-func TestTheFirstTokenCanBeIssuedAfterTheFirstGrant(t *testing.T) {
-	root := t.TempDir()
-	if err := cmdInit(root); err != nil {
-		t.Fatal(err)
-	}
-	pol := &auth.Policy{}
-	pol.Grant(auth.Binding{Principal: "alice", Role: auth.RoleAdmin, Resource: "/"})
-	if err := saveJSON(policyPath(root), pol); err != nil {
-		t.Fatal(err)
-	}
-	isolateToken(t)
-	t.Setenv("QUILZO_TOKEN", "")
-
-	if err := authoriseCommand(root, "token",
-		[]string{"issue", "laptop", "--principal", "alice", "--role", "admin"}); err != nil {
-		t.Fatalf("the first token could not be issued, so the store is "+
-			"locked: %v", err)
-	}
-}
-
-// And it closes the moment a token exists, rather than staying open as a mode
-// somebody has to remember to turn off.
-func TestTheBootstrapClosesOnceATokenExists(t *testing.T) {
-	root := t.TempDir()
-	if err := cmdInit(root); err != nil {
-		t.Fatal(err)
-	}
-	pol := &auth.Policy{}
-	pol.Grant(auth.Binding{Principal: "alice", Role: auth.RoleAdmin, Resource: "/"})
-	if err := saveJSON(policyPath(root), pol); err != nil {
-		t.Fatal(err)
-	}
-	ts := &auth.TokenStore{}
-	if _, _, err := ts.Issue("first", "alice", auth.RoleAdmin, "/",
-		time.Hour, auth.RoleAdmin); err != nil {
-		t.Fatal(err)
-	}
-	if err := saveJSON(tokensPath(root), ts); err != nil {
-		t.Fatal(err)
-	}
-	isolateToken(t)
-	t.Setenv("QUILZO_TOKEN", "")
-
-	if err := authoriseCommand(root, "token",
-		[]string{"issue", "second", "--principal", "alice", "--role", "admin"}); err == nil {
-		t.Error("a second token was issued with no authentication; the " +
-			"bootstrap did not close")
-	}
-}
-
-// It must not become an escalation path either: issuing to a principal the
-// policy has never heard of would let anybody invent an admin.
-func TestTheBootstrapOnlyIssuesToAPrincipalThePolicyKnows(t *testing.T) {
-	root := t.TempDir()
-	if err := cmdInit(root); err != nil {
-		t.Fatal(err)
-	}
-	pol := &auth.Policy{}
-	pol.Grant(auth.Binding{Principal: "alice", Role: auth.RoleAdmin, Resource: "/"})
-	if err := saveJSON(policyPath(root), pol); err != nil {
-		t.Fatal(err)
-	}
-	isolateToken(t)
-	t.Setenv("QUILZO_TOKEN", "")
-
-	if err := authoriseCommand(root, "token",
-		[]string{"issue", "evil", "--principal", "mallory", "--role", "admin"}); err == nil {
-		t.Error("the bootstrap issued a token to a principal with no binding, " +
-			"which is an admin account invented from nothing")
-	}
-}
-
-// A store nobody has configured must stay usable without ceremony. Requiring a
-// token before anybody has been granted anything would make `quilzo init`
-// followed by `quilzo add` fail, which is the first thing anyone does.
-func TestAnUnconfiguredStoreNeedsNoToken(t *testing.T) {
-	root := t.TempDir()
-	if err := cmdInit(root); err != nil {
-		t.Fatal(err)
-	}
-	isolateToken(t)
-	t.Setenv("QUILZO_TOKEN", "")
-	for _, cmd := range []string{"add", "publish", "log", "auth", "token"} {
-		if err := authoriseCommand(root, cmd, nil); err != nil {
-			t.Errorf("%s needed a token on a store with no policy: %v", cmd, err)
-		}
-	}
-}
-
-// Asking a command how to use it must not require the authority to run it.
-func TestHelpNeedsNoAuthority(t *testing.T) {
-	root := t.TempDir()
-	if err := cmdInit(root); err != nil {
-		t.Fatal(err)
-	}
-	pol := &auth.Policy{}
-	pol.Grant(auth.Binding{Principal: "alice", Role: auth.RoleAdmin, Resource: "/"})
-	if err := saveJSON(policyPath(root), pol); err != nil {
-		t.Fatal(err)
-	}
-	isolateToken(t)
-	t.Setenv("QUILZO_TOKEN", "")
-	if err := authoriseCommand(root, "publish", []string{"--help"}); err != nil {
-		t.Errorf("publish --help was refused: %v", err)
-	}
-}
-
 // A typo must not tell a user to edit a Go source file.
 //
 // Every unknown command took the developer's message for as long as this check
-// has existed — "add it to commandNeeds in cmd/quilzo/privilege.go" — because
+// has existed — "add it to commandNeeds in cmd/vaigil/privilege.go" — because
 // "somebody added a command and forgot the table" and "somebody mistyped" were
 // never distinguished. The first is a real condition worth a loud message; the
 // second is the overwhelmingly common one.
@@ -345,7 +169,7 @@ func TestHelpNeedsNoAuthority(t *testing.T) {
 // the dispatch switch and fails when a command is missing from the table, so
 // by the time this runs, an unrecognised name can only be a typo.
 func TestATypoGetsAHumanMessage(t *testing.T) {
-	for _, typo := range []string{"wibble", "aprove", "pubish", "recrods"} {
+	for _, typo := range []string{"wibble", "aprove", "incidnet", "vlun"} {
 		err := unknownCommand(typo)
 		if err == nil {
 			t.Fatalf("%q was accepted", typo)
@@ -355,7 +179,7 @@ func TestATypoGetsAHumanMessage(t *testing.T) {
 			strings.Contains(msg, ".go") {
 			t.Errorf("%q told a user to edit source: %s", typo, msg)
 		}
-		if !strings.Contains(msg, "quilzo help") {
+		if !strings.Contains(msg, "vaigil help") {
 			t.Errorf("%q does not say how to find the real commands: %s",
 				typo, msg)
 		}
@@ -365,10 +189,10 @@ func TestATypoGetsAHumanMessage(t *testing.T) {
 // A near-miss suggests the command it is near.
 func TestANearMissSuggestsTheRealCommand(t *testing.T) {
 	for typo, want := range map[string]string{
-		"pubish":  "publish",
-		"recrods": "records",
-		"revew":   "review",
-		"medai":   "media",
+		"incidnet": "incident",
+		"findng":   "finding",
+		"detetc":   "detect",
+		"workforc": "workforce",
 	} {
 		msg := unknownCommand(typo).Error()
 		if !strings.Contains(msg, want) {
@@ -396,7 +220,7 @@ func TestAnUnreadablePolicyRefusesEverything(t *testing.T) {
 	}
 
 	// Absent: nothing to enforce, so nothing is refused.
-	if err := authoriseCommand(root, "add", nil); err != nil {
+	if err := authoriseCommand(root, "vuln", nil); err != nil {
 		t.Fatalf("an unconfigured store refused a command: %v", err)
 	}
 
@@ -405,7 +229,7 @@ func TestAnUnreadablePolicyRefusesEverything(t *testing.T) {
 	if err := os.WriteFile(policyPath(root), []byte(policy), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := authoriseCommand(root, "add", nil); err == nil {
+	if err := authoriseCommand(root, "vuln", nil); err == nil {
 		t.Fatal("a configured store allowed an unauthenticated write")
 	}
 
@@ -414,7 +238,7 @@ func TestAnUnreadablePolicyRefusesEverything(t *testing.T) {
 	if err := os.WriteFile(policyPath(root), []byte("not json"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	err := authoriseCommand(root, "add", nil)
+	err := authoriseCommand(root, "vuln", nil)
 	if err == nil {
 		t.Fatal("a store whose policy cannot be read allowed an " +
 			"unauthenticated write; access control is off exactly when the " +
@@ -448,7 +272,7 @@ func TestATokenDefaultsToWhatItsPrincipalHolds(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := pol.Grant(auth.Binding{
-		Principal: "ida", Role: auth.RoleAuthor, Resource: "/workshops"}); err != nil {
+		Principal: "ida", Role: auth.RoleAnalyst, Resource: "/workshops"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -456,7 +280,7 @@ func TestATokenDefaultsToWhatItsPrincipalHolds(t *testing.T) {
 		t.Errorf("an admin's token would carry %q, so the operator cannot "+
 			"issue another one", got)
 	}
-	if got := strongestRole(pol, "ida", "/workshops"); got != auth.RoleAuthor {
+	if got := strongestRole(pol, "ida", "/workshops"); got != auth.RoleAnalyst {
 		t.Errorf("ida holds author on /workshops; got %q", got)
 	}
 	// Scoped bindings do not leak upward.

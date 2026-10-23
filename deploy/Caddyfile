@@ -1,25 +1,14 @@
-# A stable https address for the published site.
-#
-# Caddy rather than nginx for one reason: it gets and renews the certificate
-# itself, with no cron job to forget and no certbot to break at renewal.
+# The console over https, with a certificate Caddy gets and renews itself.
 #
 #   caddy run --config deploy/Caddyfile
 #
-# Replace the hostname.
+# Replace the hostname, and tell Vaigil it is behind TLS:
+#
+#   vaigil config set admin.behind_tls_proxy true
+#   vaigil config set admin.base_url https://vaigil.example.com
+#   vaigil config set admin.trusted_proxy true
 
-# The published site: anonymous, read-only, the thing pointed at the internet.
-example.com {
-	reverse_proxy 127.0.0.1:8081
+vaigil.example.com {
+	reverse_proxy 127.0.0.1:8080
 	encode zstd gzip
-
-	# Published pages are immutable and addressed by hash, so the ETag the
-	# site sets is exact. Nothing here needs to add caching rules on top.
 }
-
-# The admin is deliberately absent.
-#
-# It is loopback and holds credentials. Putting it behind a public hostname is
-# the change that turns a compromise of this proxy into a compromise of the
-# store. Reach it over SSH with a port forward:
-#
-#   ssh -N -L 8080:127.0.0.1:8080 you@your-server

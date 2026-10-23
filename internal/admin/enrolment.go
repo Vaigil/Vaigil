@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/enrol"
-	"github.com/quilzo/quilzo/internal/throttle"
-	"github.com/quilzo/quilzo/internal/webauthn"
+	"github.com/quilzo/vaigil/internal/enrol"
+	"github.com/quilzo/vaigil/internal/throttle"
+	"github.com/quilzo/vaigil/internal/webauthn"
 )
 
 // Adding a first passkey through a one-time link (internal/enrol).
@@ -62,11 +62,6 @@ func (s *Server) enrolLink(w http.ResponseWriter, r *http.Request, secret string
 	if s.Throttle != nil {
 		if d := s.Throttle.Check(sub); !d.Allowed {
 			return refuse(http.StatusTooManyRequests, errors.New(d.Why))
-		}
-	}
-	if s.EnrolBlocked != nil {
-		if why := s.EnrolBlocked(time.Now()); why != "" {
-			return refuse(http.StatusServiceUnavailable, errors.New(why))
 		}
 	}
 	l, err := s.Enrol.Peek(secret, time.Now())
@@ -132,7 +127,7 @@ func (s *Server) handleEnrolChallenge(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{
 		"challenge":   v,
 		"attestation": s.enrolment().AttestationPreference(),
-		"rp":          map[string]string{"id": party.ID, "name": s.SiteName},
+		"rp":          map[string]string{"id": party.ID, "name": brandName},
 		"user": map[string]string{
 			"id":   base64.RawURLEncoding.EncodeToString([]byte(l.Principal)),
 			"name": l.Principal, "displayName": l.Principal,

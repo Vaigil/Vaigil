@@ -9,13 +9,13 @@ import (
 	"strings"
 )
 
-// Secret is a credential, found by internal/codescan's rules.
+// Secret is a credential, found by internal/secret.
 const Secret Kind = "secret"
 
 // Masker takes personal data out of text before it leaves for a model, and
 // puts it back into what the model answers.
 //
-// Each value becomes a placeholder like <quilzo:email:1>, the same one
+// Each value becomes a placeholder like <vaigil:email:1>, the same one
 // every time the same value appears, so the model can still tell "the same
 // customer" from "another customer" and refer to either; the placeholders
 // are swapped back on this side, so the answer reads as if nothing had been
@@ -29,7 +29,7 @@ const Secret Kind = "secret"
 type Masker struct {
 	// Allowed are the site's own email domains, published on purpose.
 	Allowed []string
-	// Secrets finds credentials (codescan.SecretSpans).
+	// Secrets finds credentials (secret.Spans).
 	Secrets func(string) [][2]int
 
 	values  map[string]string // placeholder → value
@@ -113,7 +113,7 @@ func (m *Masker) placeholder(kind Kind, value string) string {
 	}
 	m.next[kind]++
 	m.Counts[kind]++
-	p := fmt.Sprintf("<quilzo:%s:%d>", kind, m.next[kind])
+	p := fmt.Sprintf("<vaigil:%s:%d>", kind, m.next[kind])
 	m.byValue[key], m.values[p] = p, value
 	return p
 }

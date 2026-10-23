@@ -1,85 +1,57 @@
-# Putting the published site on the internet
+# Running Vaigil on a server
 
-The public site needs two things the rest of the project does not: a real
-certificate, and a process that comes back after a reboot. This directory has
-both — a Caddyfile that gets and renews its own certificate, and a hardened
-systemd unit.
+This directory has a hardened systemd unit and a Caddyfile that puts the
+console behind https with a certificate it renews itself. Anything with 512 MB
+will do: this is one static binary and a directory.
 
-Anything with 512 MB will do. This is one static binary and a directory.
-
-### 1. A user and a place
+## 1. A user and a place
 
 ```bash
-sudo useradd --system --home /srv/quilzo --shell /usr/sbin/nologin quilzo
-sudo install -d -o quilzo -g quilzo /srv/quilzo
-sudo install -d -o quilzo -g quilzo /srv/quilzo/submissions
+sudo useradd --system --home /srv/vaigil --shell /usr/sbin/nologin vaigil
+sudo install -d -o vaigil -g vaigil -m 0700 /srv/vaigil /srv/vaigil/store
 ```
 
-### 2. The binary
+## 2. The binary
 
 ```bash
 make build
-sudo install -m 0755 bin/quilzo /usr/local/bin/quilzo
+sudo install -m 0755 bin/vaigil /usr/local/bin/vaigil
 ```
 
-Or take a release binary — it is static, so there is nothing to install
-alongside it.
-
-### 3. The store
-
-Copy your `.quilzo` directory and your `templates` directory to
-`/srv/quilzo`, owned by `quilzo`. Then check it from the server:
+## 3. The store and the first administrator
 
 ```bash
-sudo -u quilzo quilzo --root /srv/quilzo theme check
+sudo -u vaigil vaigil --root /srv/vaigil/store init --admin you@example.com
 ```
 
-### 4. DNS
+It prints a one-time link that adds your passkey. Open it once the console is
+reachable.
 
-```
-example.com         A   your.server.ip
-```
-
-### 5. The service
-
-Edit the hostname in `--base-url`, then:
+## 4. The service and the proxy
 
 ```bash
-sudo cp deploy/quilzo-site.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now quilzo-site
-sudo systemctl status quilzo-site
+sudo cp deploy/vaigil.service /etc/systemd/system/
+sudo systemctl enable --now vaigil
+caddy run --config deploy/Caddyfile
 ```
 
-### 6. The certificate
-
-Edit the hostname in the `Caddyfile`, then:
+Then, as the Caddyfile says, tell Vaigil it is behind TLS and where it is
+reached, so cookies are marked Secure and passkeys name the right host:
 
 ```bash
-sudo caddy run --config deploy/Caddyfile
+sudo -u vaigil vaigil --root /srv/vaigil/store config set admin.behind_tls_proxy true
+sudo -u vaigil vaigil --root /srv/vaigil/store config set admin.base_url https://vaigil.example.com
+sudo -u vaigil vaigil --root /srv/vaigil/store config set admin.trusted_proxy true
 ```
 
-Caddy gets and renews the certificate itself, which is the whole reason it is
-here rather than nginx: there is no cron job to have forgotten.
+## 5. Credentials
 
-For a permanent install, `caddy add-package` / a `caddy.service` unit — the Caddy
-documentation covers that better than this file would.
-
-### 7. Check it from outside
+Connector credentials and feed secrets are sealed under a keyring whose key is
+kept outside the store:
 
 ```bash
-curl -sI https://example.com/
+sudo -u vaigil vaigil --root /srv/vaigil/store vault enable
 ```
 
----
-
-## The admin is deliberately not in any of this
-
-It is loopback and it holds credentials. Putting it behind a public hostname is
-the change that turns a compromise of the proxy into a compromise of the store.
-Reach it over SSH instead:
-
-```bash
-ssh -N -L 8080:127.0.0.1:8080 you@your-server
-# then open http://127.0.0.1:8080
-```
+It prints the key once. Put it in a file only root reads, and point
+`VAIGIL_KEY_FILE` at it in `/etc/vaigil/env`.

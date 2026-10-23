@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/quilzo/quilzo/internal/clientip"
-	"github.com/quilzo/quilzo/internal/config"
+	"github.com/quilzo/vaigil/internal/clientip"
+	"github.com/quilzo/vaigil/internal/config"
 )
 
 func TestTheEdgeBelievesOnlyTheProxiesTheConfigurationNames(t *testing.T) {
@@ -26,28 +26,24 @@ func TestTheEdgeBelievesOnlyTheProxiesTheConfigurationNames(t *testing.T) {
 	}
 	cfg := config.New()
 	// Nothing said: the connection, whatever the header claims.
-	if got := from(cfg, "site.trusted_proxy", "172.17.0.1:80", "203.0.113.9"); got != "172.17.0.1" {
+	if got := from(cfg, "admin.trusted_proxy", "172.17.0.1:80", "203.0.113.9"); got != "172.17.0.1" {
 		t.Fatalf("believed with nothing configured: %s", got)
 	}
 	// "On the inside": a container gateway is believed, the internet is not.
-	if err := cfg.Set("site.trusted_proxy", "true", "", "test"); err != nil {
+	if err := cfg.Set("admin.trusted_proxy", "true", "", "test"); err != nil {
 		t.Fatal(err)
 	}
-	if got := from(cfg, "site.trusted_proxy", "172.17.0.1:80", "203.0.113.9"); got != "203.0.113.9" {
+	if got := from(cfg, "admin.trusted_proxy", "172.17.0.1:80", "203.0.113.9"); got != "203.0.113.9" {
 		t.Fatalf("the gateway was not believed: %s", got)
 	}
-	if got := from(cfg, "site.trusted_proxy", "198.51.100.7:80", "203.0.113.9"); got != "198.51.100.7" {
+	if got := from(cfg, "admin.trusted_proxy", "198.51.100.7:80", "203.0.113.9"); got != "198.51.100.7" {
 		t.Fatalf("a caller on the internet chose its address: %s", got)
-	}
-	// The other surface's switch is not this one's.
-	if got := from(cfg, "admin.trusted_proxy", "172.17.0.1:80", "203.0.113.9"); got != "172.17.0.1" {
-		t.Fatalf("the site's setting opened the admin: %s", got)
 	}
 	// Named proxies replace "the inside".
 	if err := cfg.Set("network.trusted_proxies", "192.0.2.10", "", "test"); err != nil {
 		t.Fatal(err)
 	}
-	if got := from(cfg, "site.trusted_proxy", "172.17.0.1:80", "203.0.113.9"); got != "172.17.0.1" {
+	if got := from(cfg, "admin.trusted_proxy", "172.17.0.1:80", "203.0.113.9"); got != "172.17.0.1" {
 		t.Fatalf("the inside is still believed once proxies are named: %s", got)
 	}
 	if got := from(cfg, "admin.trusted_proxy", "192.0.2.10:80", "2001:db8:1:2::9"); got != "2001:db8:1:2::/64" {
@@ -73,7 +69,7 @@ func TestAnUnreadableConfigurationBelievesNoProxy(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "config.json"), []byte("{not json"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if r := proxies(root, "site.trusted_proxy")(); r == nil || len(r.Proxies) != 0 {
+	if r := proxies(root, "admin.trusted_proxy")(); r == nil || len(r.Proxies) != 0 {
 		t.Fatalf("%+v", r)
 	}
 }

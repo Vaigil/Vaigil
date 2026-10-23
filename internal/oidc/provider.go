@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/fetch"
+	"github.com/quilzo/vaigil/internal/fetch"
 )
 
 // Discovery is the subset of the provider metadata this needs.

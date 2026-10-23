@@ -15,10 +15,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/atomicfile"
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/detect"
+	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/detect"
 )
 
 // Tuning the detections: what each rule has been worth, which ring it is
@@ -286,7 +286,7 @@ func detectStats(root string, args []string) error {
 		return err
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActTune, auth.AreaSecurity); err != nil {
 		return err
 	}
 	t, err := loadTuning(root, *dir, time.Now().UTC())
@@ -345,11 +345,11 @@ func detectRing(root string, args []string) error {
 		return err
 	}
 	if len(pos) != 2 {
-		return fmt.Errorf("usage: quilzo detect ring RULE live|trial|off " +
+		return fmt.Errorf("usage: vaigil detect ring RULE live|trial|off " +
 			"--because \"…\"")
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActTune, auth.AreaSecurity); err != nil {
 		return err
 	}
 	if err := setRing(root, *dir, pos[0], detect.Ring(pos[1]), *because,
@@ -375,7 +375,7 @@ func detectSuppress(root string, args []string) error {
 		field, value, ok = strings.Cut(pos[1], "=")
 	}
 	if !ok {
-		return fmt.Errorf("usage: quilzo detect suppress RULE FIELD=VALUE " +
+		return fmt.Errorf("usage: vaigil detect suppress RULE FIELD=VALUE " +
 			"--owner WHO --until 2026-12-31 --because \"…\"\n" +
 			"  for example: actor=okta:svc-backup")
 	}
@@ -385,7 +385,7 @@ func detectSuppress(root string, args []string) error {
 			"always has one")
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActTune, auth.AreaSecurity); err != nil {
 		return err
 	}
 	s, err := addSuppression(root, *dir, detect.Suppression{Rule: pos[0],
@@ -407,10 +407,10 @@ func detectSuppress(root string, args []string) error {
 func detectUnsuppress(root string, args []string) error {
 	pos, _ := leadingArgs(args, 1)
 	if len(pos) != 1 {
-		return fmt.Errorf("usage: quilzo detect unsuppress ID")
+		return fmt.Errorf("usage: vaigil detect unsuppress ID")
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActTune, auth.AreaSecurity); err != nil {
 		return err
 	}
 	if err := removeSuppression(root, pos[0], caller.Name, caller.Kind); err != nil {
@@ -422,7 +422,7 @@ func detectUnsuppress(root string, args []string) error {
 
 func detectSuppressions(root string) error {
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActTune, auth.AreaSecurity); err != nil {
 		return err
 	}
 	sups, err := loadDetectSuppressions(root)

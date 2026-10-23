@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/httpsig"
+	"github.com/quilzo/vaigil/internal/httpsig"
 )
 
 // A timestamp the signature does not cover cannot be used to judge its age.

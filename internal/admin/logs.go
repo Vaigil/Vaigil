@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
 )
 
 // The audit log, in the admin, read-only and unable to be anything else.

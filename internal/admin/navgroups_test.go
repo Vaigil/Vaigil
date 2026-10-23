@@ -11,11 +11,9 @@ import (
 
 // The group holding the current screen is open, and it is the only one.
 //
-// Twenty-eight destinations in five groups made a column about 1,425 pixels
-// tall. The layout is a grid row, so the page could not be shorter than the
-// menu: /review has a third of a kilobyte of content and still produced a page
-// taller than the screen, and seven screens had less in them than the
-// navigation beside them.
+// Every destination open at once makes a column taller than most screens,
+// and the layout is a grid row, so a page could not be shorter than the
+// menu beside it.
 //
 // One <details> per group fixes that without a script, and the state is
 // derived rather than stored — the group you want open is the one you are in,
@@ -24,7 +22,7 @@ import (
 func TestOnlyTheCurrentNavGroupIsOpen(t *testing.T) {
 	srv, token := fullyWired(t)
 
-	for _, path := range []string{"/", "/design", "/people", "/review", "/media"} {
+	for _, path := range []string{"/today", "/findings", "/people", "/security/feeds", "/security/vulns"} {
 		t.Run(path, func(t *testing.T) {
 			body := get(t, srv, path, token).Body.String()
 
@@ -55,10 +53,10 @@ func TestOnlyTheCurrentNavGroupIsOpen(t *testing.T) {
 // opened, so that is what this checks.
 func TestCollapsingAGroupDoesNotDropItsEntries(t *testing.T) {
 	srv, token := fullyWired(t)
-	body := get(t, srv, "/", token).Body.String()
+	body := get(t, srv, "/today", token).Body.String()
 
-	// /people sits in a group that is closed on the pages screen.
-	for _, path := range []string{"/people", "/settings", "/logs", "/publishing"} {
+	// /people sits in a group that is closed on Today.
+	for _, path := range []string{"/people", "/settings", "/logs", "/security/events"} {
 		if !strings.Contains(body, `href="`+path+`"`) {
 			t.Errorf("%s is not in the document at all, so collapsing its "+
 				"group removed it rather than closing it", path)

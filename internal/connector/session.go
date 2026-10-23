@@ -213,7 +213,7 @@ func (x *Session) exchange(ctx context.Context) (string, error) {
 	}
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", "quilzo-connector")
+	req.Header.Set("User-Agent", "vaigil-connector")
 	res, err := x.c.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("%s token endpoint: %w", x.m.Name, err)
@@ -597,7 +597,7 @@ func (x *Session) fetchPage(ctx context.Context, u *url.URL, e Endpoint,
 			accept = e.Accept
 		}
 		req.Header.Set("Accept", accept)
-		req.Header.Set("User-Agent", "quilzo-connector")
+		req.Header.Set("User-Agent", "vaigil-connector")
 		x.m.Auth.decorate(req, credential)
 
 		res, err := x.c.Do(req)

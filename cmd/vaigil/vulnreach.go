@@ -11,10 +11,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/reach"
-	"github.com/quilzo/quilzo/internal/vuln"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/reach"
+	"github.com/quilzo/vaigil/internal/vuln"
 )
 
 // Whether the vulnerable code is used, where that can be established.
@@ -79,7 +79,7 @@ func vulnReach(root string, args []string) error {
 		return err
 	}
 	if *source == "" {
-		return fmt.Errorf("usage: quilzo vuln reach --source DIR --where " +
+		return fmt.Errorf("usage: vaigil vuln reach --source DIR --where " +
 			"ISSUER:VALUE")
 	}
 	asset, err := parseAsset(*where)
@@ -87,7 +87,7 @@ func vulnReach(root string, args []string) error {
 		return err
 	}
 	caller := resolveCaller(root, flagToken)
-	if err := authorise(root, caller, auth.ActPublish, "/"); err != nil {
+	if err := authorise(root, caller, auth.ActAssess, auth.AreaSecurity); err != nil {
 		return err
 	}
 	now := time.Now().UTC()
@@ -185,7 +185,7 @@ func vulnReach(root string, args []string) error {
 		f.Cleared, f.Silent, reset)
 	if f.Cleared > 0 {
 		w.Human("  %snothing has left the queue. \"Not named here\" says "+
-			"nothing of the dependencies; it is grounds for quilzo vuln "+
+			"nothing of the dependencies; it is grounds for vaigil vuln "+
 			"assess … not_affected, with a name on it%s\n", yellow, reset)
 	}
 	return nil

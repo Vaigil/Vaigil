@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/throttle"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/throttle"
 )
 
 // The sign-in box is behind the same limiter as everything else.
@@ -36,7 +36,7 @@ func TestTheSignInFormIsThrottled(t *testing.T) {
 	codes := map[string]int{}
 	for i := 0; i < 25; i++ {
 		req := httptest.NewRequest(http.MethodPost, "/signin",
-			strings.NewReader("token=qz_definitelynotarealtoken"))
+			strings.NewReader("token=vg_definitelynotarealtoken"))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Header.Set("Sec-Fetch-Site", "same-origin")
 		req.RemoteAddr = "198.51.100.7:4444"
@@ -81,7 +81,7 @@ func TestSigningOutRevokesTheSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if w := get(t, srv, "/", session); w.Code != http.StatusOK {
+	if w := get(t, srv, "/today", session); w.Code != http.StatusOK {
 		t.Fatalf("the session does not work to begin with: %d", w.Code)
 	}
 
@@ -89,7 +89,7 @@ func TestSigningOutRevokesTheSession(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+session)
 	srv.Handler().ServeHTTP(httptest.NewRecorder(), req)
 
-	if w := get(t, srv, "/", session); w.Code == http.StatusOK {
+	if w := get(t, srv, "/today", session); w.Code == http.StatusOK {
 		t.Error("the session still works after signing out. Clearing the " +
 			"cookie only forgets the credential; whoever else holds a copy " +
 			"of it does not")
@@ -113,7 +113,7 @@ func TestSigningOutDoesNotRevokeALongLivedToken(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+token)
 	srv.Handler().ServeHTTP(httptest.NewRecorder(), req)
 
-	if w := get(t, srv, "/", token); w.Code != http.StatusOK {
+	if w := get(t, srv, "/today", token); w.Code != http.StatusOK {
 		t.Errorf("signing out revoked the long-lived token this person signs "+
 			"in with: %d", w.Code)
 	}
@@ -149,8 +149,8 @@ func TestArrivingWithNothingIsNotAFailure(t *testing.T) {
 	// A wrong cookie is a guess, and is counted.
 	refused := false
 	for i := 0; i < 25 && !refused; i++ {
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
-		req.AddCookie(&http.Cookie{Name: "quilzo_token", Value: "qz_definitelynotarealtoken"})
+		req := httptest.NewRequest(http.MethodGet, "/today", nil)
+		req.AddCookie(&http.Cookie{Name: "vaigil_token", Value: "vg_definitelynotarealtoken"})
 		req.RemoteAddr = from
 		w := httptest.NewRecorder()
 		srv.Handler().ServeHTTP(w, req)

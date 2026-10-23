@@ -11,8 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/detect"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/detect"
 )
 
 // The Detections screen: what each rule has been worth, which ring it is
@@ -81,7 +82,7 @@ func verdictBarOf(s detect.Stats) verdictBar {
 }
 
 func (s *Server) handleDetections(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActView)
 	if !ok {
 		return
 	}
@@ -237,7 +238,7 @@ func (s *Server) handleDetectionsAct(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "use the form", http.StatusMethodNotAllowed)
 		return
 	}
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActTune)
 	if !ok {
 		return
 	}

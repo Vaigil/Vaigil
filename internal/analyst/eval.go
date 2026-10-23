@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/quilzo/quilzo/internal/decide"
+	"github.com/quilzo/vaigil/internal/decide"
 )
 
 // Measuring an agent the way it will be used: many times.

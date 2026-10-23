@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/xmldsig"
+	"github.com/quilzo/vaigil/internal/xmldsig"
 )
 
 // Limits on what an assertion may carry. Generous for any directory; small
@@ -69,7 +69,7 @@ func (p *Provider) ParseResponse(samlResponse, requestID string, now time.Time) 
 		if k.Is(NSAssertion, "EncryptedAssertion") {
 			return nil, refuse("the assertion is encrypted. Turn assertion encryption off " +
 				"for this application at the identity provider: TLS protects the response, " +
-				"and XML Encryption is attack surface Quilzo does not take on")
+				"and XML Encryption is attack surface Vaigil does not take on")
 		}
 	}
 	if count != 1 || assertion == nil {
@@ -330,7 +330,7 @@ func (p *Provider) checkSubject(s *xmldsig.Element, requestID string, now time.T
 			out.NameID = v
 			out.NameIDFormat, _ = k.Attr("Format")
 		case k.Is(NSAssertion, "EncryptedID"), k.Is(NSAssertion, "BaseID"):
-			return until, refuse("the subject is named in a way Quilzo does not read (%s)", k.Local)
+			return until, refuse("the subject is named in a way Vaigil does not read (%s)", k.Local)
 		case k.Is(NSAssertion, "SubjectConfirmation"):
 			if m, _ := k.Attr("Method"); m != MethodBearer {
 				continue
@@ -435,7 +435,7 @@ func (p *Provider) checkConditions(c *xmldsig.Element, now time.Time) (time.Time
 		case k.Is(NSAssertion, "OneTimeUse"), k.Is(NSAssertion, "ProxyRestriction"):
 			// Every assertion is used once here anyway; proxying is not done.
 		default:
-			return time.Time{}, refuse("the assertion has a condition Quilzo does not understand (%s), "+
+			return time.Time{}, refuse("the assertion has a condition Vaigil does not understand (%s), "+
 				"and the standard says such an assertion is not valid", k.Local)
 		}
 	}

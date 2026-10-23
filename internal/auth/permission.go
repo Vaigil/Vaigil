@@ -8,43 +8,25 @@ import (
 	"strings"
 )
 
-// Permissions for working with agents.
+// Permissions that can be granted on their own.
 //
-// The four rungs decide what somebody may do to content, and they were the
-// whole model while Quilzo was a content system. Agents brought decisions
-// that are not about content: who may start an agent, who may approve what
-// it waits to do, who may change what it is allowed to do, who may spend the
-// store's models, who may install a feature. Each was given to the nearest
-// rung, so all but two meant "administrator of everything", and letting the
-// marketing lead approve the marketing agent meant handing them the keys to
-// the whole store.
-//
-// So each is a permission of its own. By default it still follows the rung
-// it always followed, and nothing changes for a store that grants none. It
-// can also be granted alone, on part of the store: approve on
-// /@agents/newsletter is somebody who decides what the newsletter agent
-// waits to do and nothing else. A grant of a permission is a binding like
-// any other: it lives in the same policy, is shown by the same explain, ends
-// when it expires, and can be denied.
-//
-// The list is short on purpose. Every permission is a question a person has
-// to answer when they grant access, and a list nobody can read in full is a
-// list nobody checks; a new decision gets a permission when it cannot be
-// expressed as one of these.
+// The ladder decides how far somebody goes in the work of the queue. Some
+// decisions are a different kind of work: approving somebody else's act,
+// changing what counts as wrong, judging a vulnerability. Each is a
+// permission of its own. By default it follows the rung that holds it, and
+// it can also be granted alone, on part of the store, as a binding like any
+// other: shown by the same explain, ended when it expires, and deniable.
 
 const (
-	// ActRunAgents starts an agent's run.
-	ActRunAgents Action = "run-agents"
-	// ActApprove decides what an agent waits for a person to decide.
+	// ActApprove decides what waits for a second person: an act on another
+	// platform asked for in a case, and a run an automation held.
 	ActApprove Action = "approve"
-	// ActManageAgents declares, changes and withdraws agents: what they may
-	// do, their credentials, their evaluations and the lessons they read.
-	ActManageAgents Action = "manage-agents"
-	// ActUseModels asks the store's models on one's own behalf: the writing
-	// assistant, drafting, and the model gateway at /v1.
-	ActUseModels Action = "use-models"
-	// ActInstall installs, removes and rolls back features.
-	ActInstall Action = "install-features"
+	// ActTune changes what counts as wrong: detections, their rings and
+	// suppressions, Sigma imports, correlations and automation rules.
+	ActTune Action = "tune"
+	// ActAssess decides vulnerabilities: SSVC decisions, VEX statements,
+	// asset tags and upgrade plans.
+	ActAssess Action = "assess"
 )
 
 // Permission is one permission that can be granted on its own.
@@ -57,11 +39,9 @@ type Permission struct {
 // Permissions are the permissions that can be granted on their own, in the
 // order people read them.
 var Permissions = []Permission{
-	{ActRunAgents, "start an agent's run"},
-	{ActApprove, "decide what an agent waits for a person to decide"},
-	{ActManageAgents, "declare and change agents: what they may do, their credentials, evaluations and lessons"},
-	{ActUseModels, "use the store's models: the writing assistant, drafting, and the model gateway"},
-	{ActInstall, "install, remove and roll back features"},
+	{ActApprove, "approve an act on another platform, or a run an automation held, that somebody else asked for"},
+	{ActTune, "change detections, Sigma imports, correlations and automation rules"},
+	{ActAssess, "decide vulnerabilities: SSVC, VEX statements, asset tags and upgrade plans"},
 }
 
 // IsPermission reports whether an action can be granted on its own.
@@ -83,14 +63,6 @@ func PermissionNamed(name string) (Permission, bool) {
 	}
 	return Permission{}, false
 }
-
-// AreaAgents is the agents, and AgentResource one agent, as a grant names
-// them: a permission on /@agents covers every agent; on /@agents/NAME, that
-// one.
-const AreaAgents = "/@agents"
-
-// AgentResource is the resource one agent is checked against.
-func AgentResource(name string) string { return AreaAgents + "/" + name }
 
 // What is what a binding grants, in words: a role, or a permission.
 func (b Binding) What() string {
@@ -118,17 +90,6 @@ func grantsPermission(b *Binding, action Action, target string, liveAt int64) bo
 func permissionText(b *Binding) string {
 	return fmt.Sprintf("the %s permission on %s", b.Permission, normalise(b.Resource))
 }
-
-// AreaData is the records an application holds, and DataResource one
-// collection of them: a role on /@data/samples reads, or writes, the
-// samples and nothing else. A role on the whole site covers every
-// collection, as it always did; a role on a section of pages covers none,
-// because a page section and a collection that happen to share a name are
-// not the same thing.
-const AreaData = "/@data"
-
-// DataResource is the resource one collection is checked against.
-func DataResource(collection string) string { return AreaData + "/" + collection }
 
 // AnywhereUnder reports whether a principal may perform an action on an
 // area or on anything inside it: whether a screen for the area has

@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/spool"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/spool"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // event is a valid event from src, arriving at recv and claiming at.
@@ -322,11 +322,11 @@ func TestTheEventsAreNotCached(t *testing.T) {
 //
 // The store holds who signed in from where. That is an administrator's
 // view, the same rung as the audit log, and a publisher is refused.
-func TestOnlyAnAdministratorSeesTheEvents(t *testing.T) {
+// The raw events are an analyst's to read: a viewer reads the queue, and
+// the store is not opened for them at all.
+func TestAViewerDoesNotSeeTheEvents(t *testing.T) {
 	now := time.Now().UTC()
-	for _, role := range []auth.Role{
-		auth.RoleReader, auth.RoleAuthor, auth.RolePublisher,
-	} {
+	for _, role := range []auth.Role{auth.RoleViewer} {
 		srv, token := asRole(t, role)
 		ev, closed := spoolWith(t, spool.Options{},
 			event("idp", "someone signed in", now, now))

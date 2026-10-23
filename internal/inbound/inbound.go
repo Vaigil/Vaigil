@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package inbound is what arrives on its own: events another system pushes the
-// moment they happen, rather than events Quilzo goes and reads.
+// moment they happen, rather than events Vaigil goes and reads.
 //
 // # Three ways in, each proving where it came from
 //
@@ -59,7 +59,7 @@ type Feed struct {
 	Name string `json:"name"`
 	Kind string `json:"kind"`
 	// Mapping is the source mapping records are read through
-	// ("okta/system", or one added with quilzo source add).
+	// ("okta/system", or one added with vaigil source add).
 	Mapping string `json:"mapping,omitempty"`
 	// TokenHash is the SHA-256 of the static secret Okta or a transmitter
 	// sends in a header, hex. The secret itself is shown once and kept

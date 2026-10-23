@@ -18,7 +18,7 @@
     "host": "",
     "auth": {"kind": "bearer", "secret": "knowbe4-reporting-key"},
     "rate": {"per_second": 4, "per_minute": 50, "per_day": 2000},
-    "note": "Pages by number, which KnowBe4 retires in November 2026 in favour of a cursor whose response it has not yet documented. `quilzo connect probe knowbe4 users` lists the response headers; when a cursor appears, change each page to {\"kind\": \"cursor\", \"from\": \"header:NAME\", \"param\": \"cursor\"} with query cursor=true. The IP address, location, browser and operating system KnowBe4 records for each phishing click are deliberately not read.",
+    "note": "Pages by number, which KnowBe4 retires in November 2026 in favour of a cursor whose response it has not yet documented. `vaigil connect probe knowbe4 users` lists the response headers; when a cursor appears, change each page to {\"kind\": \"cursor\", \"from\": \"header:NAME\", \"param\": \"cursor\"} with query cursor=true. The IP address, location, browser and operating system KnowBe4 records for each phishing click are deliberately not read.",
     "endpoints": [
       {
         "name": "users",

@@ -12,8 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/vuln"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/vuln"
 )
 
 // The vulnerability workbench.
@@ -111,7 +112,7 @@ func liveOf(matched []vuln.Exposure) []vuln.Exposure {
 }
 
 func (s *Server) handleVulns(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActView)
 	if !ok {
 		return
 	}
@@ -388,7 +389,7 @@ func vulnTrend(hist []vuln.Tally) ([]wfPoint, string) {
 // handleVuln is one vulnerability: what is known, why it ranks where it
 // does, where it is, what has been decided, and the forms to decide.
 func (s *Server) handleVuln(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActView)
 	if !ok {
 		return
 	}
@@ -540,7 +541,7 @@ func (s *Server) handleVulnsAct(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "use the form", http.StatusMethodNotAllowed)
 		return
 	}
-	p, ok := s.securityReader(w, r)
+	p, ok := s.securityCan(w, r, auth.ActAssess)
 	if !ok {
 		return
 	}

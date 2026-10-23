@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/finding"
-	"github.com/quilzo/quilzo/internal/out"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/finding"
+	"github.com/quilzo/vaigil/internal/out"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // packSite is a store with the pack installed.

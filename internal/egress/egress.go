@@ -104,7 +104,7 @@ var Purposes = []Purpose{
 		Name: "trust",
 		What: "reading the signing keys of an issuer a trust names, such as " +
 			"GitHub Actions or GitLab CI, to check the identity token a job " +
-			"exchanges for a short Quilzo token",
+			"exchanges for a short Vaigil token",
 		Without: "no job can exchange its identity token; programs use tokens " +
 			"issued here",
 	},
@@ -131,7 +131,7 @@ var Purposes = []Purpose{
 		Name: "guardrail",
 		What: "asking an outside classifier (Lakera Guard, Model Armor, or one on this network) " +
 			"whether a chatbot's knowledge or a visitor's question is an attack",
-		Without: "only Quilzo's own checks screen what chatbots read and are asked, which is " +
+		Without: "only Vaigil's own checks screen what chatbots read and are asked, which is " +
 			"what happens when no guardrail is set",
 	},
 	{
@@ -145,7 +145,7 @@ var Purposes = []Purpose{
 		Name: "fleet",
 		What: "reading another vendor's agent card (A2A) when somebody registers that agent, " +
 			"and again when the fleet is checked, to see whether it changed",
-		Without: "other vendors' agents cannot be registered or checked. Quilzo's own " +
+		Without: "other vendors' agents cannot be registered or checked. Vaigil's own " +
 			"agents, apps, tool servers and model routes are still listed",
 	},
 	{
@@ -172,7 +172,7 @@ var Purposes = []Purpose{
 	{
 		Name: "siem",
 		What: "pushing the audit log to a SIEM as it is written (siem.stream.url)",
-		Without: "the audit log is kept here only. quilzo siem still exports it " +
+		Without: "the audit log is kept here only. vaigil siem still exports it " +
 			"for somebody to carry across",
 	},
 	{
@@ -233,7 +233,7 @@ var Purposes = []Purpose{
 		What: "calling a tool on an MCP server an administrator declared and enabled, for an " +
 			"agent's run or for another system's agent through the gateway",
 		Without: "agents call no tool outside, and the gateway offers nothing; reading and " +
-			"writing what Quilzo holds still works",
+			"writing what Vaigil holds still works",
 	},
 	{
 		Name: "agents",
@@ -326,7 +326,7 @@ func (b *Blocked) Error() string {
 		"this deployment is offline, so %s cannot reach %s.\n"+
 			"  What it was for: %s.\n"+
 			"  Without it: %s.\n"+
-			"  Allow it with `quilzo config set network.mode open`, or leave "+
+			"  Allow it with `vaigil config set network.mode open`, or leave "+
 			"it refused deliberately",
 		b.Purpose.Name, b.Address, b.Purpose.What, b.Purpose.Without)
 }

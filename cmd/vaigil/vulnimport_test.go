@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/out"
-	"github.com/quilzo/quilzo/internal/vuln"
+	"github.com/quilzo/vaigil/internal/out"
+	"github.com/quilzo/vaigil/internal/vuln"
 )
 
 const billOfStorefront = `{"bomFormat":"CycloneDX","specVersion":"1.5",

@@ -11,28 +11,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/dpop"
-	"github.com/quilzo/quilzo/internal/federate"
-	"github.com/quilzo/quilzo/internal/throttle"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/dpop"
+	"github.com/quilzo/vaigil/internal/throttle"
 )
 
 // Short-lived and bound credentials for programs.
 //
-// A program used to hold one long-lived bearer token, and a bearer token
-// works for whoever holds it. Two things change that. A program exchanges
-// what it holds for a token that lasts minutes (RFC 8693), and a CI job
-// exchanges the identity token its platform signs for each run, so it holds
-// no secret at all (internal/federate). And a token can be bound to a key,
-// so it works only with a fresh proof made by that key (RFC 9449,
-// internal/dpop): the agent interface, the model gateway and A2A check the
-// proof; everything else refuses a bound token outright.
-
-// Federation reaches the trusts that admit other issuers' jobs.
-type Federation struct {
-	Trusts func() ([]federate.Trust, error)
-	Keys   federate.Keys
-}
+// A bearer token works for whoever holds it. Two things narrow that. A
+// program exchanges what it holds for a token that lasts minutes (RFC
+// 8693), and a token can be bound to a key, so it works only with a fresh
+// proof made by that key (RFC 9449, internal/dpop).
 
 const (
 	grantTokenExchange = "urn:ietf:params:oauth:grant-type:token-exchange"
@@ -70,7 +59,7 @@ func (s *Server) proofOf(r *http.Request, token string) (string, error) {
 // tokenChallenge answers a refused token with what this server accepts: a
 // Bearer token, or a DPoP-bound one, and what was wrong.
 func tokenChallenge(w http.ResponseWriter, extra string, err error) {
-	bearer, proof := `Bearer realm="quilzo"`+extra, `DPoP algs="`+dpop.AlgorithmNames()+`"`
+	bearer, proof := `Bearer realm="vaigil"`+extra, `DPoP algs="`+dpop.AlgorithmNames()+`"`
 	switch {
 	case errors.Is(err, dpop.ErrProof):
 		proof += `, error="invalid_dpop_proof"`
@@ -90,7 +79,7 @@ type exchangeAnswer struct {
 	ExpiresIn       int64  `json:"expires_in"`
 }
 
-// handleTokenExchange is RFC 8693 token exchange: a Quilzo token for a
+// handleTokenExchange is RFC 8693 token exchange: a Vaigil token for a
 // narrower one that lasts minutes, or a job's identity token for a token a
 // trust says it may have. Bound to a key when the request carries a proof.
 func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request) {
@@ -161,7 +150,7 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request) {
 	}
 	role := auth.Role(strings.TrimSpace(f.Get("scope")))
 	if role != "" && !role.Valid() {
-		failed("invalid_scope", fmt.Errorf("the scope is a role: reader, author, publisher or admin"))
+		failed("invalid_scope", fmt.Errorf("the scope is a role: viewer, analyst, responder or admin"))
 		return
 	}
 	resource := strings.TrimSpace(f.Get("resource"))
@@ -180,52 +169,12 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request) {
 		}
 		detail["how"] = "narrowed"
 	case typeIDToken, typeJWT:
-		if s.Federation == nil || s.Federation.Trusts == nil || s.Federation.Keys == nil {
-			failed("invalid_grant", errors.New("this store trusts no other issuer"))
-			return
-		}
-		trusts, err := s.Federation.Trusts()
-		if err != nil {
-			fail(http.StatusInternalServerError, "server_error", "the trusts could not be read")
-			return
-		}
-		t, claims, err := federate.Admit(r.Context(), f.Get("subject_token"), trusts, s.Federation.Keys, now, s.admitted)
-		if err != nil {
-			failed("invalid_grant", err)
-			return
-		}
-		if role == "" {
-			role = t.Role
-		}
-		if !t.Role.AtLeast(role) {
-			failed("invalid_scope", fmt.Errorf("the trust %s gives %s at most", t.Name, t.Role))
-			return
-		}
-		if resource == "" {
-			resource = t.Resource
-		}
-		if !auth.Covers(t.Resource, resource) {
-			failed("invalid_target", fmt.Errorf("the trust %s reaches %s, not %s", t.Name, t.Resource, resource))
-			return
-		}
-		run := fmt.Sprint(claims["run_id"])
-		if run == "<nil>" {
-			run = fmt.Sprint(claims["jti"])
-		}
-		secret, tok, err = s.Tokens.IssueFederated("trust:"+t.Name+" run "+clipText(run, 40), t.Principal, role, resource,
-			auth.Scope{ReadOnly: t.ReadOnly}, t.Life(), thumb, now)
-		if err != nil {
-			failed("invalid_grant", err)
-			return
-		}
-		detail["how"], detail["trust"] = "federated", t.Name
-		for _, k := range []string{"repository", "ref", "environment", "project_path", "run_id"} {
-			if v, ok := claims[k].(string); ok {
-				detail[k] = clipText(v, 120)
-			}
-		}
+		// A token another system issued is not taken here: Vaigil trusts no
+		// other issuer.
+		failed("invalid_grant", errors.New("this console trusts no other issuer"))
+		return
 	default:
-		failed("invalid_request", errors.New("subject_token_type is a Quilzo access token, or an identity token (id_token or jwt) from an issuer a trust names"))
+		failed("invalid_request", errors.New("subject_token_type is a Vaigil access token, or an identity token (id_token or jwt) from an issuer a trust names"))
 		return
 	}
 	if s.Throttle != nil {

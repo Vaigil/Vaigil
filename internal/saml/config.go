@@ -55,7 +55,7 @@ type Config struct {
 }
 
 // Preset is what is known about a kind of identity provider: its name, the
-// attribute that proves more than one factor, and where to set Quilzo up.
+// attribute that proves more than one factor, and where to set Vaigil up.
 type Preset struct {
 	Label        string
 	MFAContexts  []string

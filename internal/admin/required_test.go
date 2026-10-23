@@ -78,7 +78,7 @@ func TestEveryRequiredFieldIsMarkedInItsLabel(t *testing.T) {
 		}
 	}
 
-	if checked < 25 {
+	if checked < 8 {
 		t.Fatalf("found %d required controls; the parse is wrong and a test "+
 			"that checks nothing passes", checked)
 	}

@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/detect"
-	"github.com/quilzo/quilzo/internal/spool"
-	"github.com/quilzo/quilzo/internal/telemetry"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/detect"
+	"github.com/quilzo/vaigil/internal/spool"
+	"github.com/quilzo/vaigil/internal/telemetry"
 )
 
 // huntStore is a store where one account signs in from the usual address a
@@ -125,21 +125,23 @@ func TestAHuntsConditionNarrowsWhatIsStacked(t *testing.T) {
 }
 
 // Events name people and what they did: an author sees none of it.
-func TestOnlyAnAdministratorHunts(t *testing.T) {
+// Hunting reads the raw events, which is an analyst's: a viewer reads the
+// queue.
+func TestAViewerDoesNotHunt(t *testing.T) {
 	srv, _ := setup(t)
 	huntStore(t, srv)
 	if err := srv.Policy.Grant(auth.Binding{Principal: "writer",
-		Role: auth.RoleAuthor, Resource: "/"}); err != nil {
+		Role: auth.RoleViewer, Resource: "/"}); err != nil {
 		t.Fatal(err)
 	}
-	secret, _, err := srv.Tokens.IssueSession("w", "writer", auth.RoleAuthor, "/",
+	secret, _, err := srv.Tokens.IssueSession("w", "writer", auth.RoleViewer, "/",
 		time.Hour, auth.RoleAdmin, auth.MethodPasskey)
 	if err != nil {
 		t.Fatal(err)
 	}
 	w := get(t, srv, "/security/hunt?field=ip&hours=24", secret)
 	if w.Code == 200 || strings.Contains(w.Body.String(), "203.0.113.66") {
-		t.Errorf("an author hunted through the events: %d", w.Code)
+		t.Errorf("a viewer hunted through the events: %d", w.Code)
 	}
 }
 

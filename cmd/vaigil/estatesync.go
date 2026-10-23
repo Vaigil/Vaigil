@@ -13,19 +13,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/admin"
-	"github.com/quilzo/quilzo/internal/atomicfile"
-	"github.com/quilzo/quilzo/internal/audit"
-	"github.com/quilzo/quilzo/internal/auth"
-	"github.com/quilzo/quilzo/internal/connector"
-	"github.com/quilzo/quilzo/internal/upkeep"
+	"github.com/quilzo/vaigil/internal/admin"
+	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/quilzo/vaigil/internal/connector"
+	"github.com/quilzo/vaigil/internal/upkeep"
 )
 
 // Keeping the estate current without anybody remembering to.
 //
 // A sync reads every installed tool, rebuilds the estate and, when it is
-// allowed to, sends the reminders that are due. `quilzo estate sync` does
-// it once; `quilzo estate auto --every 24h` has the admin server do it on
+// allowed to, sends the reminders that are due. `vaigil estate sync` does
+// it once; `vaigil estate auto --every 24h` has the admin server do it on
 // that interval, from the same loop that enforces form retention.
 //
 // Why in the server and not on an external timer, when scheduled publishing
