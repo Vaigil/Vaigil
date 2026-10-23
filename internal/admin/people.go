@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/dual"
-	"github.com/quilzo/vaigil/internal/enrol"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/dual"
+	"github.com/vaigil/vaigil/internal/enrol"
 )
 
 // Managing people, and managing the credentials they hold.

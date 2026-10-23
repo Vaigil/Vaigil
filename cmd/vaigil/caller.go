@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/auth"
 )
 
 // Who is running this, and did anyone check?

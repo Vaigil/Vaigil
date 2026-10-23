@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/incident"
+	"github.com/vaigil/vaigil/internal/incident"
 )
 
 // Who has to be told, how soon, and what starts the clock.

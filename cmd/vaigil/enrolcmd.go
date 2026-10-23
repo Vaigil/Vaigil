@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/atomicfile"
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/enrol"
+	"github.com/vaigil/vaigil/internal/atomicfile"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/enrol"
 )
 
 // Enrolment links: how a person gets their first passkey (internal/enrol).

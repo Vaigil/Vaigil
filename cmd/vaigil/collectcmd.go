@@ -15,14 +15,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/atomicfile"
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/connector"
-	"github.com/quilzo/vaigil/internal/source"
-	"github.com/quilzo/vaigil/internal/spool"
-	"github.com/quilzo/vaigil/internal/telemetry"
-	"github.com/quilzo/vaigil/internal/upkeep"
+	"github.com/vaigil/vaigil/internal/atomicfile"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/connector"
+	"github.com/vaigil/vaigil/internal/source"
+	"github.com/vaigil/vaigil/internal/spool"
+	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/upkeep"
 )
 
 // Collection: the part between a platform's log and the event store.

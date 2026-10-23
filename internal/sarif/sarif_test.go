@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/quilzo/vaigil/internal/appsec"
-	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/appsec"
+	"github.com/vaigil/vaigil/internal/telemetry"
 )
 
 // semgrepish is the shape Semgrep emits: rules in the driver, a

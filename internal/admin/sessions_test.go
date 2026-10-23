@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/auth"
 )
 
 // TestTheCookieNeverHoldsThePastedToken.

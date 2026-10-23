@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/vuln"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/vuln"
 )
 
 // The vulnerability workbench.

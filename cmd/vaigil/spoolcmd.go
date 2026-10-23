@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/admin"
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/spool"
-	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/admin"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/spool"
+	"github.com/vaigil/vaigil/internal/telemetry"
 )
 
 // Storing events, saying honestly what the store covers, and deleting on

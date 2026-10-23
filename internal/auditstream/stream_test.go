@@ -20,8 +20,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/httpsig"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/httpsig"
 )
 
 var now = time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)

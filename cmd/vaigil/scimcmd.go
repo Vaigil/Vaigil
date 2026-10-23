@@ -19,12 +19,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/admin"
-	"github.com/quilzo/vaigil/internal/atomicfile"
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/scim"
-	"github.com/quilzo/vaigil/internal/throttle"
+	"github.com/vaigil/vaigil/internal/admin"
+	"github.com/vaigil/vaigil/internal/atomicfile"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/scim"
+	"github.com/vaigil/vaigil/internal/throttle"
 )
 
 // Provisioning from an identity provider. See internal/scim.

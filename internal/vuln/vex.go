@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/audit"
 )
 
 // Saying a vulnerability does not apply, in a way somebody can check.

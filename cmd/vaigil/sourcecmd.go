@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/source"
-	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/source"
+	"github.com/vaigil/vaigil/internal/telemetry"
 )
 
 // What a fetched record means.

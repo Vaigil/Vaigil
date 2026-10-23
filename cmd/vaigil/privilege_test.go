@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/auth"
 )
 
 // Every command the dispatcher can reach must declare what it needs.

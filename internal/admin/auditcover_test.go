@@ -4,7 +4,7 @@
 package admin
 
 import (
-	"github.com/quilzo/vaigil/internal/enrol"
+	"github.com/vaigil/vaigil/internal/enrol"
 
 	"path/filepath"
 	"sort"

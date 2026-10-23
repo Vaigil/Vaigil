@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/remind"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/remind"
 )
 
 type fakeReminders struct {

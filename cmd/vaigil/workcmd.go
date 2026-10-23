@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/work"
+	"github.com/vaigil/vaigil/internal/work"
 )
 
 // Four states, and why that is enough.

@@ -12,13 +12,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/admin"
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/detect"
-	"github.com/quilzo/vaigil/internal/finding"
-	"github.com/quilzo/vaigil/internal/spool"
-	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/admin"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/detect"
+	"github.com/vaigil/vaigil/internal/finding"
+	"github.com/vaigil/vaigil/internal/spool"
+	"github.com/vaigil/vaigil/internal/telemetry"
 )
 
 // Running the detections over what the event store holds.

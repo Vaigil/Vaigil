@@ -36,7 +36,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/estate"
+	"github.com/vaigil/vaigil/internal/estate"
 )
 
 // Channel is how a reminder is sent.

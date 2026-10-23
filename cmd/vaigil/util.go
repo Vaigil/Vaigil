@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/auth"
 )
 
 // printable is a string with control characters replaced, so that what an

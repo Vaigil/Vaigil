@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/quilzo/vaigil/internal/sigma"
+	"github.com/vaigil/vaigil/internal/sigma"
 )
 
 // Bring your own rules, in the format they are already in.

@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/finding"
-	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/finding"
+	"github.com/vaigil/vaigil/internal/telemetry"
 )
 
 // riskEstate is a register where one person has three medium findings from

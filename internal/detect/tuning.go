@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/finding"
-	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/finding"
+	"github.com/vaigil/vaigil/internal/telemetry"
 )
 
 // Tuning: what a rule has turned out to be worth, and the two honest ways

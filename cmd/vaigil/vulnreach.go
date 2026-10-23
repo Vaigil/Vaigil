@@ -11,10 +11,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/reach"
-	"github.com/quilzo/vaigil/internal/vuln"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/reach"
+	"github.com/vaigil/vaigil/internal/vuln"
 )
 
 // Whether the vulnerable code is used, where that can be established.

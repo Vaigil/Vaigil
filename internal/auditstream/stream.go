@@ -37,11 +37,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/atomicfile"
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/httpsig"
-	"github.com/quilzo/vaigil/internal/siem"
-	"github.com/quilzo/vaigil/internal/translog"
+	"github.com/vaigil/vaigil/internal/atomicfile"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/httpsig"
+	"github.com/vaigil/vaigil/internal/siem"
+	"github.com/vaigil/vaigil/internal/translog"
 )
 
 // MaxBatch is the most records one batch carries.

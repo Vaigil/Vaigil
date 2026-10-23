@@ -46,7 +46,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/vaigil/vaigil/internal/atomicfile"
 )
 
 // Schema identifiers, from RFC 7643 and RFC 7644.

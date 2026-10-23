@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/telemetry"
 )
 
 // Deciding who gets a notice, showing the decision, and only then sending.

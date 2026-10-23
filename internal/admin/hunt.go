@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/detect"
-	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/detect"
+	"github.com/vaigil/vaigil/internal/telemetry"
 )
 
 // Hunting: looking at the events before there is a rule.

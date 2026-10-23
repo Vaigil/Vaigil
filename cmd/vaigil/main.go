@@ -11,11 +11,11 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/quilzo/vaigil/internal/egress"
+	"github.com/vaigil/vaigil/internal/egress"
 	"os"
 	"strings"
 
-	"github.com/quilzo/vaigil/internal/out"
+	"github.com/vaigil/vaigil/internal/out"
 )
 
 const defaultRoot = ".vaigil"
@@ -68,6 +68,7 @@ Collecting what happens
   vaigil collect file ISSUER/STREAM FILE   the same for a log that arrives as a file
   vaigil collect status | auto 15m|off     what each source did last, and the schedule
   vaigil source list | add MAPPING.json --sample RECORDS.json | check --source S RECORDS.json
+  vaigil telemetry check [FILE] | fields [FILE]   can a source's events be used, and what a rule may name
   vaigil inbound list | add okta|webhook|ssf NAME | connect NAME | verify NAME | status NAME
   vaigil inbound rotate NAME | on NAME | off NAME | remove NAME | help
   vaigil spool add [FILE] | stats | verify | retain [--apply] | hold NAME --why W | lift NAME
@@ -87,6 +88,7 @@ Detecting and deciding
   vaigil analyst plan | triage [--limit N] [--dry-run] | eval [--k 3]
   vaigil automate list | templates | add TEMPLATE | runs   rules: when this happens, do this
   vaigil automate mode ID watch|ask|act | on ID | off ID | remove ID | approve RUN | decline RUN
+  vaigil geo status | network add PREFIX NAME --kind office|vpn | network remove PREFIX | help   where sign-ins come from
 
 Cases and response
   vaigil incident declare --title T --grade sev2 [--finding ID]   open one, under the regimes set
@@ -293,6 +295,10 @@ func main() {
 		err = cmdSCIM(root, cmdArgs)
 	case "automate":
 		err = cmdAutomate(root, cmdArgs)
+	case "geo":
+		err = cmdGeo(root, cmdArgs)
+	case "telemetry":
+		err = cmdTelemetry(root, cmdArgs)
 	case "inbound":
 		err = cmdInbound(root, cmdArgs)
 	case "spool":

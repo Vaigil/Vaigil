@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/workforce"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/workforce"
 )
 
 // Reconciling people and devices across the systems that each hold a

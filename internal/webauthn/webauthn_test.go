@@ -16,7 +16,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/quilzo/vaigil/internal/webauthn"
+	"github.com/vaigil/vaigil/internal/webauthn"
 )
 
 const (

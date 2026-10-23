@@ -272,6 +272,17 @@ var coverage = map[string]surfaces{
 		NoMCP: "a feed decides whose word reaches the automations; adding one, " +
 			"or handing a transmitter a stream, is a person's decision",
 	},
+	"geo": {
+		GUI: "/security/signins",
+		NoMCP: "where sign-ins are said to come from decides which of them are " +
+			"stepped up; a model must not be able to name a network an office",
+	},
+	"telemetry": {
+		Why: "it checks a file a connector produced, at the point where " +
+			"there is no connector yet and nothing in the store to look at",
+		NoMCP: "an agent reading unvalidated telemetry is the thing the " +
+			"validation exists to prevent",
+	},
 	"scim": {
 		GUI: "/provisioning",
 		NoMCP: "provisioning decides who holds which role, and its token " +

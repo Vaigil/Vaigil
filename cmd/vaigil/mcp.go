@@ -11,10 +11,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/quilzo/vaigil/internal/admin"
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/find"
-	"github.com/quilzo/vaigil/internal/mcp"
+	"github.com/vaigil/vaigil/internal/admin"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/find"
+	"github.com/vaigil/vaigil/internal/mcp"
 )
 
 // The MCP surface is the third interface onto the same store, and every

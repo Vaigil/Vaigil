@@ -40,7 +40,7 @@
     <input id="group" name="group" required></div>
   <div class="field"><label for="to">Means</label>
     <select id="to" name="to">
-      <optgroup label="A role over the whole site">{{range .Roles}}<option value="{{.}}">{{.}}</option>{{end}}</optgroup>
+      <optgroup label="A role over all of Vaigil">{{range .Roles}}<option value="{{.}}">{{.}}</option>{{end}}</optgroup>
       <optgroup label="A job">{{range .Jobs}}<option value="{{.Name}}">{{.Name}}: {{.Summary}}</option>{{end}}</optgroup>
     </select></div>
   <button type="submit">Save</button>

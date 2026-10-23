@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/connector"
-	"github.com/quilzo/vaigil/internal/out"
+	"github.com/vaigil/vaigil/internal/connector"
+	"github.com/vaigil/vaigil/internal/out"
 )
 
 func connectStore(t *testing.T) string {

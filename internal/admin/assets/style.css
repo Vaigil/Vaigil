@@ -2150,11 +2150,11 @@ ol.thread .who { display: block; font: var(--label-md); font-weight: 700; margin
   font-display: swap;
 }
 :root {
-  --mark-loop: light-dark(#0b57d0, #a8c7fa);
-  --mark-tail: light-dark(#7b4dff, #c8b6ff);
+  --mark-first: light-dark(#0b57d0, #a8c7fa);
+  --mark-second: light-dark(#7b4dff, #c8b6ff);
 }
-.mark .mark-loop { fill: var(--mark-loop); }
-.mark .mark-tail { fill: var(--mark-tail); }
+.mark .mark-first { fill: var(--mark-first); }
+.mark .mark-second { fill: var(--mark-second); }
 
 /* =========================================================================
    The October 2026 refresh.
@@ -2391,11 +2391,10 @@ th[scope="row"] { font-weight: 500; }
 .run-steps button, .run-steps summary, .run-steps thead th { white-space: nowrap; }
 .run-steps td:nth-child(2) code { overflow-wrap: break-word; }
 
-/* The logotype: the mark set as the Q, its ring on the baseline at the
-   letters' cap height and its tail descending, as a Q's does. Sized in em so
-   it follows whatever size the name is set at. */
-.lockup { display: inline-flex; align-items: baseline; white-space: nowrap; }
-.lockup .lockup-q { width: .955em; height: .955em; position: relative; top: .167em; margin-right: -.1em; flex: none; }
+/* The logotype: the mark, then the name, centred on each other. Sized in em
+   so it follows whatever size the name is set at. */
+.lockup { display: inline-flex; align-items: center; gap: .28em; white-space: nowrap; }
+.lockup .lockup-mark { width: 1.1em; height: 1.1em; flex: none; }
 
 /* Members: an invitation code shown once, large enough to copy by eye, and
    a removal that has to be opened before it can be confirmed. */

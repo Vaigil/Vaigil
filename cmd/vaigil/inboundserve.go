@@ -17,17 +17,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/atomicfile"
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/automate"
-	"github.com/quilzo/vaigil/internal/fetch"
-	"github.com/quilzo/vaigil/internal/inbound"
-	"github.com/quilzo/vaigil/internal/oidc"
-	"github.com/quilzo/vaigil/internal/source"
-	"github.com/quilzo/vaigil/internal/spool"
-	"github.com/quilzo/vaigil/internal/ssf"
-	"github.com/quilzo/vaigil/internal/telemetry"
-	"github.com/quilzo/vaigil/internal/upkeep"
+	"github.com/vaigil/vaigil/internal/atomicfile"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/automate"
+	"github.com/vaigil/vaigil/internal/fetch"
+	"github.com/vaigil/vaigil/internal/inbound"
+	"github.com/vaigil/vaigil/internal/oidc"
+	"github.com/vaigil/vaigil/internal/source"
+	"github.com/vaigil/vaigil/internal/spool"
+	"github.com/vaigil/vaigil/internal/ssf"
+	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/upkeep"
 )
 
 // Events pushed to the server, the moment they happen.

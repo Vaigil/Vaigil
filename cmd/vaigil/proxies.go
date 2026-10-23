@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/clientip"
-	"github.com/quilzo/vaigil/internal/config"
+	"github.com/vaigil/vaigil/internal/clientip"
+	"github.com/vaigil/vaigil/internal/config"
 )
 
 // proxies is the resolver a surface decides clients with, as the

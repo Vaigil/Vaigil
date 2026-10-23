@@ -53,7 +53,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/telemetry"
 )
 
 // Attestation is somebody saying a vulnerability is being exploited.

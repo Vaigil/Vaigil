@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/geo"
+	"github.com/vaigil/vaigil/internal/geo"
 )
 
 var (

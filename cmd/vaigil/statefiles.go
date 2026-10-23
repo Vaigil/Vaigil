@@ -6,8 +6,8 @@ package main
 import (
 	"time"
 
-	"github.com/quilzo/vaigil/internal/atomicfile"
-	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/atomicfile"
+	"github.com/vaigil/vaigil/internal/auth"
 )
 
 // The state files where a lost write undoes a security decision: who may

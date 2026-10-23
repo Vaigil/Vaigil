@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/mcp"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/mcp"
 )
 
 // vantaStore is a store with the Vanta connector installed and a fake Vanta

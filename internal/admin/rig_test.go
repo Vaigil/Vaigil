@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/config"
-	"github.com/quilzo/vaigil/internal/dual"
-	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/config"
+	"github.com/vaigil/vaigil/internal/dual"
+	"github.com/vaigil/vaigil/internal/telemetry"
 )
 
 // The rig every console test starts from.

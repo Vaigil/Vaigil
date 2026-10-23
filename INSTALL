@@ -63,13 +63,13 @@ From a release
 
 Each release publishes one static binary for each of linux, macOS and Windows
 on amd64 and arm64, with SHA256SUMS, LICENSE and NOTICE beside them, and a
-container image, ghcr.io/quilzo/vaigil, tagged with the version without its
+container image, ghcr.io/vaigil/vaigil, tagged with the version without its
 `v`: the git tag v1.2.3 publishes 1.2.3, 1.2 and latest.
 
 Check a binary before you run it:
 
      sha256sum -c --ignore-missing SHA256SUMS
-     gh attestation verify vaigil-linux-amd64 --repo Quilzo/vaigil
+     gh attestation verify vaigil-linux-amd64 --repo Vaigil/Vaigil
 
 The checksum proves the file matches the list.  The attestation proves the
 file was built by this repository's release workflow, from a tag, and names

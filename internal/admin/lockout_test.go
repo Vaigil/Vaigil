@@ -19,9 +19,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/enrol"
-	"github.com/quilzo/vaigil/internal/lockout"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/enrol"
+	"github.com/vaigil/vaigil/internal/lockout"
 )
 
 // signInFrom is signIn from an address of the caller's choosing.

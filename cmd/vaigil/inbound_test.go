@@ -19,8 +19,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/spool"
-	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/spool"
+	"github.com/vaigil/vaigil/internal/telemetry"
 )
 
 func shownSecret(t *testing.T, shown []string, prefix string) string {

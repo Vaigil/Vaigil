@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/auth"
 )
 
 // Every command that changes something must leave a record of having done it.

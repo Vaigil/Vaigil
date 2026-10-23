@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/remind"
+	"github.com/vaigil/vaigil/internal/remind"
 )
 
 func TestRemindersGoOnceToWhoeverHasSomethingToDo(t *testing.T) {

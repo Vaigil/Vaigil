@@ -53,7 +53,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/audit"
 )
 
 // MaxRecordBytes bounds one submission.

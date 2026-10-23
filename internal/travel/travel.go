@@ -40,8 +40,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/atomicfile"
-	"github.com/quilzo/vaigil/internal/geo"
+	"github.com/vaigil/vaigil/internal/atomicfile"
+	"github.com/vaigil/vaigil/internal/geo"
 )
 
 // Thresholds, as above.

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/quilzo/vaigil/internal/detect"
-	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/detect"
+	"github.com/vaigil/vaigil/internal/telemetry"
 )
 
 // A rule in the shape SigmaHQ actually publishes them.

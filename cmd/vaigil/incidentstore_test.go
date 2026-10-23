@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/incident"
-	"github.com/quilzo/vaigil/internal/mcp"
-	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/incident"
+	"github.com/vaigil/vaigil/internal/mcp"
+	"github.com/vaigil/vaigil/internal/telemetry"
 )
 
 // incidentSite is a store with one finding in its register.

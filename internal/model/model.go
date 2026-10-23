@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/fetch"
+	"github.com/vaigil/vaigil/internal/fetch"
 )
 
 // RequestTimeout bounds one completion.

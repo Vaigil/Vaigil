@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/atomicfile"
-	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/atomicfile"
+	"github.com/vaigil/vaigil/internal/telemetry"
 )
 
 // Keeping the list, the notices and what has been delivered.

@@ -165,7 +165,7 @@ type Binding struct {
 	// Permission, in place of a role, grants one permission and nothing
 	// else (see permission.go).
 	Permission Action `json:"permission,omitempty"`
-	Resource   string `json:"resource"` // "/" is the whole site
+	Resource   string `json:"resource"` // "/" is everything
 	Deny       bool   `json:"deny,omitempty"`
 	// Expires ends the binding at this Unix time. Zero is never. For a
 	// contractor, an auditor, or cover while somebody is away: access that
@@ -386,7 +386,7 @@ func (p *Policy) Evaluate(principal string, action Action, resource string) Deci
 		}
 		if b.Role != RoleAdmin && !IsArea(b.Resource) && guarded(target) {
 			trail = append(trail, fmt.Sprintf(
-				"skip %s on %s — only an administrator over the site reaches %s",
+				"skip %s on %s — only an administrator over all of Vaigil reaches %s",
 				b.Role, normalise(b.Resource), target))
 			continue
 		}

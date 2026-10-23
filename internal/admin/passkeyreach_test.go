@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/auth"
 )
 
 // A passkey signs its person in with everything they hold, so a session

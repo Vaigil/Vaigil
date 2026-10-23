@@ -40,7 +40,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/telemetry"
 )
 
 // Kind is what an indicator is.

@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/quilzo/vaigil/internal/clientip"
-	"github.com/quilzo/vaigil/internal/config"
+	"github.com/vaigil/vaigil/internal/clientip"
+	"github.com/vaigil/vaigil/internal/config"
 )
 
 func TestTheEdgeBelievesOnlyTheProxiesTheConfigurationNames(t *testing.T) {

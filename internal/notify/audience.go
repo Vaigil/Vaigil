@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/telemetry"
 )
 
 // Who gets told, what they agreed to, and what survives them asking to be

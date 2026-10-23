@@ -80,7 +80,7 @@ var notImported = map[string]string{
 // every package in the tree.
 func importGraph(t *testing.T) (imported map[string]bool, pkgs map[string]bool) {
 	t.Helper()
-	const mod = "github.com/quilzo/vaigil/"
+	const mod = "github.com/vaigil/vaigil/"
 	imported = map[string]bool{}
 	pkgs = map[string]bool{}
 

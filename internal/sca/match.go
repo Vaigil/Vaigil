@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/telemetry"
-	"github.com/quilzo/vaigil/internal/vuln"
+	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/vuln"
 )
 
 // Work is what somebody would actually have to do about an exposure.

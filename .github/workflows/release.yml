@@ -70,7 +70,7 @@ jobs:
           body: |
             Every artefact here carries its SHA-256 in `SHA256SUMS`, and each
             has a build provenance attestation:
-            `gh attestation verify vaigil-linux-amd64 --repo Quilzo/vaigil`.
+            `gh attestation verify vaigil-linux-amd64 --repo Vaigil/Vaigil`.
 
   image:
     runs-on: ubuntu-latest

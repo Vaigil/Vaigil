@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/auth"
 )
 
 // The screen somebody sees first.

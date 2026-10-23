@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/admin"
-	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/vaigil/vaigil/internal/admin"
+	"github.com/vaigil/vaigil/internal/atomicfile"
 )
 
 // Two factors for every person (SP 800-63B-4 AAL2): from when.

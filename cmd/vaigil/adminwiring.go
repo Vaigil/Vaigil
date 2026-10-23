@@ -6,8 +6,8 @@ package main
 import (
 	"path/filepath"
 
-	"github.com/quilzo/vaigil/internal/admin"
-	"github.com/quilzo/vaigil/internal/config"
+	"github.com/vaigil/vaigil/internal/admin"
+	"github.com/vaigil/vaigil/internal/config"
 )
 
 // What the console needs that only this package knows.

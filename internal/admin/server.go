@@ -54,13 +54,13 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/clientip"
-	"github.com/quilzo/vaigil/internal/dpop"
-	"github.com/quilzo/vaigil/internal/enrol"
-	"github.com/quilzo/vaigil/internal/icons"
-	"github.com/quilzo/vaigil/internal/lockout"
-	"github.com/quilzo/vaigil/internal/throttle"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/clientip"
+	"github.com/vaigil/vaigil/internal/dpop"
+	"github.com/vaigil/vaigil/internal/enrol"
+	"github.com/vaigil/vaigil/internal/icons"
+	"github.com/vaigil/vaigil/internal/lockout"
+	"github.com/vaigil/vaigil/internal/throttle"
 	"html/template"
 	"math"
 	"net/http"
@@ -72,7 +72,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/auth"
 )
 
 //go:embed assets/*
@@ -694,7 +694,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name string,
 	data["DocsBase"] = DocsBase
 	// The mark, from the one place it is defined.
 	data["MarkPath"] = MarkPath
-	data["MarkLoop"], data["MarkTail"] = MarkLoop, MarkTail
+	data["MarkFirst"], data["MarkSecond"] = MarkFirst, MarkSecond
 
 	// The navigation itself, filtered to what this person may use and sorted
 	// into the order they chose.

@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/appsec"
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/appsec"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/telemetry"
 )
 
 // What a code scanner found, and the part it left undone.

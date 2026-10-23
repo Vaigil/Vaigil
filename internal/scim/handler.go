@@ -5,14 +5,14 @@ package scim
 
 import (
 	"encoding/json"
-	"github.com/quilzo/vaigil/internal/clientip"
+	"github.com/vaigil/vaigil/internal/clientip"
 	"net/http"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 
-	"github.com/quilzo/vaigil/internal/throttle"
+	"github.com/vaigil/vaigil/internal/throttle"
 )
 
 // Handler serves /scim/v2 for an identity provider.

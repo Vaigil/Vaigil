@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/auth"
 )
 
 // Each role gets what it needs to do its job, and nothing above it.

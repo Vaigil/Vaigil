@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/quilzo/vaigil/internal/detect"
+	"github.com/vaigil/vaigil/internal/detect"
 )
 
 // Detections, as files somebody reviews rather than queries somebody typed.

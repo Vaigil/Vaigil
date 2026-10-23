@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/automate"
-	"github.com/quilzo/vaigil/internal/geo"
+	"github.com/vaigil/vaigil/internal/automate"
+	"github.com/vaigil/vaigil/internal/geo"
 )
 
 func geoOffices(t *testing.T, root string) {

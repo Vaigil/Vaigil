@@ -8,9 +8,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/estate"
-	"github.com/quilzo/vaigil/internal/mcp"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/estate"
+	"github.com/vaigil/vaigil/internal/mcp"
 )
 
 // The estate, for an agent: in aggregate, and never by name.

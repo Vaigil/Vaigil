@@ -53,7 +53,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/xmldsig"
+	"github.com/vaigil/vaigil/internal/xmldsig"
 )
 
 // Namespaces and fixed values from the SAML 2.0 core and bindings.

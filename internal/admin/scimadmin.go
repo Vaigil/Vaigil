@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/scim"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/scim"
 )
 
 // The Provisioning screen: the identity provider's connection, and what

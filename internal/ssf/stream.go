@@ -11,7 +11,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/quilzo/vaigil/internal/fetch"
+	"github.com/vaigil/vaigil/internal/fetch"
 )
 
 // Asking a transmitter for a stream.

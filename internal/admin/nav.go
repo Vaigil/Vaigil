@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/find"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/find"
 )
 
 // The navigation, as data.
@@ -121,7 +121,7 @@ var destinations = []destination{
 // rather than the next time somebody ships. The cost is that the link target
 // is no longer verifiable by compiling this program, which is what docSections
 // below exists to hold on to.
-const DocsBase = "https://quilzo.github.io/vaigil.github.io/"
+const DocsBase = "https://vaigil.github.io/"
 
 // docSections is every anchor the published manual carries.
 //
@@ -151,8 +151,7 @@ var docSections = map[string]bool{
 }
 
 // DocURL is the address of one guide in the manual. Each guide is a page
-// of its own, at /SLUG/; the manual's home page sends a Help link from an
-// older build, which used /#anchor, to the page that replaced the anchor.
+// of its own, at /SLUG/.
 func DocURL(page string) string {
 	if page == "" {
 		return DocsBase

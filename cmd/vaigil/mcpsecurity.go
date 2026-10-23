@@ -6,16 +6,16 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/quilzo/vaigil/internal/incident"
-	"github.com/quilzo/vaigil/internal/vuln"
+	"github.com/vaigil/vaigil/internal/incident"
+	"github.com/vaigil/vaigil/internal/vuln"
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/detect"
-	"github.com/quilzo/vaigil/internal/finding"
-	"github.com/quilzo/vaigil/internal/mcp"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/detect"
+	"github.com/vaigil/vaigil/internal/finding"
+	"github.com/vaigil/vaigil/internal/mcp"
 )
 
 // The security queue, for an agent.

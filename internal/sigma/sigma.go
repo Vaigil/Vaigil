@@ -44,8 +44,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/quilzo/vaigil/internal/detect"
-	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/detect"
+	"github.com/vaigil/vaigil/internal/telemetry"
 )
 
 // Rule is a Sigma rule as written.

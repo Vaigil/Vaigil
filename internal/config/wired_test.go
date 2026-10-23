@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/quilzo/vaigil/internal/config"
+	"github.com/vaigil/vaigil/internal/config"
 )
 
 // Every setting must be read by something.

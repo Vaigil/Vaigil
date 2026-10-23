@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/xmldsig"
+	"github.com/vaigil/vaigil/internal/xmldsig"
 )
 
 // IdPMetadata is what an identity provider's metadata says about signing

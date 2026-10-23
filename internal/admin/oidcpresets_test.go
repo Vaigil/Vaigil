@@ -6,7 +6,7 @@ package admin
 import (
 	"testing"
 
-	"github.com/quilzo/vaigil/internal/oidc"
+	"github.com/vaigil/vaigil/internal/oidc"
 )
 
 func claims(email string, verified bool, raw map[string]any) *oidc.Claims {

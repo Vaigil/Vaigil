@@ -9,7 +9,7 @@
 
 [Unit]
 Description=Vaigil security operations console
-Documentation=https://quilzo.github.io/vaigil.github.io/
+Documentation=https://vaigil.github.io/
 After=network-online.target
 Wants=network-online.target
 

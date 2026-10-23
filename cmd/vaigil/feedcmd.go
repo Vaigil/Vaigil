@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/feed"
+	"github.com/vaigil/vaigil/internal/feed"
 )
 
 // The databases a scanner is only as good as.

@@ -111,7 +111,7 @@ func TestRefusalsExplainThemselves(t *testing.T) {
 // is no gap between the check and the dial for a second answer to slip into.
 func TestAFetchResolvesEachNameExactlyOnce(t *testing.T) {
 	resolutions := 0
-	c := New()
+	c := For("connector")
 	c.Resolver = func(ctx context.Context, host string) ([]net.IP, error) {
 		resolutions++
 		// Internal, so the fetch is refused before any socket is opened and
@@ -154,7 +154,7 @@ func TestTheDialTimeCheckRefusesRegardlessOfWhatResolutionSaid(t *testing.T) {
 // Taking the first answer would make the outcome depend on ordering, which is
 // not a security property.
 func TestASplitDNSAnswerIsRefusedEntirely(t *testing.T) {
-	c := New()
+	c := For("connector")
 	c.Resolver = func(ctx context.Context, host string) ([]net.IP, error) {
 		return []net.IP{
 			net.ParseIP("93.184.216.34"),
@@ -171,7 +171,7 @@ func TestASplitDNSAnswerIsRefusedEntirely(t *testing.T) {
 }
 
 func TestAHostThatResolvesOnlyInternallyIsRefused(t *testing.T) {
-	c := New()
+	c := For("connector")
 	c.Resolver = func(ctx context.Context, host string) ([]net.IP, error) {
 		return []net.IP{net.ParseIP("10.1.2.3")}, nil
 	}
@@ -269,7 +269,7 @@ func TestIPv4MappedAddressesAreJudgedOnTheirIPv4Value(t *testing.T) {
 // builds the client for both, so a method added later cannot quietly get an
 // unchecked dialer.
 func TestPostFormIsSubjectToTheSameAddressCheck(t *testing.T) {
-	c := New()
+	c := For("connector")
 	c.Resolver = func(ctx context.Context, host string) ([]net.IP, error) {
 		return []net.IP{net.ParseIP("169.254.169.254")}, nil
 	}
@@ -284,7 +284,7 @@ func TestPostFormIsSubjectToTheSameAddressCheck(t *testing.T) {
 }
 
 func TestPostFormRefusesTheSameURLsAsGet(t *testing.T) {
-	c := New()
+	c := For("connector")
 	for _, raw := range []string{
 		"http://idp.example/token",
 		"https://user:pass@idp.example/token",
@@ -299,7 +299,7 @@ func TestPostFormRefusesTheSameURLsAsGet(t *testing.T) {
 // Do is held to the same address rules as every other call: resolved to an
 // internal address, refused at connect time; an unusable URL, refused before.
 func TestDoIsSubjectToTheSameAddressCheck(t *testing.T) {
-	c := New()
+	c := For("connector")
 	c.Resolver = func(ctx context.Context, host string) ([]net.IP, error) {
 		return []net.IP{net.ParseIP("169.254.169.254")}, nil
 	}

@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/fetch"
-	"github.com/quilzo/vaigil/internal/oidc"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/fetch"
+	"github.com/vaigil/vaigil/internal/oidc"
 )
 
 func oidcPath(root string) string { return filepath.Join(root, "oidc.json") }

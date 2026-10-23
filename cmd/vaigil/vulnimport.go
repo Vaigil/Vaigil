@@ -19,12 +19,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/atomicfile"
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/sca"
-	"github.com/quilzo/vaigil/internal/telemetry"
-	"github.com/quilzo/vaigil/internal/vuln"
+	"github.com/vaigil/vaigil/internal/atomicfile"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/sca"
+	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/vuln"
 )
 
 // Filling the queue from what the world publishes.

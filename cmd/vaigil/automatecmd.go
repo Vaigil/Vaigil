@@ -16,16 +16,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/admin"
-	"github.com/quilzo/vaigil/internal/atomicfile"
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/automate"
-	"github.com/quilzo/vaigil/internal/estate"
-	"github.com/quilzo/vaigil/internal/finding"
-	"github.com/quilzo/vaigil/internal/geo"
-	"github.com/quilzo/vaigil/internal/incident"
-	"github.com/quilzo/vaigil/internal/travel"
+	"github.com/vaigil/vaigil/internal/admin"
+	"github.com/vaigil/vaigil/internal/atomicfile"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/automate"
+	"github.com/vaigil/vaigil/internal/estate"
+	"github.com/vaigil/vaigil/internal/finding"
+	"github.com/vaigil/vaigil/internal/geo"
+	"github.com/vaigil/vaigil/internal/incident"
+	"github.com/vaigil/vaigil/internal/travel"
 )
 
 // Automations: the rules (internal/automate), the actions they may take
@@ -471,7 +471,7 @@ func cmdAutomate(root string, args []string) error {
 	// lock out everybody above them.
 	siteAdmin := func(what string) error {
 		if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
-			return fmt.Errorf("%s acts on people's access, which takes an administrator of the whole site: %w", what, err)
+			return fmt.Errorf("%s acts on people's access, which takes an administrator of all of Vaigil: %w", what, err)
 		}
 		return nil
 	}

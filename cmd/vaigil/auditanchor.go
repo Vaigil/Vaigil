@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/anchor"
-	"github.com/quilzo/vaigil/internal/fetch"
+	"github.com/vaigil/vaigil/internal/anchor"
+	"github.com/vaigil/vaigil/internal/fetch"
 )
 
 // The audit log head, committed to Bitcoin through OpenTimestamps

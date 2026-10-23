@@ -210,7 +210,7 @@ func (s *Server) tools() []Tool {
 	return []Tool{
 		{
 			Name: "vaigil_find",
-			Description: "Find the vaigil operation for a task. Call this first; " +
+			Description: "Find the Vaigil operation for a task. Call this first; " +
 				"it returns the exact arguments for the operation you need.",
 			InputSchema: map[string]any{
 				"type": "object",

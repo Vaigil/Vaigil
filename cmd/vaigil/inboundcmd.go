@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/fetch"
-	"github.com/quilzo/vaigil/internal/inbound"
-	"github.com/quilzo/vaigil/internal/ssf"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/fetch"
+	"github.com/vaigil/vaigil/internal/inbound"
+	"github.com/vaigil/vaigil/internal/ssf"
 )
 
 func inboundUsage() error {
@@ -55,7 +55,7 @@ func cmdInbound(root string, args []string) error {
 	// as rules that change access are.
 	siteAdmin := func() error {
 		if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
-			return fmt.Errorf("changing a feed is for an administrator of the whole site: %w", err)
+			return fmt.Errorf("changing a feed is for an administrator of all of Vaigil: %w", err)
 		}
 		return nil
 	}

@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/finding"
-	"github.com/quilzo/vaigil/internal/telemetry"
-	"github.com/quilzo/vaigil/internal/workforce"
+	"github.com/vaigil/vaigil/internal/finding"
+	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/workforce"
 )
 
 // Closing a review, and the measure that says whether one happened.

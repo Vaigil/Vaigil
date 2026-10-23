@@ -5,7 +5,7 @@ package admin
 
 import (
 	"fmt"
-	"github.com/quilzo/vaigil/internal/clientip"
+	"github.com/vaigil/vaigil/internal/clientip"
 	"net/http"
 	"net/url"
 	"sort"
@@ -16,9 +16,9 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/automate"
-	"github.com/quilzo/vaigil/internal/travel"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/automate"
+	"github.com/vaigil/vaigil/internal/travel"
 )
 
 // Automations, and the sign-in check that is their real-time half.
@@ -428,11 +428,11 @@ func (s *Server) handleSignInsAct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Vouching for somebody takes at least their standing: an analyst
-	// cannot let an administrator of the whole site past a step-up.
+	// cannot let an administrator of all of Vaigil past a step-up.
 	if r.FormValue("do") == "letin" && s.Policy != nil &&
 		s.Policy.Evaluate(who, auth.ActGrant, "/").Allowed &&
 		!s.Policy.Evaluate(p.Name, auth.ActGrant, "/").Allowed {
-		back("e", who+" administers the whole site; only somebody who does too can let them in.")
+		back("e", who+" administers all of Vaigil; only somebody who does too can let them in.")
 		return
 	}
 	var err error
@@ -725,7 +725,7 @@ func (s *Server) handleAutomationsAct(w http.ResponseWriter, r *http.Request) {
 	// the administrators" could lock out everybody above them.
 	siteAdmin := s.Policy != nil && s.Policy.Evaluate(p.Name, auth.ActGrant, "/").Allowed
 	accessRefused := func(what string) {
-		back("e", what+" acts on people's access, which takes an administrator of the whole site.")
+		back("e", what+" acts on people's access, which takes an administrator of all of Vaigil.")
 	}
 	find := func(id string) (automate.Rule, bool) {
 		rules, _ := e.Rules()

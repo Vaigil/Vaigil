@@ -35,7 +35,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/oidc"
+	"github.com/vaigil/vaigil/internal/oidc"
 )
 
 // Window is how old a proof may be, and Skew how far ahead of this

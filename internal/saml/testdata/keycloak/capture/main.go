@@ -13,7 +13,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/quilzo/quilzo/internal/saml"
+	"github.com/vaigil/vaigil/internal/saml"
 )
 
 func main() {

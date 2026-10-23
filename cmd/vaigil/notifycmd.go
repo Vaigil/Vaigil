@@ -15,13 +15,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/atomicfile"
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/egress"
-	"github.com/quilzo/vaigil/internal/fetch"
-	"github.com/quilzo/vaigil/internal/notify"
-	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/atomicfile"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/egress"
+	"github.com/vaigil/vaigil/internal/fetch"
+	"github.com/vaigil/vaigil/internal/notify"
+	"github.com/vaigil/vaigil/internal/telemetry"
 )
 
 // Telling customers and subscribers what happened.
@@ -756,8 +756,7 @@ func notifyLoad(root, id string) (*notify.Store, notify.Notice,
 // communication only where the people affected are informed "in an equally
 // effective manner", and a notice page that fails an accessibility check is
 // not equally effective for somebody reading it with a screen reader. So it
-// is published by the site, through the same checks as every other page:
-// with Vaigil, `vaigil add NAME=FILE` and `vaigil publish`.
+// is published by the site, through the same checks as every other page.
 func notifyPublish(root string, args []string) error {
 	pos, _ := leadingArgs(args, 1)
 	if len(pos) != 1 {
@@ -814,8 +813,7 @@ func notifyPublish(root string, args []string) error {
 			"reason recorded with --public%s\n", dim, reset)
 	}
 	w.Human("  %snobody can read it yet. Put it on the site people were told "+
-		"about, through its accessibility checks: with Vaigil,\n"+
-		"    vaigil add %s=%s && vaigil publish%s\n", dim, name, path, reset)
+		"about, through that site's accessibility checks%s\n", dim, reset)
 	return nil
 }
 

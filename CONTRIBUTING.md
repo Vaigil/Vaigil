@@ -9,7 +9,7 @@ short.
 You need Go 1.27 or later and nothing else. There are no dependencies to fetch.
 
 ```bash
-git clone https://github.com/quilzo/vaigil   # or your fork
+git clone https://github.com/vaigil/vaigil   # or your fork
 cd vaigil
 go build -o vaigil ./cmd/vaigil
 

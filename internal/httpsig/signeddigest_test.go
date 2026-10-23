@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/quilzo/vaigil/internal/httpsig"
+	"github.com/vaigil/vaigil/internal/httpsig"
 )
 
 // A sender signs only the older Digest; somebody on the way replaces the

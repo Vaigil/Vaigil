@@ -15,9 +15,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/throttle"
-	"github.com/quilzo/vaigil/internal/webauthn"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/throttle"
+	"github.com/vaigil/vaigil/internal/webauthn"
 )
 
 // Passkeys in an admin that serves no script.

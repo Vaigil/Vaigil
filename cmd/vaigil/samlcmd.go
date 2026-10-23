@@ -16,10 +16,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/fetch"
-	"github.com/quilzo/vaigil/internal/saml"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/fetch"
+	"github.com/vaigil/vaigil/internal/saml"
 )
 
 // SAML identity providers, one file each under saml/. See internal/saml for
@@ -149,7 +149,7 @@ func cmdSAML(root string, args []string) error {
 	case "add":
 		if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
 			return fmt.Errorf("setting up single sign-on decides who can become an administrator, "+
-				"so it is for an administrator of the whole site: %w", err)
+				"so it is for an administrator of all of Vaigil: %w", err)
 		}
 		c, err := samlAdd(root, args[1:])
 		if err != nil {
@@ -163,7 +163,7 @@ func cmdSAML(root string, args []string) error {
 			return samlUsage()
 		}
 		if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
-			return fmt.Errorf("removing single sign-on is for an administrator of the whole site: %w", err)
+			return fmt.Errorf("removing single sign-on is for an administrator of all of Vaigil: %w", err)
 		}
 		if err := removeSAML(root, args[1]); err != nil {
 			return err

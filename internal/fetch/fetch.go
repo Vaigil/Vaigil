@@ -48,8 +48,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
-	"github.com/quilzo/vaigil/internal/egress"
+	"github.com/vaigil/vaigil/internal/egress"
 	"io"
 	"net"
 	"net/http"
@@ -237,12 +238,16 @@ func inside(p netip.Prefix) bool {
 	return false
 }
 
+// errNoPurpose is a fetch that names no declared network purpose.
+var errNoPurpose = errors.New("this fetch names no network purpose, so it is refused: " +
+	"every connection this program makes is for one declared in internal/egress")
+
 // Client fetches URLs.
 type Client struct {
 	// Purpose says which declared network purpose this client's connections
 	// serve, so an offline deployment's refusal can name the feature that
-	// wanted the connection rather than an address. Empty means import, which
-	// is what an unattributed fetch is.
+	// wanted the connection rather than an address. Empty is refused: a
+	// connection nobody can attribute to a feature is one nobody reviewed.
 	Purpose string
 
 	Limits Limits
@@ -270,7 +275,7 @@ func (c *Client) checkIP(ip net.IP) string {
 // New returns a Client with the defaults.
 func New() *Client {
 	return &Client{Limits: Limits{}.withDefaults(),
-		UserAgent: "vaigil/1 (+content import)"}
+		UserAgent: "vaigil/1"}
 }
 
 // For returns a Client with the defaults, for one declared purpose
@@ -516,7 +521,9 @@ func (c *Client) httpClient(lim Limits) (*http.Client, error) {
 func (c *Client) dialContext(d *net.Dialer) func(context.Context, string, string) (net.Conn, error) {
 	purpose := c.Purpose
 	if purpose == "" {
-		purpose = "import"
+		return func(context.Context, string, string) (net.Conn, error) {
+			return nil, errNoPurpose
+		}
 	}
 	if c.Resolver == nil {
 		return func(ctx context.Context, network, address string) (net.Conn, error) {

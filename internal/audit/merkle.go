@@ -11,7 +11,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/translog"
+	"github.com/vaigil/vaigil/internal/translog"
 )
 
 // The hash chain says whether this log was altered. A Merkle tree over the same

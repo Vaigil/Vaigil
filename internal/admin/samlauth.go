@@ -17,8 +17,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/saml"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/saml"
 )
 
 // SAML sign-in, beside OIDC, passkeys and tokens. internal/saml decides

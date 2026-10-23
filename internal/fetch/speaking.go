@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/egress"
+	"github.com/vaigil/vaigil/internal/egress"
 )
 
 // Clients for the callers that speak their own protocol.

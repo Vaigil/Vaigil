@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/oidc"
+	"github.com/vaigil/vaigil/internal/oidc"
 )
 
 // An ID token counts as two factors only when it says so, about a sign-in

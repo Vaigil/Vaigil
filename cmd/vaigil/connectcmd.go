@@ -14,12 +14,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/atomicfile"
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/connector"
-	"github.com/quilzo/vaigil/internal/egress"
-	"github.com/quilzo/vaigil/internal/vault"
+	"github.com/vaigil/vaigil/internal/atomicfile"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/connector"
+	"github.com/vaigil/vaigil/internal/egress"
+	"github.com/vaigil/vaigil/internal/vault"
 )
 
 // Connecting to a company's tools, one reviewable file per tool.

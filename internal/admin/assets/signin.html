@@ -105,17 +105,19 @@
 
     <h2>What this is</h2>
     <ul>
-      <li>Content addressed by the hash of its own bytes, so history is free
-        and rollback is a pointer move.</li>
-      <li>Nothing executes: no plugin runtime, no scripting in templates, no
-        expressions in queries, no JavaScript in this interface.</li>
+      <li>Security operations for the systems your organisation runs: what
+        happens on each of them, brought into one place, judged by rules you
+        can read, and decided by people.</li>
+      <li>Every person signs in with two factors, and every change is written
+        to an audit log this console cannot rewrite.</li>
       <li>No third-party dependencies at all, in an image built from scratch
         with no shell, no package manager and no libc in it.</li>
     </ul>
     <p class="help">
-      Repeated failures here are slowed rather than locked out — a hard lockout
-      is a denial of service somebody aims at you by failing your logins for
-      you.
+      Repeated failures lock out the places they come from, not you: from
+      where you usually sign in, or with your passkey, you still can. Locking
+      the account itself would hand anybody who knows your name a way to keep
+      you out.
     </p>
   </aside>
 

@@ -13,7 +13,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/quilzo/vaigil/internal/logd"
+	"github.com/vaigil/vaigil/internal/logd"
 )
 
 // The socket lives beside the log, not inside the store.

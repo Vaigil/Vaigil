@@ -28,7 +28,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/vaigil/vaigil/internal/atomicfile"
 )
 
 // MaxLife is the longest a link may wait to be used.

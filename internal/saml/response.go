@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/xmldsig"
+	"github.com/vaigil/vaigil/internal/xmldsig"
 )
 
 // Limits on what an assertion may carry. Generous for any directory; small

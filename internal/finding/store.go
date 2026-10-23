@@ -10,7 +10,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/vaigil/vaigil/internal/atomicfile"
 )
 
 // The register, kept between runs.

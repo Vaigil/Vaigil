@@ -6,7 +6,7 @@ package admin
 import (
 	"testing"
 
-	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/auth"
 )
 
 // An access change made here is applied to the policy as stored, so a

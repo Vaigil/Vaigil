@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/vaigil/vaigil/internal/atomicfile"
 
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/review"
-	"github.com/quilzo/vaigil/internal/workforce"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/review"
+	"github.com/vaigil/vaigil/internal/workforce"
 )
 
 // Access reviews, closed by the import rather than by the reviewer.

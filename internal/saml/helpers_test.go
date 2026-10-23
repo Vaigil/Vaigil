@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/xmldsig"
+	"github.com/vaigil/vaigil/internal/xmldsig"
 )
 
 // The JDK-signed fixtures live with the package that verifies signatures.

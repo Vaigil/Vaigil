@@ -16,12 +16,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/action"
-	"github.com/quilzo/vaigil/internal/atomicfile"
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/egress"
-	"github.com/quilzo/vaigil/internal/incident"
+	"github.com/vaigil/vaigil/internal/action"
+	"github.com/vaigil/vaigil/internal/atomicfile"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/egress"
+	"github.com/vaigil/vaigil/internal/incident"
 )
 
 // Actions: the playbook step this program carries out itself.

@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/estate"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/estate"
 )
 
 func wfSnapshot(source string, kinds map[string]estate.Kind,

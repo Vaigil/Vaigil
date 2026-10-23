@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/fetch"
-	"github.com/quilzo/vaigil/internal/oidc"
+	"github.com/vaigil/vaigil/internal/fetch"
+	"github.com/vaigil/vaigil/internal/oidc"
 )
 
 var now = time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)

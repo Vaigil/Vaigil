@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/quilzo/vaigil/internal/webauthn"
+	"github.com/vaigil/vaigil/internal/webauthn"
 )
 
 // A YubiKey 5 series identifier, as an example of the shape.

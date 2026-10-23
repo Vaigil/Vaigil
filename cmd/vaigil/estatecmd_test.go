@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/finding"
+	"github.com/vaigil/vaigil/internal/finding"
 )
 
 // From two real connectors to the findings register, and back out again

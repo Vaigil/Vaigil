@@ -275,8 +275,8 @@ func (e *ErrNeedsAcceptance) Error() string {
 	return fmt.Sprintf(
 		"%s = %s gives up security: %s\n"+
 			"  This is allowed. It needs a reason, which is recorded in the "+
-			"audit log and reported by `vaigil posture scan` until it is "+
-			"changed back or renewed:\n"+
+			"audit log and reported by `vaigil config list` and the "+
+			"Settings screen until it is changed back or renewed:\n"+
 			"    vaigil config set %s %s --accept-risk \"why this is right here\"",
 		e.Key, e.Value, e.Why, e.Key, e.Value)
 }

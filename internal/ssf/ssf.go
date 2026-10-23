@@ -42,7 +42,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/oidc"
+	"github.com/vaigil/vaigil/internal/oidc"
 )
 
 // Event type URIs.

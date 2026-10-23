@@ -8,8 +8,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/auth"
 )
 
 // What every command needs before it is allowed to run.
@@ -97,6 +97,11 @@ var commandNeeds = map[string]need{
 	"inbound list":   {action: auth.ActView},
 	"inbound status": {action: auth.ActView},
 	"inbound help":   {action: auth.ActView},
+	// Where sign-ins come from decides which of them are stepped up, so
+	// naming a network is a decision for all of Vaigil; reading is a view.
+	"geo":        {action: auth.ActGrant},
+	"geo status": {action: auth.ActView},
+	"geo help":   {action: auth.ActView},
 	// Grant: provisioning decides who holds which role.
 	"scim":          {action: auth.ActGrant},
 	"scim status":   {action: auth.ActGrant},
@@ -241,6 +246,13 @@ var commandNeeds = map[string]need{
 	// writes. The person running it is hunting, which is the job view exists
 	// for.
 	"hunt": {action: auth.ActView},
+
+	// Reading a file somebody hands it and saying whether the events in it
+	// are usable. Touches no store and writes nothing, so it is the authority
+	// to look rather than the authority to change anything — and the person
+	// most likely to run it is whoever is writing a connector, who may well
+	// have been given nothing else.
+	"telemetry": {action: auth.ActView},
 
 	// Reading rule files and running them against their own fixtures. No
 	// store, no network, no writes — the same authority as looking at the
@@ -541,7 +553,7 @@ var commandAreas = map[string]string{
 	"identity": auth.AreaSecurity, "collect": auth.AreaSecurity, "source": auth.AreaSecurity,
 	"connect": auth.AreaSecurity, "estate": auth.AreaSecurity, "remind": auth.AreaSecurity,
 	"workforce": auth.AreaSecurity, "hunt": auth.AreaSecurity, "detect": auth.AreaSecurity,
-	"sigma": auth.AreaSecurity, "correlate": auth.AreaSecurity,
+	"sigma": auth.AreaSecurity, "correlate": auth.AreaSecurity, "telemetry": auth.AreaSecurity,
 	"siem": auth.AreaLog, "automate": auth.AreaSecurity, "inbound": auth.AreaSecurity,
 	"auditlog": auth.AreaLog,
 }

@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/auth"
 )
 
 // Keeping a long-running server's credentials current.

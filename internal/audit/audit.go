@@ -69,7 +69,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/atomicfile"
+	"github.com/vaigil/vaigil/internal/atomicfile"
 )
 
 // Kind distinguishes the three sorts of actor. AU-3(f).

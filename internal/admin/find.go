@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/config"
-	"github.com/quilzo/vaigil/internal/find"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/config"
+	"github.com/vaigil/vaigil/internal/find"
 )
 
 // Looking for one thing, across everything.

@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/dpop"
-	"github.com/quilzo/vaigil/internal/throttle"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/dpop"
+	"github.com/vaigil/vaigil/internal/throttle"
 )
 
 // Short-lived and bound credentials for programs.

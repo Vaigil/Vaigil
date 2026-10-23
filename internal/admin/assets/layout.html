@@ -32,7 +32,7 @@
       {{template "menuicon"}}
     </button>
     {{template "navtoggle" .}}
-    <a class="brand" href="/" title="{{.Brand}}">{{if .BrandMark}}<span class="mark mark-initial" aria-hidden="true">{{.BrandMark}}</span><span class="brand-name">{{.Brand}}</span>{{else if eq .Brand "Vaigil"}}{{template "lockup" .}}{{else}}<svg class="mark" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path class="mark-loop" d="{{.MarkLoop}}"/><path class="mark-tail" d="{{.MarkTail}}"/></svg><span class="brand-name">{{.Brand}}</span>{{end}}</a>
+    <a class="brand" href="/" title="{{.Brand}}">{{if .BrandMark}}<span class="mark mark-initial" aria-hidden="true">{{.BrandMark}}</span><span class="brand-name">{{.Brand}}</span>{{else if eq .Brand "Vaigil"}}{{template "lockup" .}}{{else}}<svg class="mark" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path class="mark-first" d="{{.MarkFirst}}"/><path class="mark-second" d="{{.MarkSecond}}"/></svg><span class="brand-name">{{.Brand}}</span>{{end}}</a>
     </div>
 
     {{/*
@@ -172,9 +172,8 @@
   person already has the star -- so each reader gets the one that works and
   neither gets both.
 */}}
-{{/* The logotype: the mark is the Q of the name, so the word is not
-     spelled with two of them. Read out as the whole word. */}}
-{{define "lockup"}}<span class="lockup" role="img" aria-label="Vaigil"><svg class="mark lockup-q" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path class="mark-loop" d="{{.MarkLoop}}"/><path class="mark-tail" d="{{.MarkTail}}"/></svg><span aria-hidden="true">uilzo</span></span>{{end}}
+{{/* The logotype: the mark, then the name. Read out as the name. */}}
+{{define "lockup"}}<span class="lockup" role="img" aria-label="Vaigil"><svg class="mark lockup-mark" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path class="mark-first" d="{{.MarkFirst}}"/><path class="mark-second" d="{{.MarkSecond}}"/></svg><span aria-hidden="true">Vaigil</span></span>{{end}}
 {{define "req"}}<span class="req" aria-hidden="true">*</span><span class="visually-hidden"> (required)</span>{{end}}
 
 {{/*

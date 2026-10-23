@@ -50,7 +50,7 @@ func TestOnlyPrivateRangesMayBeDeclared(t *testing.T) {
 // The declared range opens exactly that range: the next one along is still
 // refused, and the metadata address is refused whatever is declared.
 func TestADeclaredRangeOpensOnlyItself(t *testing.T) {
-	c := New()
+	c := For("connector")
 	c.Reach = Within([]netip.Prefix{netip.MustParsePrefix("10.20.0.0/16")})
 	for ip, open := range map[string]bool{
 		"10.20.1.2":        true,
@@ -78,7 +78,7 @@ func TestADeclaredRangeOpensOnlyItself(t *testing.T) {
 // name that also answers with an address outside it is refused, as a split
 // answer is everywhere else.
 func TestADeclaredNameIsCheckedOnEveryAnswer(t *testing.T) {
-	c := New()
+	c := For("connector")
 	c.Reach = Within([]netip.Prefix{netip.MustParsePrefix("10.20.0.0/16")})
 	c.Resolver = func(ctx context.Context, host string) ([]net.IP, error) {
 		return []net.IP{net.ParseIP("10.20.1.2"), net.ParseIP("10.30.0.1")}, nil
@@ -96,7 +96,7 @@ func TestADeclaredServerIsReached(t *testing.T) {
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	defer srv.Close()
 
-	c := New()
+	c := For("connector")
 	_, err := c.Do(context.Background(), http.MethodPost, srv.URL+"/mcp", nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "refusing") {
 		t.Fatalf("an undeclared loopback server: %v", err)

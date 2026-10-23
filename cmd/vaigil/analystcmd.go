@@ -16,13 +16,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/analyst"
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/decide"
-	"github.com/quilzo/vaigil/internal/finding"
-	"github.com/quilzo/vaigil/internal/model"
-	"github.com/quilzo/vaigil/internal/pii"
+	"github.com/vaigil/vaigil/internal/analyst"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/decide"
+	"github.com/vaigil/vaigil/internal/finding"
+	"github.com/vaigil/vaigil/internal/model"
+	"github.com/vaigil/vaigil/internal/pii"
 )
 
 // The analyst: a model's first pass over the queue, as suggestions.

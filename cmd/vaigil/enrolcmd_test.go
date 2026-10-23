@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/enrol"
-	"github.com/quilzo/vaigil/internal/out"
+	"github.com/vaigil/vaigil/internal/enrol"
+	"github.com/vaigil/vaigil/internal/out"
 )
 
 // A new store made with --admin has its first administrator, two factors

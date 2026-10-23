@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/estate"
-	"github.com/quilzo/vaigil/internal/lifecycle"
-	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/estate"
+	"github.com/vaigil/vaigil/internal/lifecycle"
+	"github.com/vaigil/vaigil/internal/telemetry"
 )
 
 // Device compliance on the workforce screens: each machine measured

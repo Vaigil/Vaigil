@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/oidc"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/oidc"
 )
 
 // OIDC wires an identity provider into the admin.

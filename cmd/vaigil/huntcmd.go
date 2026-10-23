@@ -11,8 +11,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/quilzo/vaigil/internal/baseline"
-	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/baseline"
+	"github.com/vaigil/vaigil/internal/telemetry"
 )
 
 // Stacking: sort by how rare a thing is and read the top.

@@ -6,7 +6,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/quilzo/vaigil/internal/egress"
+	"github.com/vaigil/vaigil/internal/egress"
 )
 
 // What this program would connect to, and whether it may.

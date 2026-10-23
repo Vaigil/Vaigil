@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/atomicfile"
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/config"
-	"github.com/quilzo/vaigil/internal/dual"
-	"github.com/quilzo/vaigil/internal/throttle"
+	"github.com/vaigil/vaigil/internal/atomicfile"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/config"
+	"github.com/vaigil/vaigil/internal/dual"
+	"github.com/vaigil/vaigil/internal/throttle"
 )
 
 func configPath(root string) string { return filepath.Join(root, "config.json") }
@@ -165,8 +165,8 @@ func configShow(root string) error {
 		}
 	}
 	if weak > 0 {
-		w.Human("\n  %s%d setting(s) are weaker than the default and are "+
-			"reported by `vaigil posture scan`%s\n", dim, weak, reset)
+		w.Human("\n  %s%d setting(s) are weaker than the default, and the "+
+			"Settings screen says so at the top%s\n", dim, weak, reset)
 	}
 	return nil
 }
@@ -287,8 +287,8 @@ func configSet(root string, args []string) error {
 	if reason != "" {
 		w.Human("  %srisk accepted for %d days: %q%s\n", yellow,
 			int(config.MaxAcceptance.Hours()/24), reason, reset)
-		w.Human("  %s`vaigil posture scan` reports this until it is changed "+
-			"back or renewed%s\n", dim, reset)
+		w.Human("  %s`vaigil config list` and the Settings screen report this "+
+			"until it is changed back or renewed%s\n", dim, reset)
 	}
 	return nil
 }

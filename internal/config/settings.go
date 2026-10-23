@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/clientip"
-	"github.com/quilzo/vaigil/internal/throttle"
+	"github.com/vaigil/vaigil/internal/clientip"
+	"github.com/vaigil/vaigil/internal/throttle"
 )
 
 // Every setting, in one table.

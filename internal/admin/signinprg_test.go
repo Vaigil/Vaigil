@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/quilzo/vaigil/internal/throttle"
+	"github.com/vaigil/vaigil/internal/throttle"
 )
 
 // TestAThrottledSignInLeavesNothingToResubmit.

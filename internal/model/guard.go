@@ -6,9 +6,9 @@ package model
 import (
 	"context"
 
-	"github.com/quilzo/vaigil/internal/pii"
-	"github.com/quilzo/vaigil/internal/plaintext"
-	"github.com/quilzo/vaigil/internal/secret"
+	"github.com/vaigil/vaigil/internal/pii"
+	"github.com/vaigil/vaigil/internal/plaintext"
+	"github.com/vaigil/vaigil/internal/secret"
 )
 
 // Guarded is a model behind a privacy guard: what may not leave is masked

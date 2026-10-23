@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/atomicfile"
-	"github.com/quilzo/vaigil/internal/dpop"
+	"github.com/vaigil/vaigil/internal/atomicfile"
+	"github.com/vaigil/vaigil/internal/dpop"
 )
 
 // A program's own key, for tokens bound to it (see internal/dpop). The key

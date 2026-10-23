@@ -6,12 +6,12 @@ package admin
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"github.com/quilzo/vaigil/internal/throttle"
+	"github.com/vaigil/vaigil/internal/throttle"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/auth"
 )
 
 // humanBytes writes a file size the way somebody choosing a picture reads it.

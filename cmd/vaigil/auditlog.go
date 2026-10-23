@@ -8,18 +8,18 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
-	"github.com/quilzo/vaigil/internal/anchor"
-	"github.com/quilzo/vaigil/internal/fetch"
-	"github.com/quilzo/vaigil/internal/logd"
+	"github.com/vaigil/vaigil/internal/anchor"
+	"github.com/vaigil/vaigil/internal/fetch"
+	"github.com/vaigil/vaigil/internal/logd"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/dual"
-	"github.com/quilzo/vaigil/internal/out"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/dual"
+	"github.com/vaigil/vaigil/internal/out"
 )
 
 // Where the audit log lives.

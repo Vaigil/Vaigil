@@ -86,39 +86,19 @@ type Purpose struct {
 // review is the point.
 var Purposes = []Purpose{
 	{
-		Name: "browser",
-		What: "downloading the pinned Chrome for Testing browser an agent's " +
-			"browser runs, once, checked against the SHA-256 this release carries",
-		Without: "the browser is not downloaded. Point browser.path at a " +
-			"Chromium already on this machine, or agents do not browse",
+		Name: "model",
+		What: "asking a language model for the AI analyst's first pass on a " +
+			"finding: counts and quoted evidence, with personal data and " +
+			"credentials masked before they leave",
+		Without: "the analyst writes no suggestions. Findings are triaged by " +
+			"people alone, exactly as they are without a model configured",
 	},
 	{
-		Name: "federation",
-		What: "delivering activities to followers' inboxes, and fetching a " +
-			"remote actor's public key so their delivery can be verified",
-		Without: "this site federates with nobody. Followers on other servers " +
-			"stop receiving posts, and activities arriving here cannot be " +
-			"verified because their sender's key cannot be fetched",
-	},
-	{
-		Name: "trust",
-		What: "reading the signing keys of an issuer a trust names, such as " +
-			"GitHub Actions or GitLab CI, to check the identity token a job " +
-			"exchanges for a short Vaigil token",
-		Without: "no job can exchange its identity token; programs use tokens " +
-			"issued here",
-	},
-	{
-		Name:    "webhook",
-		What:    "notifying an endpoint that something was published or proposed",
-		Without: "webhooks are not delivered. Nothing is queued or retried",
-	},
-	{
-		Name: "timestamp",
-		What: "asking a time-stamping authority to attest that a value existed " +
-			"at a moment (RFC 3161)",
-		Without: "audit heads carry no third-party time. They are still " +
-			"signed, and the date on them is this machine's own word",
+		Name: "webhook",
+		What: "posting a breach notice to a customer's own endpoint, signed " +
+			"with the secret that customer was given",
+		Without: "notices for the webhook channel are not delivered. Those " +
+			"for mail and in the application still go",
 	},
 	{
 		Name: "anchor",
@@ -126,35 +106,6 @@ var Purposes = []Purpose{
 		Without: "heads are not anchored. Rewriting history stays detectable " +
 			"against a head somebody else holds and is no longer provable " +
 			"against one nobody controls",
-	},
-	{
-		Name: "guardrail",
-		What: "asking an outside classifier (Lakera Guard, Model Armor, or one on this network) " +
-			"whether a chatbot's knowledge or a visitor's question is an attack",
-		Without: "only Vaigil's own checks screen what chatbots read and are asked, which is " +
-			"what happens when no guardrail is set",
-	},
-	{
-		Name: "research",
-		What: "resolving a citation, and searching for works, in open scholarly indexes: " +
-			"OpenAlex, Crossref and arXiv",
-		Without: "research projects cite nothing new and search nothing; what is cited " +
-			"already, and every computation, still works",
-	},
-	{
-		Name: "fleet",
-		What: "reading another vendor's agent card (A2A) when somebody registers that agent, " +
-			"and again when the fleet is checked, to see whether it changed",
-		Without: "other vendors' agents cannot be registered or checked. Vaigil's own " +
-			"agents, apps, tool servers and model routes are still listed",
-	},
-	{
-		Name: "assistant",
-		What: "sending a prompt to a language model over HTTP, for a page or " +
-			"for a picture",
-		Without: "the writing assistant and image generation are both " +
-			"unavailable. A model reachable on loopback still works, which " +
-			"is the usual arrangement here",
 	},
 	{
 		Name: "mail",
@@ -174,11 +125,6 @@ var Purposes = []Purpose{
 		What: "pushing the audit log to a SIEM as it is written (siem.stream.url)",
 		Without: "the audit log is kept here only. vaigil siem still exports it " +
 			"for somebody to carry across",
-	},
-	{
-		Name:    "telemetry",
-		What:    "exporting traces and metrics to an OTLP collector",
-		Without: "nothing is exported. A collector on loopback still receives",
 	},
 	{
 		Name: "action",
@@ -214,39 +160,6 @@ var Purposes = []Purpose{
 		Without: "metadata is pasted or given as a file instead. Signing in " +
 			"never fetches anything: the trusted certificates are stored " +
 			"when a person confirms them",
-	},
-	{
-		Name: "apps",
-		What: "reading the short document an AI app publishes about itself " +
-			"(its name, and where sign-in may send a person back to) when " +
-			"somebody connects it to the agent interface",
-		Without: "apps cannot identify themselves by address, so only apps an " +
-			"administrator registered on the Connected apps screen can connect",
-	},
-	{
-		Name:    "replication",
-		What:    "a replica reading the published site from the store it follows",
-		Without: "a replica stops following and serves what it last had",
-	},
-	{
-		Name: "integrations",
-		What: "calling a tool on an MCP server an administrator declared and enabled, for an " +
-			"agent's run or for another system's agent through the gateway",
-		Without: "agents call no tool outside, and the gateway offers nothing; reading and " +
-			"writing what Vaigil holds still works",
-	},
-	{
-		Name: "agents",
-		What: "an agent's program reaching a host its manifest names, through " +
-			"the proxy its sandbox is given; each connection is recorded",
-		Without: "agents' programs reach nothing outside; the agent interface " +
-			"and the model gateway inside their sandbox still work",
-	},
-	{
-		Name: "import",
-		What: "fetching a page or an image the operator asked to import",
-		Without: "importing by URL is refused. Importing from a file is not " +
-			"affected, which is how content arrives on an isolated network",
 	},
 }
 

@@ -25,9 +25,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/saml"
-	"github.com/quilzo/vaigil/internal/xmldsig"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/saml"
+	"github.com/vaigil/vaigil/internal/xmldsig"
 )
 
 // The whole sign-in, through the admin's own handlers: start, a response

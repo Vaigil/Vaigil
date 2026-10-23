@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/enrol"
-	"github.com/quilzo/vaigil/internal/throttle"
-	"github.com/quilzo/vaigil/internal/webauthn"
+	"github.com/vaigil/vaigil/internal/enrol"
+	"github.com/vaigil/vaigil/internal/throttle"
+	"github.com/vaigil/vaigil/internal/webauthn"
 )
 
 // Adding a first passkey through a one-time link (internal/enrol).

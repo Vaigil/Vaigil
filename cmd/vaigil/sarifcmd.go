@@ -10,8 +10,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/quilzo/vaigil/internal/sarif"
-	"github.com/quilzo/vaigil/internal/telemetry"
+	"github.com/vaigil/vaigil/internal/sarif"
+	"github.com/vaigil/vaigil/internal/telemetry"
 )
 
 // The interchange format every code scanner already speaks.

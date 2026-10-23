@@ -8,7 +8,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/incident"
+	"github.com/vaigil/vaigil/internal/incident"
 )
 
 // Today: the first screen after signing in.

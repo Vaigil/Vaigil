@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/quilzo/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/auth"
 )
 
 // The Feeds screen: what other systems push here, whether it is arriving,
@@ -95,7 +95,7 @@ func (s *Server) handleFeedsAct(w http.ResponseWriter, r *http.Request) {
 	// Whoever could add a feed could make a signal up and have it acted
 	// on, so it is the whole site's decision.
 	if s.Policy == nil || !s.Policy.Evaluate(p.Name, auth.ActGrant, "/").Allowed {
-		back("e", "Changing a feed takes an administrator of the whole site: what a feed says reaches the automations.")
+		back("e", "Changing a feed takes an administrator of all of Vaigil: what a feed says reaches the automations.")
 		return
 	}
 	name := strings.TrimSpace(r.FormValue("name"))

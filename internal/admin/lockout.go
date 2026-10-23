@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/lockout"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/lockout"
 )
 
 // Smart lockout at the admin's door (internal/lockout).
@@ -169,7 +169,7 @@ func (s *Server) handleSignInsUnlock(w http.ResponseWriter, r *http.Request) {
 		return
 	case s.Policy != nil && s.Policy.Evaluate(who, auth.ActGrant, "/").Allowed &&
 		!s.Policy.Evaluate(p.Name, auth.ActGrant, "/").Allowed:
-		back("e", who+" administers the whole site; only somebody who does too can unlock them.")
+		back("e", who+" administers all of Vaigil; only somebody who does too can unlock them.")
 		return
 	}
 	found, err := s.Lockout.Unlock(who, time.Now())

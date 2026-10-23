@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/mcp"
-	"github.com/quilzo/vaigil/internal/out"
-	"github.com/quilzo/vaigil/internal/vuln"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/mcp"
+	"github.com/vaigil/vaigil/internal/out"
+	"github.com/vaigil/vaigil/internal/vuln"
 )
 
 // vulnSite is a store with three advisories against one library on two

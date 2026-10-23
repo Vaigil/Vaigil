@@ -20,12 +20,6 @@ import (
 // and the only mentions allowed are the ones that are about Quilzo itself.
 func TestQuilzoIsNamedOnlyWhereItIsMeant(t *testing.T) {
 	allowed := []*regexp.Regexp{
-		// The module and the organisation it is published under.
-		regexp.MustCompile(`github\.com/quilzo/`),
-		regexp.MustCompile(`github\.com/Quilzo/`),
-		regexp.MustCompile(`quilzo\.github\.io`),
-		// The repository's own name, which a release is verified against.
-		regexp.MustCompile(`Quilzo/vaigil`),
 		// The context Quilzo signs its audit heads in, for a receiver of its
 		// stream.
 		regexp.MustCompile(`quilzo/audit-head/v1`),
@@ -33,7 +27,9 @@ func TestQuilzoIsNamedOnlyWhereItIsMeant(t *testing.T) {
 		// for: a signature covers it, so it is kept as it was signed.
 		regexp.MustCompile(`quilzo\.example/saml`),
 	}
-	any := regexp.MustCompile(`(?i)quilzo`)
+	// "uilzo" as well: a fragment of the old name, such as a logotype that
+	// spelled it after its mark, is still the wrong name.
+	any := regexp.MustCompile(`(?i)uilzo`)
 	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err

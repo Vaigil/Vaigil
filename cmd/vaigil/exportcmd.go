@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/audit"
-	"github.com/quilzo/vaigil/internal/out"
-	"github.com/quilzo/vaigil/internal/siem"
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/out"
+	"github.com/vaigil/vaigil/internal/siem"
 )
 
 func cmdSiem(root string, args []string) error {

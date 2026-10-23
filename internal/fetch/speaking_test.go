@@ -32,15 +32,15 @@ func TestAProtocolClientRefusesToFollowARedirect(t *testing.T) {
 		}))
 	defer from.Close()
 
-	c := Speaking("assistant", Anywhere, 5*time.Second)
-	resp, err := c.Get(from.URL + "/bot12345:TOKEN/getMe")
+	c := Speaking("slack", Anywhere, 5*time.Second)
+	resp, err := c.Get(from.URL + "/services/T0000/B0000/SECRET")
 	if err == nil {
 		resp.Body.Close()
 		t.Fatal("the redirect was followed")
 	}
 	if landed {
-		t.Error("the request arrived at the redirect target, which for the " +
-			"Bot API means the token in the path went with it")
+		t.Error("the request arrived at the redirect target, which for an " +
+			"incoming webhook means the secret in the path went with it")
 	}
 	if !strings.Contains(err.Error(), "not a protocol that redirects") {
 		t.Errorf("the refusal does not say why: %v", err)
@@ -57,7 +57,7 @@ func TestAProtocolClientRefusesAnAddressTheRuleRefuses(t *testing.T) {
 	defer srv.Close()
 
 	// Public refuses loopback, which is what the test server is on.
-	c := Speaking("timestamp", Public, 5*time.Second)
+	c := Speaking("anchor", Public, 5*time.Second)
 	if _, err := c.Get(srv.URL); err == nil {
 		t.Fatal("a loopback address was reached by a client whose rule is " +
 			"Public")
@@ -75,7 +75,7 @@ func TestAProtocolClientReachesAnAddressTheRuleAllows(t *testing.T) {
 		}))
 	defer srv.Close()
 
-	c := Speaking("telemetry", OnThisNetwork, 5*time.Second)
+	c := Speaking("siem", OnThisNetwork, 5*time.Second)
 	resp, err := c.Get(srv.URL)
 	if err != nil {
 		t.Fatalf("a collector on loopback could not be reached: %v", err)
@@ -120,7 +120,7 @@ func TestAClientWithNoRuleRefusesEverything(t *testing.T) {
 		func(w http.ResponseWriter, r *http.Request) {}))
 	defer srv.Close()
 
-	if _, err := Speaking("assistant", nil, time.Second).Get(srv.URL); err == nil {
+	if _, err := Speaking("model", nil, time.Second).Get(srv.URL); err == nil {
 		t.Fatal("a client built with no address rule connected anyway, so " +
 			"forgetting the argument is a silent hole rather than a failure")
 	}

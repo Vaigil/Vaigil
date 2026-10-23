@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quilzo/vaigil/internal/auth"
-	"github.com/quilzo/vaigil/internal/automate"
-	"github.com/quilzo/vaigil/internal/dual"
-	"github.com/quilzo/vaigil/internal/incident"
+	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/automate"
+	"github.com/vaigil/vaigil/internal/dual"
+	"github.com/vaigil/vaigil/internal/incident"
 )
 
 // waitingCase is a case with an act on another platform waiting, asked for
