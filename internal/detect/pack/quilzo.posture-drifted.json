@@ -1,0 +1,134 @@
+{
+  "id": "quilzo.posture-drifted",
+  "title": "A high or critical Quilzo posture check started failing",
+  "why": "a control that held stopped holding, and a high or critical one is a way in",
+  "blind": "a check that fails at medium or below, and one Quilzo does not run",
+  "sources": [
+    "quilzo/audit"
+  ],
+  "severity": 3,
+  "when": {
+    "all": [
+      {
+        "match": {
+          "field": "raw.action",
+          "op": "equals",
+          "values": [
+            "posture.drifted"
+          ]
+        }
+      },
+      {
+        "match": {
+          "field": "raw.severity",
+          "op": "equals",
+          "values": [
+            "high",
+            "critical"
+          ]
+        }
+      }
+    ]
+  },
+  "technique": [
+    "T1562"
+  ],
+  "fixtures": [
+    {
+      "name": "an administrator's token",
+      "match": true,
+      "event": {
+        "source": "quilzo/audit",
+        "time": "2026-10-25T09:00:00Z",
+        "received": "2026-10-25T09:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "quilzo",
+          "value": "p_1a2b3c"
+        },
+        "message": "posture.drifted",
+        "raw": {
+          "action": "posture.drifted",
+          "outcome": "success",
+          "resource": "/",
+          "kind": "service",
+          "rule": "token.admin-role",
+          "severity": "critical"
+        }
+      }
+    },
+    {
+      "name": "the log never anchored",
+      "match": true,
+      "event": {
+        "source": "quilzo/audit",
+        "time": "2026-10-25T09:00:00Z",
+        "received": "2026-10-25T09:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "quilzo",
+          "value": "p_1a2b3c"
+        },
+        "message": "posture.drifted",
+        "raw": {
+          "action": "posture.drifted",
+          "outcome": "success",
+          "resource": "/",
+          "kind": "service",
+          "rule": "audit.no-published-head",
+          "severity": "high"
+        }
+      }
+    },
+    {
+      "name": "a low one",
+      "match": false,
+      "event": {
+        "source": "quilzo/audit",
+        "time": "2026-10-25T09:00:00Z",
+        "received": "2026-10-25T09:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "quilzo",
+          "value": "p_1a2b3c"
+        },
+        "message": "posture.drifted",
+        "raw": {
+          "action": "posture.drifted",
+          "outcome": "success",
+          "resource": "/",
+          "kind": "service",
+          "rule": "access.sole-admin",
+          "severity": "low"
+        }
+      }
+    },
+    {
+      "name": "fixed again",
+      "match": false,
+      "event": {
+        "source": "quilzo/audit",
+        "time": "2026-10-25T09:00:00Z",
+        "received": "2026-10-25T09:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "quilzo",
+          "value": "p_1a2b3c"
+        },
+        "message": "posture.restored",
+        "raw": {
+          "action": "posture.restored",
+          "outcome": "success",
+          "resource": "/",
+          "kind": "service",
+          "rule": "token.admin-role",
+          "severity": "critical"
+        }
+      }
+    }
+  ]
+}

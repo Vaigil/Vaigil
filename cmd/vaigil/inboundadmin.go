@@ -14,6 +14,7 @@ import (
 var feedKindWords = map[string]string{
 	inbound.Okta: "Okta event hook", inbound.SSF: "Shared signals",
 	inbound.Webhook: "Signed webhook", inbound.GitHub: "GitHub webhook",
+	inbound.AuditStream: streamFeedLabel,
 }
 
 // snapshot is the live status, copied, for the screen.

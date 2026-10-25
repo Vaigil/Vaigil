@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/vaigil/vaigil/internal/inbound"
 )
 
 // Every rule that ships validates, fires on the event it says it fires on,
@@ -57,7 +59,7 @@ func TestEveryShippedRuleAgreesWithItsOwnFixtures(t *testing.T) {
 		t.Errorf("%d rules, %d of them quiet", rules, quiet)
 	}
 	for _, want := range []string{"okta", "entra", "workspace", "github",
-		"aws", "evm", "vaigil"} {
+		"aws", "evm", "vaigil", strings.SplitN(inbound.StreamSource, "/", 2)[0]} {
 		if !platforms[want] {
 			t.Errorf("no rule reads %s", want)
 		}

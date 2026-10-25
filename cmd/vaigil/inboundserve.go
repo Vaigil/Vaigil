@@ -225,11 +225,13 @@ type inboundServer struct {
 	mu        sync.Mutex
 	status    map[string]*inboundStatus
 	receivers map[string]cachedReceiver
-	queue     []pushed
-	signals   []automate.Event
-	rate      map[string]*rateWindow
-	work      chan struct{}
-	dirty     bool
+	// streams are the audit streams' receivers, by feed.
+	streams map[string]*heldStream
+	queue   []pushed
+	signals []automate.Event
+	rate    map[string]*rateWindow
+	work    chan struct{}
+	dirty   bool
 	// fresh is that events were stored since the rules last ran, by the
 	// worker or by a delivery that found the store free.
 	fresh bool
@@ -556,8 +558,11 @@ func (s *inboundServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	limit := int64(1 << 20)
-	if f.Kind == inbound.SSF {
+	switch f.Kind {
+	case inbound.SSF:
 		limit = ssf.MaxToken
+	case inbound.AuditStream:
+		limit = streamBodyLimit
 	}
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, limit))
 	if err != nil {
@@ -571,6 +576,8 @@ func (s *inboundServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.webhook(w, r, f, body)
 	case inbound.SSF:
 		s.shared(w, r, f, body)
+	case inbound.AuditStream:
+		s.auditStream(w, r, f, body)
 	default:
 		http.NotFound(w, r)
 	}

@@ -1,0 +1,109 @@
+{
+  "id": "quilzo.privileged-change-alone",
+  "title": "A privileged change in Quilzo was made by one administrator alone",
+  "why": "two administrators decide privileged changes; one made alone has nobody's second look, and an attacker with the only administrator's credential gets the same",
+  "blind": "a store with two administrators where one holds both credentials",
+  "sources": [
+    "quilzo/audit"
+  ],
+  "severity": 2,
+  "when": {
+    "all": [
+      {
+        "match": {
+          "field": "raw.action",
+          "op": "equals",
+          "values": [
+            "dual.approved"
+          ]
+        }
+      },
+      {
+        "match": {
+          "field": "raw.alone",
+          "op": "equals",
+          "values": [
+            "true"
+          ]
+        }
+      }
+    ]
+  },
+  "technique": [
+    "T1098"
+  ],
+  "fixtures": [
+    {
+      "name": "the only administrator granted somebody admin",
+      "match": true,
+      "event": {
+        "source": "quilzo/audit",
+        "time": "2026-10-25T09:00:00Z",
+        "received": "2026-10-25T09:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "quilzo",
+          "value": "p_1a2b3c"
+        },
+        "message": "dual.approved",
+        "raw": {
+          "action": "dual.approved",
+          "outcome": "success",
+          "resource": "/",
+          "kind": "human",
+          "alone": "true",
+          "request_kind": "grant"
+        }
+      }
+    },
+    {
+      "name": "the store's first token",
+      "match": true,
+      "event": {
+        "source": "quilzo/audit",
+        "time": "2026-10-25T09:00:00Z",
+        "received": "2026-10-25T09:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "quilzo",
+          "value": "p_1a2b3c"
+        },
+        "message": "dual.approved",
+        "raw": {
+          "action": "dual.approved",
+          "outcome": "success",
+          "resource": "/",
+          "kind": "human",
+          "alone": "true",
+          "bootstrap": "true",
+          "request_kind": "token"
+        }
+      }
+    },
+    {
+      "name": "a second administrator approved it",
+      "match": false,
+      "event": {
+        "source": "quilzo/audit",
+        "time": "2026-10-25T09:00:00Z",
+        "received": "2026-10-25T09:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "quilzo",
+          "value": "p_1a2b3c"
+        },
+        "message": "dual.approved",
+        "raw": {
+          "action": "dual.approved",
+          "outcome": "success",
+          "resource": "/",
+          "kind": "human",
+          "request_kind": "grant"
+        }
+      }
+    }
+  ]
+}

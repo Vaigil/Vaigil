@@ -1,0 +1,68 @@
+{
+  "id": "quilzo.decoy-touched",
+  "title": "A Quilzo decoy was touched",
+  "why": "nothing legitimate uses a decoy: whoever touched it is exploring what they should not",
+  "blind": "somebody who reads the decoy list before they explore",
+  "sources": [
+    "quilzo/audit"
+  ],
+  "severity": 4,
+  "when": {
+    "match": {
+      "field": "raw.action",
+      "op": "equals",
+      "values": [
+        "shield.decoy-touched"
+      ]
+    }
+  },
+  "technique": [
+    "T1083"
+  ],
+  "fixtures": [
+    {
+      "name": "a decoy path requested",
+      "match": true,
+      "event": {
+        "source": "quilzo/audit",
+        "time": "2026-10-25T09:00:00Z",
+        "received": "2026-10-25T09:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "quilzo",
+          "value": "p_1a2b3c"
+        },
+        "message": "shield.decoy-touched",
+        "raw": {
+          "action": "shield.decoy-touched",
+          "outcome": "success",
+          "resource": "/",
+          "kind": "unknown"
+        }
+      }
+    },
+    {
+      "name": "a decoy placed",
+      "match": false,
+      "event": {
+        "source": "quilzo/audit",
+        "time": "2026-10-25T09:00:00Z",
+        "received": "2026-10-25T09:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "quilzo",
+          "value": "p_1a2b3c"
+        },
+        "message": "shield.decoy-placed",
+        "raw": {
+          "action": "shield.decoy-placed",
+          "outcome": "success",
+          "resource": "/",
+          "kind": "human"
+        }
+      }
+    }
+  ]
+}

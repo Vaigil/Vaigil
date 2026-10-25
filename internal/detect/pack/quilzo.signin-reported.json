@@ -1,0 +1,68 @@
+{
+  "id": "quilzo.signin-reported",
+  "title": "Somebody said a Quilzo sign-in was not them",
+  "why": "the person reported the sign-in, and Quilzo ended every session they held: their credential is somebody else's too",
+  "blind": "a sign-in the person never looks at",
+  "sources": [
+    "quilzo/audit"
+  ],
+  "severity": 4,
+  "when": {
+    "match": {
+      "field": "raw.action",
+      "op": "equals",
+      "values": [
+        "signin.reported-ended"
+      ]
+    }
+  },
+  "technique": [
+    "T1078"
+  ],
+  "fixtures": [
+    {
+      "name": "reported",
+      "match": true,
+      "event": {
+        "source": "quilzo/audit",
+        "time": "2026-10-25T09:00:00Z",
+        "received": "2026-10-25T09:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "quilzo",
+          "value": "p_1a2b3c"
+        },
+        "message": "signin.reported-ended",
+        "raw": {
+          "action": "signin.reported-ended",
+          "outcome": "success",
+          "resource": "/",
+          "kind": "service"
+        }
+      }
+    },
+    {
+      "name": "told about a sign-in",
+      "match": false,
+      "event": {
+        "source": "quilzo/audit",
+        "time": "2026-10-25T09:00:00Z",
+        "received": "2026-10-25T09:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "quilzo",
+          "value": "p_1a2b3c"
+        },
+        "message": "signin.told",
+        "raw": {
+          "action": "signin.told",
+          "outcome": "success",
+          "resource": "/",
+          "kind": "service"
+        }
+      }
+    }
+  ]
+}

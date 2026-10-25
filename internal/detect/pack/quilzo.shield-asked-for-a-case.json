@@ -1,0 +1,69 @@
+{
+  "id": "quilzo.shield-asked-for-a-case",
+  "title": "Quilzo's shield asked for a case",
+  "why": "a playbook acted on a signal and asked the security team to look; the record names the playbook and what it saw",
+  "blind": "a signal no playbook is set to open a case for",
+  "sources": [
+    "quilzo/audit"
+  ],
+  "severity": 3,
+  "when": {
+    "match": {
+      "field": "raw.action",
+      "op": "equals",
+      "values": [
+        "shield.open-case"
+      ]
+    }
+  },
+  "fixtures": [
+    {
+      "name": "the binary changed",
+      "match": true,
+      "event": {
+        "source": "quilzo/audit",
+        "time": "2026-10-25T09:00:00Z",
+        "received": "2026-10-25T09:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "quilzo",
+          "value": "p_1a2b3c"
+        },
+        "message": "shield.open-case",
+        "raw": {
+          "action": "shield.open-case",
+          "outcome": "success",
+          "resource": "/",
+          "kind": "service",
+          "playbook": "binary-changed",
+          "signal": "binary-changed",
+          "severity": "high"
+        }
+      }
+    },
+    {
+      "name": "the shield told somebody",
+      "match": false,
+      "event": {
+        "source": "quilzo/audit",
+        "time": "2026-10-25T09:00:00Z",
+        "received": "2026-10-25T09:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "quilzo",
+          "value": "p_1a2b3c"
+        },
+        "message": "shield.notify",
+        "raw": {
+          "action": "shield.notify",
+          "outcome": "success",
+          "resource": "/",
+          "kind": "service",
+          "playbook": "binary-changed"
+        }
+      }
+    }
+  ]
+}

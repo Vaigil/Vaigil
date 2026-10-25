@@ -80,10 +80,13 @@ type Feed struct {
 	State    string    `json:"state,omitempty"`
 	Verified time.Time `json:"verified,omitempty"`
 	// Status is what the transmitter last said of the stream.
-	Status  string    `json:"status,omitempty"`
-	Off     bool      `json:"off,omitempty"`
-	Created time.Time `json:"created"`
-	By      string    `json:"by,omitempty"`
+	Status string `json:"status,omitempty"`
+	// Stream holds the keys an audit stream's sender publishes, which its
+	// batches and tree heads are checked against (see AuditStream).
+	Stream  *StreamKeys `json:"stream,omitempty"`
+	Off     bool        `json:"off,omitempty"`
+	Created time.Time   `json:"created"`
+	By      string      `json:"by,omitempty"`
 }
 
 // ValidName keeps feed names to what can sit in a URL path and a file name.
