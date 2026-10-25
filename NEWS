@@ -13,6 +13,21 @@ organisation runs, in one binary with no dependencies.
   Every event is mapped to one shape and kept append-only before anything
   reads it.
 
+* Quilzo's audit log, as Quilzo writes it: `vaigil inbound add quilzo NAME
+  --keys FILE` pins the keys `quilzo siem stream key --json` publishes, and
+  Quilzo's siem.stream.url points at the feed.  A batch is taken only when
+  it is signed by that key, follows the last record held exactly, and its
+  leaves rebuild the tree head Quilzo signed; the chain held survives a
+  restart, and a batch that skips, repeats or changes a record is refused
+  with how far the feed has got, so Quilzo sends again from there.  The
+  records are stored as quilzo/audit and read at once by twelve quilzo.*
+  rules: an administrator granted, an administrator's token, a privileged
+  change made alone, the audit log moved, emergency recovery, guessing and
+  lockouts, a decoy touched, the shield asking for a case, a high or
+  critical posture check failing, a high-risk sign-in, and a sign-in its
+  person says was not them.  Behind a proxy, admin.base_url is the address
+  checked, because it is the one Quilzo signs.
+
 * Detecting: rules with fixtures, imported Sigma, trial and live rings,
   suppressions that end, correlations across rules and platforms, and
   indicators of compromise.

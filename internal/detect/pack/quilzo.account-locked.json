@@ -1,0 +1,68 @@
+{
+  "id": "quilzo.account-locked",
+  "title": "A Quilzo account was locked against guessing",
+  "why": "ten failed passkey sign-ins from places the account is not used from: somebody is trying it",
+  "blind": "guesses spread across enough places and enough time to stay under the lockout",
+  "sources": [
+    "quilzo/audit"
+  ],
+  "severity": 3,
+  "when": {
+    "match": {
+      "field": "raw.action",
+      "op": "equals",
+      "values": [
+        "account.locked"
+      ]
+    }
+  },
+  "technique": [
+    "T1110"
+  ],
+  "fixtures": [
+    {
+      "name": "locked",
+      "match": true,
+      "event": {
+        "source": "quilzo/audit",
+        "time": "2026-10-25T09:00:00Z",
+        "received": "2026-10-25T09:00:05Z",
+        "class": 6003,
+        "disposition": 2,
+        "actor": {
+          "issuer": "quilzo",
+          "value": "p_1a2b3c"
+        },
+        "message": "account.locked",
+        "raw": {
+          "action": "account.locked",
+          "outcome": "denied",
+          "resource": "/",
+          "kind": "unknown"
+        }
+      }
+    },
+    {
+      "name": "a sign-in",
+      "match": false,
+      "event": {
+        "source": "quilzo/audit",
+        "time": "2026-10-25T09:00:00Z",
+        "received": "2026-10-25T09:00:05Z",
+        "class": 3002,
+        "disposition": 1,
+        "actor": {
+          "issuer": "quilzo",
+          "value": "p_1a2b3c"
+        },
+        "message": "session.start",
+        "raw": {
+          "action": "session.start",
+          "outcome": "success",
+          "resource": "/",
+          "kind": "human"
+        }
+      }
+    }
+  ]
+}

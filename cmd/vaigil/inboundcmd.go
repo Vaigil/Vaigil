@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -23,6 +24,7 @@ func inboundUsage() error {
 	return fmt.Errorf("usage: vaigil inbound list | status NAME | add okta NAME | " +
 		"add webhook NAME --mapping ISSUER/STREAM [--github] | " +
 		"add ssf NAME --issuer URL --url https://YOUR-ADMIN [--alias okta] | " +
+		streamFeedUsage +
 		"connect NAME --client-id ID [--token-url URL] | verify NAME | " +
 		"rotate NAME | on NAME | off NAME | remove NAME | help")
 }
@@ -167,7 +169,7 @@ func inboundHelp() error {
     The client is one the transmitter issued with the ssf.manage and
     ssf.read scopes. connect asks for the stream and for a verification
     event; vaigil inbound status shows when it arrived.
-`)
+` + streamFeedHelp)
 	return nil
 }
 
@@ -185,7 +187,7 @@ func inboundAdd(root string, caller *Caller, kind, name string, rest []string,
 		switch rest[i] {
 		case "--github":
 			opts["github"] = "yes"
-		case "--mapping", "--issuer", "--url", "--alias", "--audience":
+		case "--mapping", "--issuer", "--url", "--alias", "--audience", "--keys":
 			if i+1 >= len(rest) {
 				return fmt.Errorf("%s needs a value", rest[i])
 			}
@@ -205,7 +207,7 @@ func inboundAdd(root string, caller *Caller, kind, name string, rest []string,
 	if w.JSON(map[string]any{"feed": f, "path": "/feeds/" + name}) {
 		return note("inbound.added", name, map[string]string{"kind": f.Kind})
 	}
-	w.Human("added %s%s%s (%s)\n  URL: https://YOUR-ADMIN/feeds/%s\n", bold, name, reset, f.Kind, name)
+	w.Human("added %s%s%s (%s)\n  URL: %s\n", bold, name, reset, f.Kind, feedURL(root, name))
 	if f.Kind == inbound.SSF {
 		w.Human("  audience: %s\n  keys: %s\n", f.Audience, f.JWKSURI)
 	}
@@ -213,6 +215,16 @@ func inboundAdd(root string, caller *Caller, kind, name string, rest []string,
 		w.Human("  %s\n", s)
 	}
 	return note("inbound.added", name, map[string]string{"kind": f.Kind})
+}
+
+// feedURL is where a feed's sender delivers: this admin's address when
+// admin.base_url says it, which is the one to copy into the sender.
+func feedURL(root, name string) string {
+	base := strings.TrimSuffix(mustConfig(root).Raw("admin.base_url"), "/")
+	if base == "" {
+		base = "https://YOUR-ADMIN"
+	}
+	return base + "/feeds/" + name
 }
 
 // makeFeed adds a feed and returns what to tell its sender, once. kind is
@@ -292,8 +304,14 @@ func makeFeed(root, kind, name string, opts map[string]string, by string) (inbou
 		shown = append(shown, "push Authorization header, if you make the stream yourself: Bearer "+secret)
 		// Kept sealed so connect can hand the same header to the transmitter.
 		later = append(later, func() error { _, err := storeSecret(root, feedSecretName(name)+"-push", secret); return err })
+	case inbound.AuditStream:
+		s, err := streamFeed(root, &f, opts)
+		if err != nil {
+			return f, nil, err
+		}
+		shown = append(shown, s...)
 	default:
-		return f, nil, fmt.Errorf("%q is not a kind of feed: okta, webhook, github or ssf", kind)
+		return f, nil, fmt.Errorf("%q is not a kind of feed: okta, webhook, github, ssf or %s", kind, inbound.AuditStream)
 	}
 	feedsMu.Lock()
 	defer feedsMu.Unlock()
@@ -462,6 +480,8 @@ func inboundRotate(root, name string, note func(string, string, map[string]strin
 			return err
 		}
 		shown = "new signing secret (shown once; the old one stops working now): " + secret
+	case inbound.AuditStream:
+		return errors.New(streamRotateHelp)
 	default:
 		return fmt.Errorf("a shared signals stream's header is the transmitter's to change: remove the feed and add it again")
 	}
@@ -525,6 +545,14 @@ func removeFeed(root, name string) (string, error) {
 		return warn, err
 	}
 	delete(m, name)
+	if f.Kind == inbound.AuditStream {
+		// The chain held for it goes with it: a feed added again under the
+		// name starts from nothing, and its sender is told so by the first
+		// answer and sends everything again.
+		if err := os.Remove(streamLeavesPath(root, name)); err != nil && !os.IsNotExist(err) {
+			return warn, err
+		}
+	}
 	return warn, saveFeeds(root, m)
 }
 

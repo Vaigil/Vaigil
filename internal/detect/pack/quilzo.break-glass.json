@@ -1,0 +1,69 @@
+{
+  "id": "quilzo.break-glass",
+  "title": "Emergency access recovery was used in Quilzo",
+  "why": "recovery bypasses the passkeys and the second administrator, which is its purpose and its risk",
+  "blind": "access recovered by editing files on the machine directly",
+  "sources": [
+    "quilzo/audit"
+  ],
+  "severity": 4,
+  "when": {
+    "match": {
+      "field": "raw.action",
+      "op": "equals",
+      "values": [
+        "auth.break-glass"
+      ]
+    }
+  },
+  "technique": [
+    "T1078"
+  ],
+  "fixtures": [
+    {
+      "name": "recovered",
+      "match": true,
+      "event": {
+        "source": "quilzo/audit",
+        "time": "2026-10-25T09:00:00Z",
+        "received": "2026-10-25T09:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "quilzo",
+          "value": "p_1a2b3c"
+        },
+        "message": "auth.break-glass",
+        "raw": {
+          "action": "auth.break-glass",
+          "outcome": "success",
+          "resource": "/",
+          "kind": "human"
+        }
+      }
+    },
+    {
+      "name": "an ordinary grant",
+      "match": false,
+      "event": {
+        "source": "quilzo/audit",
+        "time": "2026-10-25T09:00:00Z",
+        "received": "2026-10-25T09:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "quilzo",
+          "value": "p_1a2b3c"
+        },
+        "message": "auth.granted",
+        "raw": {
+          "action": "auth.granted",
+          "outcome": "success",
+          "resource": "/",
+          "kind": "human",
+          "role": "admin"
+        }
+      }
+    }
+  ]
+}

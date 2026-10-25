@@ -69,7 +69,7 @@ Collecting what happens
   vaigil collect status | auto 15m|off     what each source did last, and the schedule
   vaigil source list | add MAPPING.json --sample RECORDS.json | check --source S RECORDS.json
   vaigil telemetry check [FILE] | fields [FILE]   can a source's events be used, and what a rule may name
-  vaigil inbound list | add okta|webhook|ssf NAME | connect NAME | verify NAME | status NAME
+  vaigil inbound list | add okta|webhook|ssf|quilzo NAME | connect NAME | verify NAME | status NAME
   vaigil inbound rotate NAME | on NAME | off NAME | remove NAME | help
   vaigil spool add [FILE] | stats | verify | retain [--apply] | hold NAME --why W | lift NAME
   vaigil identity list | link ISSUER:VALUE PERSON@… | unlink ISSUER:VALUE

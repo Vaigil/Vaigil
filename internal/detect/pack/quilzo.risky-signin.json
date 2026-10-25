@@ -1,0 +1,85 @@
+{
+  "id": "quilzo.risky-signin",
+  "title": "A high-risk sign-in to Quilzo",
+  "why": "impossible travel, an anonymising network or several unfamiliar things at once; Quilzo held the session until the person proved it was them",
+  "blind": "a sign-in from a place and device the person really does use",
+  "sources": [
+    "quilzo/audit"
+  ],
+  "severity": 3,
+  "when": {
+    "all": [
+      {
+        "match": {
+          "field": "raw.action",
+          "op": "equals",
+          "values": [
+            "signin.signal"
+          ]
+        }
+      },
+      {
+        "match": {
+          "field": "raw.risk",
+          "op": "equals",
+          "values": [
+            "high"
+          ]
+        }
+      }
+    ]
+  },
+  "technique": [
+    "T1078"
+  ],
+  "fixtures": [
+    {
+      "name": "impossible travel",
+      "match": true,
+      "event": {
+        "source": "quilzo/audit",
+        "time": "2026-10-25T09:00:00Z",
+        "received": "2026-10-25T09:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "quilzo",
+          "value": "p_1a2b3c"
+        },
+        "message": "signin.signal",
+        "raw": {
+          "action": "signin.signal",
+          "outcome": "success",
+          "resource": "/",
+          "kind": "service",
+          "signal": "impossible-travel",
+          "risk": "high"
+        }
+      }
+    },
+    {
+      "name": "a new device, alone",
+      "match": false,
+      "event": {
+        "source": "quilzo/audit",
+        "time": "2026-10-25T09:00:00Z",
+        "received": "2026-10-25T09:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "quilzo",
+          "value": "p_1a2b3c"
+        },
+        "message": "signin.signal",
+        "raw": {
+          "action": "signin.signal",
+          "outcome": "success",
+          "resource": "/",
+          "kind": "service",
+          "signal": "new-device",
+          "risk": "low"
+        }
+      }
+    }
+  ]
+}
