@@ -167,6 +167,44 @@ func securityAddress(root string) string {
 	return ""
 }
 
+// personAddress is who "the person it is about" is, for a rule that tells
+// them. The address comes from this program's own records and never from
+// the event: a finding's subject is the entity a log supplied, and whoever
+// is being detected chose it — an address found there is not a person but
+// a delivery the attacker aims, at anybody's mailbox, as a tip-off or a
+// one-way channel out.
+//
+// The estate's owner of a machine, and the subject of a sign-in, a report
+// or another system's verified signal, were resolved by this program or a
+// system it trusts, so they stand. An identifier out of a log stands only
+// when a person linked it (identitycmd.go); a pairing the log taught is
+// the log's word about who somebody is, and mail is not addressed by the
+// log's word.
+func personAddress(root string, ev automate.Event) (string, error) {
+	// The estate record automateDevices carries: who owns the machine.
+	if owner := ev.Fields["owner"]; owner != "" {
+		return owner, nil
+	}
+	aliases, err := loadAliases(root)
+	if err != nil {
+		return "", err
+	}
+	if a, ok := aliases[ev.Subject]; ok && a.How == "linked" {
+		return a.Person, nil
+	}
+	switch ev.Kind {
+	case "signin", "person", "signal":
+		// A Vaigil principal, or the subject of a feed's verified event:
+		// named by this program, not by a log.
+		if strings.Contains(ev.Subject, "@") {
+			return ev.Subject, nil
+		}
+	}
+	return "", fmt.Errorf("%s is not a person this program has on record, "+
+		"so nobody was told. An address in the event is not a person; link "+
+		"the identifier with `vaigil identity link`", ev.Subject)
+}
+
 func automationActions(root string) map[string]automate.Action {
 	mail := func(to, subject, body string) error {
 		m, err := loadMailConfig(root)
@@ -235,10 +273,15 @@ func automationActions(root string) map[string]automate.Action {
 			Run: func(ev automate.Event, with map[string]string) (string, error) {
 				to := securityAddress(root)
 				if with["to"] == "person" {
-					to = ev.Fields["owner"]
-					if to == "" && strings.Contains(ev.Subject, "@") {
-						to = ev.Subject
+					// Whom that is comes from this program's records, never
+					// from the event: for a finding the subject is the
+					// entity a log supplied, and whoever is being detected
+					// chose it. See personAddress.
+					whom, err := personAddress(root, ev)
+					if err != nil {
+						return "", err
 					}
+					to = whom
 				}
 				if to == "" {
 					return "", errors.New("there is no address to send it to")
