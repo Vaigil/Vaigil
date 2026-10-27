@@ -319,6 +319,10 @@ func settingGroupLabel(key string) string {
 		return "The security team"
 	case "siem":
 		return "The audit log, streamed to a SIEM"
+	case "ssf":
+		return "The kill switch, announced to other platforms"
+	case "compliance":
+		return "Compliance: NIST mode and its floors"
 	}
 	return key
 }

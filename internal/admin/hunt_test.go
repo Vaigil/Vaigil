@@ -182,3 +182,71 @@ func TestADraftRuleIsOneTheEngineReadsAndThatMatchesWhatWasFound(t *testing.T) {
 		t.Error("a rule shown only to fire was accepted as finished")
 	}
 }
+
+// A condition the sidecar blooms can answer prunes whole segments from the
+// hunt. The page must answer exactly what the full read would have — same
+// rows, and a count that still covers every event in the period, because a
+// bloom-pruned segment was decided over, not quietly dropped the way a
+// budget shortfall is.
+func TestAHuntPrunedByABloomAnswersWhatAFullReadWould(t *testing.T) {
+	srv, token := setup(t)
+	dir := t.TempDir()
+	sp, err := spool.Open(dir, spool.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	day := func(d int, src, ip string, n int) {
+		for i := range n {
+			at := now.Add(-time.Duration(d*24) * time.Hour).
+				Add(time.Duration(i) * time.Second)
+			if _, err := sp.Append(telemetry.Event{Source: src,
+				Class:       telemetry.ClassAuthentication,
+				Disposition: telemetry.DispositionAllowed,
+				Actor:       telemetry.ID{Issuer: "okta", Value: "dana"},
+				Observables: []telemetry.Observable{{Kind: telemetry.ObservableIP, Value: ip}},
+				Message:     "signed in", Time: at, Received: at}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := sp.Seal(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	day(4, "github/audit", "198.51.100.7", 100)
+	day(3, "github/audit", "198.51.100.7", 100)
+	day(2, "okta/system", "203.0.113.66", 100)
+	day(1, "proxy/egress", "198.51.100.7", 100)
+	if err := sp.Close(); err != nil {
+		t.Fatal(err)
+	}
+	srv.Events = &Events{Open: func() (*spool.Spool, func() error, error) {
+		s, err := spool.Open(dir, spool.Options{})
+		if err != nil {
+			return nil, nil, err
+		}
+		return s, s.Close, nil
+	}}
+
+	// Four hundred events across four sealed segments; one segment holds
+	// every okta/system event and is the only one a full read could have
+	// matched. The other three are refused by their blooms, and the page
+	// must still report four hundred decided over.
+	okta := get(t, srv, "/security/hunt?field=ip&hours=168&where=source&"+
+		"op=equals&is=okta%2Fsystem", token).Body.String()
+	if !strings.Contains(okta, "400 events read, 100 matching") {
+		t.Error("a bloom-pruned hunt did not report the whole period as " +
+			"decided over")
+	}
+	if !strings.Contains(okta, "203.0.113.66") {
+		t.Error("the one segment that could match was pruned or misread")
+	}
+	// And the condition the other way: three hundred matching events from
+	// the segments the okta hunt refused, with the okta segment pruned.
+	other := get(t, srv, "/security/hunt?field=ip&hours=168&where=source&"+
+		"op=equals&is=github%2Faudit", token).Body.String()
+	if !strings.Contains(other, "400 events read, 200 matching") ||
+		strings.Contains(other, "203.0.113.66") {
+		t.Error("the hunt over the other sources lost or gained rows")
+	}
+}

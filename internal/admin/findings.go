@@ -457,6 +457,10 @@ func (s *Server) handleFinding(w http.ResponseWriter, r *http.Request) {
 	type proposed struct {
 		finding.Proposal
 		When string
+		// Source says who proposed, in words: an external agent named by
+		// its client, the built-in analyst, or an agent the record does
+		// not name.
+		Source string
 	}
 	var props []proposed
 	if s.Findings.Proposals != nil {
@@ -468,7 +472,8 @@ func (s *Server) handleFinding(w http.ResponseWriter, r *http.Request) {
 		for _, pr := range ps {
 			pr.By, pr.For = s.who(pr.By), s.who(pr.For)
 			props = append(props, proposed{Proposal: pr,
-				When: pr.At.UTC().Format("2006-01-02 15:04")})
+				When:   pr.At.UTC().Format("2006-01-02 15:04"),
+				Source: proposalSource(pr)})
 		}
 	}
 	row := rowOf(*found, now)
@@ -488,6 +493,24 @@ func (s *Server) handleFinding(w http.ResponseWriter, r *http.Request) {
 			found.Last.UTC().Format("2006-01-02 15:04")
 	}
 	s.render(w, r, "finding.html", data)
+}
+
+// proposalSource names who a proposal is from, in words a person reads.
+//
+// A proposal's reason is free text a model wrote about evidence an attacker
+// may have written, and it sits on this page beside the buttons that decide.
+// Unnamed, it borrows the authority of the page it is on — the automation-bias
+// weakness — so each one says where it came from, and the built-in analyst
+// (whose plan is fixed in code, not chosen by a caller) says so too rather
+// than passing as just another agent or vice versa.
+func proposalSource(p finding.Proposal) string {
+	if p.Client != "" {
+		return "proposed by an external agent: " + p.Client
+	}
+	if p.Agent != "" {
+		return "proposed by the built-in analyst"
+	}
+	return "proposed by an agent this record does not name"
 }
 
 // mayDecide is whether this person may record a decision: an analyst

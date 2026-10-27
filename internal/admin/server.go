@@ -68,6 +68,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -235,6 +236,15 @@ type Server struct {
 	// up. A newly granted role is invisible for just as long, which is the same
 	// bug in the direction people notice.
 	Reload func() (*auth.Policy, *auth.TokenStore, error)
+
+	// The live stream's semaphore (live.go): liveSlots bounds how many
+	// concurrent /live connections this process holds, and liveOnce makes it
+	// once per server however the server was built. Made lazily rather than
+	// in New because a Server assembled by hand — a test, an embedding — is
+	// as entitled to a bounded stream as one that went through the
+	// constructor.
+	liveSlots chan struct{}
+	liveOnce  sync.Once
 }
 
 // refresh pulls current credentials and rules before a decision.
@@ -952,6 +962,8 @@ func (s *Server) Handler() http.Handler {
 	// Collection and what was collected.
 	mux.HandleFunc("/security/events", s.handleEventsScreen)
 	mux.HandleFunc("/security/hunt", s.handleHunt)
+	mux.HandleFunc("/security/agents", s.handleAgents)
+	mux.HandleFunc("/security/agents/", s.handleAgent)
 	mux.HandleFunc("/security/feeds", s.handleFeeds)
 	mux.HandleFunc("/security/feeds/act", s.handleFeedsAct)
 	mux.HandleFunc("/security/entity/", s.handleEntity)
@@ -1010,6 +1022,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/admin.js", s.handleJS)
 	mux.HandleFunc("/fonts/vaigil-ui.woff2", s.handleFont)
 	mux.HandleFunc("/icon.svg", s.handleIcon)
+	// The live stream over the audit log (live.go). A page resource with the
+	// rest of the furniture, not an agent API: it is opened by the console's
+	// own script on the console's own session, and the CSP's connect-src
+	// 'self' already permits it.
+	mux.HandleFunc("/live", s.handleLive)
 
 	// Endpoints other systems call, each with its own authentication: the
 	// identity provider's provisioning, and events pushed here.

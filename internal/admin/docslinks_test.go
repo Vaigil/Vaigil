@@ -149,4 +149,5 @@ var notADestination = map[string]string{
 	"/style.css": "a stylesheet",
 	"/admin.js":  "the console's script, fetched by every page's head",
 	"/icon.svg":  "the mark, fetched as a favicon; an image, not a screen",
+	"/live":      "an event stream, opened by the console's script on Today; not a screen",
 }

@@ -1,11 +1,40 @@
 {{template "head" .}}
 <h1>Today</h1>
+{{/*
+  The pulse of the page, and the way to ask for it by hand.
+
+  The badge is a live region: it states what the page is doing — live,
+  reconnecting, or reloading every minute — and never a bare spinner,
+  because a status nobody can read is a status nobody can trust. It is
+  rendered empty and says nothing until the script can speak honestly;
+  with scripting off, the Refresh form beside it is the whole mechanism,
+  and it works.
+
+  Poll mode is the fallback the script chooses after the stream has
+  failed to hold three times (live.go): the page then reloads itself once
+  a minute through the layout's Refresh hook, and the badge says so — a
+  console that polls while pretending to be live is lying in the one
+  place a security console must not.
+*/}}
+<div>
+  <span class="hint" data-live-badge role="status" aria-live="polite">{{if .Poll}}○ every 60s{{end}}</span>
+  <form method="get" action="/today">
+    <button type="submit" class="btn-text">Refresh</button>
+  </form>
+</div>
 {{if .Message}}<p class="notice ok" role="status">{{.Message}}</p>{{end}}
 {{if .Error}}<p class="notice bad" role="alert">{{.Error}}</p>{{end}}
 <p class="lead">{{.Date}}. What is waiting for you, then what is wrong in the parts of the estate you work in.</p>
 
 <section aria-labelledby="waiting">
-<h2 id="waiting">Waiting for you{{if .WaitingTotal}} <span class="count">{{.WaitingTotal}}</span>{{end}}</h2>
+{{/*
+  data-live is where the stream's waiting events land. The count span
+  exists only when something waits; the script creates it when the first
+  thing arrives, and the empty paragraph below is replaced by a link to
+  Approvals rather than left saying "nothing" over a queue that just
+  gained a row.
+*/}}
+<h2 id="waiting" data-live="waiting">Waiting for you{{if .WaitingTotal}} <span class="count">{{.WaitingTotal}}</span>{{end}}</h2>
 {{if .Waiting}}<div class="table-wrap"><table class="approvals-table">
   <thead><tr><th scope="col">Waiting on</th><th scope="col">From</th><th scope="col">Commits to</th><th scope="col">Since</th></tr></thead>
   <tbody>{{range .Waiting}}<tr>
@@ -15,12 +44,18 @@
     <td class="when">{{.When}}</td>
   </tr>{{end}}</tbody></table></div>
 {{if .MoreWaiting}}<p><a href="/approvals">{{.MoreWaiting}} more on Approvals</a></p>{{else}}<p class="hint">Acts on other platforms first, then the oldest. <a href="/approvals">Approvals</a> groups them by where they came from.</p>{{end}}
-{{else}}<p>Nothing is waiting for you.</p>{{end}}
+{{else}}<p data-live="waiting-empty">Nothing is waiting for you.</p>{{end}}
 </section>
 
 <section aria-labelledby="happening">
+{{/*
+  data-live-count names each figure by where its records are, so the
+  script can move the number that changed without inventing a second
+  vocabulary for the same destinations. The counts are the stream's to
+  keep current; the words and where they link stay the page's.
+*/}}
 <h2 id="happening">In your parts of the estate</h2>
-{{if .Lines}}<dl class="stats-row">{{range .Lines}}<div{{if .Warn}} class="serious"{{end}}><dt>{{.Text}}</dt><dd><a href="{{.Href}}">{{.N}}</a></dd></div>{{end}}</dl>
+{{if .Lines}}<dl class="stats-row">{{range .Lines}}<div{{if .Warn}} class="serious"{{end}} data-live-count="{{.Href}}"><dt>{{.Text}}</dt><dd><a href="{{.Href}}">{{.N}}</a></dd></div>{{end}}</dl>
 <p class="hint">Counted now, from the records each figure links to.</p>
 {{else}}<p>Nothing to report in what you can open.</p>{{end}}
 </section>

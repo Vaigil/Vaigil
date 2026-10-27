@@ -1,0 +1,336 @@
+{{template "head" .}}
+{{if .Agent}}
+{{/*
+  One agent. Every count here was observed; the identity is the actor the
+  events carried, the counts are the events themselves, and the honesty
+  box below says exactly where each fact came from and where a fact is
+  missing. The one thing joined in is the registry, and only where this
+  agent's own events carried a name that names a registry entry — the
+  Registry section says what the registry holds, labelled as its record
+  rather than as something observed.
+*/}}
+<p class="hint"><a href="/security/agents">Agents</a></p>
+<h1><code>{{.Agent.Key}}</code></h1>
+
+<p class="chips">
+  <span class="wf-word {{.Agent.StatusTone}}">{{.Agent.Status}}</span>
+  {{if .Agent.FromVaigil}}<span class="pill">vaigil/agent</span>{{end}}
+  {{if .Agent.FromOtel}}<span class="pill">otel/genai</span>{{end}}
+</p>
+
+<p class="lead">Observed from {{.Agent.First.Format "15:04 on 2 Jan"}} to
+  {{.Agent.Last.Format "15:04 on 2 Jan"}} UTC, {{.Agent.LastAgo}}.</p>
+
+<dl class="stats-row">
+  <div><dt>Calls</dt><dd>{{.Agent.Calls}}</dd></div>
+  <div{{if .Agent.Refused}} class="serious"{{end}}><dt>Refused, of its calls</dt><dd>{{.Agent.Refused}} of {{.Agent.Calls}}</dd></div>
+  <div><dt>Failed, of its calls</dt><dd>{{.Agent.Failed}} of {{.Agent.Calls}}</dd></div>
+  <div><dt>Proposals made</dt><dd>{{.Agent.Proposals}}</dd></div>
+  <div><dt>Tokens in</dt><dd>{{if .Agent.TokensIn}}{{.Agent.TokensInS}}{{else}}<span class="dim">none reported</span>{{end}}</dd></div>
+  <div><dt>Tokens out</dt><dd>{{if .Agent.TokensOut}}{{.Agent.TokensOutS}}{{else}}<span class="dim">none reported</span>{{end}}</dd></div>
+</dl>
+<p class="hint">Counted now, from its events that arrived in the last seven
+  days{{if .Short}} — only what arrived since {{.From.Format "2 Jan 15:04 UTC"}}, because this page load stayed inside its byte budget{{end}}. Tokens are reported by GenAI telemetry only; a sidecar-only agent reports none, which is not the same as using none.</p>
+
+<h2>What the record holds about this agent</h2>
+<div class="card">
+  <p>The identity is <code>{{.Agent.Key}}</code> —
+    {{if eq .Agent.Actor.Issuer "vaigil"}}the pseudonym the audit log gave the agent{{else if .Agent.FromOtel}}the identity its own telemetry carried{{else}}the actor its events carried{{end}},
+    shown as stored and never resolved into a name nobody recorded.</p>
+  <p>Seen from:{{if .Agent.FromVaigil}} <code>vaigil/agent</code>, {{plural .Agent.FromVaigil "event" "events"}}{{end}}{{if .Agent.FromOtel}} <code>otel/genai</code>, {{plural .Agent.FromOtel "event" "events"}}{{end}}.</p>
+  {{if .Agent.Names}}<p>Events under this identity named the agent
+    {{range $i, $n := .Agent.Names}}{{if $i}}, {{end}}<code>{{$n}}</code>{{end}}.</p>{{end}}
+  {{if .Agent.MaybeSame}}
+  <p><strong>May or may not be the same agent as</strong>
+    {{range $i, $k := .Agent.MaybeSame}}{{if $i}}, {{end}}<code>{{$k}}</code>{{end}}.
+    The sources name agents differently, and the rows are not merged: one
+    agent can hold two rows until something declares the join.</p>
+  {{end}}
+  {{if not .Agent.Matches}}
+  {{if .RegistryErr}}
+  <p>The registry could not be read, so no registry entry can be matched:
+    {{.RegistryErr}}. Unreadable is not the same as holding nobody.</p>
+  {{else}}
+  <p>No registry entry matches any name this agent used.</p>
+  {{end}}
+  {{end}}
+  <p class="hint">This page is built from observed events, joined to the
+    registry where — and only where — this agent's own events carried a
+    name that names an entry. Nothing is joined beyond the actor key the
+    events share and the names they carried.</p>
+</div>
+
+{{if .Agent.Matches}}
+{{/*
+  What the registry holds, joined in because the events themselves named
+  the agent. Everything in this section is the registry's record — owner,
+  allowlist, status, the reason a kill switch was pulled — written by the
+  operators who registered the agent, and said as their record rather
+  than as something observed.
+*/}}
+<h2>Registry</h2>
+{{range .Agent.Matches}}
+<div class="card">
+  <p><span class="tag tag-ok">registered</span> <code>{{.Name}}</code>
+    <span class="wf-word {{.Tone}}">{{.Word}}</span></p>
+  <dl class="kv">
+    <dt>Owner</dt><dd>{{.Owner}}</dd>
+    <dt>Allowed tools</dt><dd>{{if .Allow}}{{range .Allow}}<span class="chip-small">{{.}}</span> {{end}}{{else}}none — the agent interface refuses it everything{{end}}</dd>
+    {{if .Note}}<dt>Note</dt><dd>{{.Note}}</dd>{{end}}
+    {{if .Why}}<dt>Why it was disabled</dt><dd>{{.Why}}
+      <span class="hint">— recorded by {{.ChangedBy}}, who pulled the kill switch</span></dd>{{end}}
+    <dt>Last changed</dt><dd>{{if .Changed}}{{.Changed}} by {{.ChangedBy}}{{else}}by {{.ChangedBy}}{{end}}</dd>
+  </dl>
+</div>
+{{end}}
+<p class="hint">Matched because this agent's own events carried the name —
+  the token's name in <code>raw.client</code>, or the record's agent field —
+  that names this entry in the registry. The join runs one way only: a
+  registered agent no event has named is counted in the board's header,
+  never given a row there.</p>
+{{end}}
+
+<h2>Tools used</h2>
+{{if not .Agent.Tools}}<p class="dim">No tool was named in its events.</p>{{else}}
+<div class="table-wrap"><table>
+  <caption class="visually-hidden">Tools this agent called, most called first</caption>
+  <thead><tr><th scope="col">Tool</th><th scope="col">Calls</th><th scope="col">Last used</th></tr></thead>
+  <tbody>{{range .Agent.Tools}}<tr>
+    <th scope="row"><code>{{.Name}}</code></th>
+    <td class="num">{{.N}}</td>
+    <td class="when">{{.Last}}</td>
+  </tr>{{end}}</tbody>
+</table></div>
+<p class="hint">{{plural (len .Agent.Tools) "distinct tool" "distinct tools"}}, most called first, of {{.Agent.Calls}} calls.</p>
+{{end}}
+
+<h2 id="sessions">Sessions</h2>
+{{/*
+  The TIMELINE view. A session is the one edge the events draw themselves —
+  every GenAI event that carried one trace id — and nothing here invents a
+  second edge: the sidecar's events carry no trace id and stay one stream
+  below, said as a rendering choice rather than a session. The first-use
+  mark is the honest ancestor of a toxic-flow marking: computed from this
+  window's events alone, an observation, never a verdict, and carrying no
+  claim about the data, because no event on this page carries a
+  sensitivity label to make one with.
+*/}}
+<p class="hint">Every <code>otel/genai</code> event that carried one trace
+  id is one session, newest first; the conversation id, where the events
+  carried one, names the same conversation across traces. What a tool was
+  asked to do is not in these events — no arguments, no content, no
+  data-sensitivity label — so no line here is marked sensitive, and none
+  can be. The first-use mark says only that this agent had not used that
+  tool in the window{{if .Short}} — the window the byte budget allowed,
+  shorter than seven days{{end}}.</p>
+{{if .SessionOnly}}<p class="hint"><a href="{{.Agent.Href}}">Show every session</a> — this page is filtered to the one session below.</p>{{end}}
+{{if .SessionMiss}}<p class="notice">No session under trace
+  <code>{{.SessionMiss}}</code> is in this agent's events in the window. It
+  may belong to another agent, or have arrived before the window began.
+  Every session this page did group is below.</p>{{end}}
+{{if .Sessions}}
+{{range .Sessions}}
+<section class="card">
+  <h3>Session <code>{{.Trace}}</code>{{range .Convs}} · conversation <code>{{.}}</code>{{end}}</h3>
+  <p class="hint">{{.StartS}} – {{.EndS}} UTC · {{.SpanS}} ·
+    <a href="{{.Href}}">link to this session</a></p>
+  <dl class="kv">
+    <dt>Calls, by how they ended</dt><dd>{{plural .Calls "call" "calls"}} — {{.Allowed}} allowed, {{.Failed}} failed, {{.Blocked}} blocked{{if .Others}}, {{.Others}} ended another way{{end}}</dd>
+    {{if .Tools}}<dt>Tools, in order of first use</dt><dd>{{range .Tools}}<code>{{.Name}}</code> ×{{.N}}{{if .First}} <span class="tag tag-changed">first use in 7 days</span>{{end}} {{end}}</dd>{{end}}
+    {{if .Models}}<dt>Models</dt><dd>{{range $i, $m := .Models}}{{if $i}}, {{end}}{{$m}}{{end}}</dd>{{end}}
+    {{if or .TokensIn .TokensOut}}<dt>Tokens</dt><dd>{{.TokensInS}} in / {{.TokensOutS}} out</dd>{{end}}
+  </dl>
+  <ol class="timeline">
+    {{range .Entries}}<li><span class="tl-when">{{.When}}</span><span class="tl-what">{{if .Op}}<code>{{.Op}}</code>{{else}}<span class="dim">—</span>{{end}}{{if .Tool}} <code>{{.Tool}}</code>{{end}}{{if .Dur}} <span class="hint">{{.Dur}}</span>{{end}}{{if .Model}} <span class="hint">{{.Model}}</span>{{end}} <span class="wf-word {{.Tone}}">{{sentence .Outcome}}</span>{{if .FirstUse}} <span class="tag tag-changed">first use of {{.Tool}} in 7 days</span>{{end}}</span></li>{{end}}
+  </ol>
+  {{if .Hidden}}<p class="hint">The session held {{plural .Calls "event" "events"}}; the newest {{len .Entries}} are shown, the oldest cut.</p>{{end}}
+</section>
+{{end}}
+{{if .Untraced}}<p class="hint">{{plural .Untraced "GenAI event" "GenAI events"}} carried no trace id, so it belongs to no session and is not grouped above. The events themselves are in Recent events below, ungrouped rather than fenced into sessions their telemetry never named.</p>{{end}}
+{{else if .Untraced}}<p class="notice warn">GenAI telemetry arrived — {{plural .Untraced "event" "events"}} — none of it carrying a trace id, so no session can be grouped from it. The events are in Recent events below.</p>
+{{else}}<p class="dim">No GenAI telemetry arrived in the window, so there is no session to group. That is telemetry not arriving, not the agent having had no sessions.</p>
+{{end}}
+
+{{if .Stream}}
+<h2 id="stream">Sidecar and analyst events — one stream</h2>
+{{/*
+  vaigil/agent events carry no trace id. The honest answer is one
+  chronological stream, said as such: no session edge is invented for a
+  section whose events never named one, and arrival order is never dressed
+  up as a session's shape.
+*/}}
+<p class="hint">The sidecar's records carry no trace id, so they cannot be split into sessions: this stream is their arrival order, which is not a claim that they are one session. {{plural .Stream.Calls "call" "calls"}} of {{plural .Stream.Events "event" "events"}} — {{.Stream.Allowed}} allowed, {{.Stream.Failed}} failed, {{.Stream.Blocked}} blocked{{if .Stream.Others}}, {{.Stream.Others}} ended another way{{end}} — and {{plural .Stream.Proposals "proposal" "proposals"}} from the analyst, counted apart because a proposal is conduct rather than something it asked to do.</p>
+<ol class="timeline">
+  {{range .Stream.Entries}}<li><span class="tl-when">{{.When}}</span><span class="tl-what">{{if .Op}}<code>{{.Op}}</code>{{else}}<span class="dim">—</span>{{end}}{{if .Tool}} <code>{{.Tool}}</code>{{end}}{{if .Model}} <span class="hint">{{.Model}}</span>{{end}} <span class="wf-word {{.Tone}}">{{sentence .Outcome}}</span>{{if .FirstUse}} <span class="tag tag-changed">first use of {{.Tool}} in 7 days</span>{{end}}</span></li>{{end}}
+</ol>
+{{if .Stream.Hidden}}<p class="hint">The stream held {{plural .Stream.Events "event" "events"}}; the newest {{len .Stream.Entries}} are shown, the oldest cut.</p>{{end}}
+{{end}}
+
+<h2>Recent events</h2>
+{{if not .Events}}<p>None in the window.</p>{{else}}
+<div class="table-wrap"><table>
+  <caption class="visually-hidden">This agent's events, newest first</caption>
+  <thead><tr><th scope="col">When</th><th scope="col">Source</th><th scope="col">Action</th><th scope="col">Tool</th><th scope="col">Model</th><th scope="col">Outcome</th></tr></thead>
+  <tbody>{{range .Events}}<tr>
+    <th scope="row" class="when">{{.When}}</th>
+    <td><code>{{.Source}}</code></td>
+    <td>{{.Act}}{{if .Why}}
+      {{/* The reason a refusal was given: written by a model or a policy
+           about events somebody being detected may have influenced, so it
+           is shown and labelled rather than shown and trusted — the same
+           discipline the finding page's evidence carries. */}}
+      <span class="tag tag-warn" title="Written by whoever refused the call, about events somebody being detected may have influenced">untrusted</span>
+      <div class="hint">{{.Why}}</div>{{end}}</td>
+    <td>{{if .Tool}}<code>{{.Tool}}</code>{{else}}<span class="dim">—</span>{{end}}</td>
+    <td>{{if .Model}}<code>{{.Model}}</code>{{else}}<span class="dim">—</span>{{end}}</td>
+    <td><span class="wf-word {{.Tone}}">{{sentence .Outcome}}</span></td>
+  </tr>{{end}}</tbody>
+</table></div>
+<p class="hint">The most recent {{len .Events}}, newest first. The action is
+  the event's own word — a tool call, a model call, a proposal — and a
+  refusal's reason is shown as text and never interpreted.</p>
+{{end}}
+
+{{else}}
+{{/*
+  The board. One row per actor the events named, most recently active
+  first: the agent somebody should read about next is the top of the list.
+*/}}
+<h1>Agents</h1>
+{{if .Unavailable}}<p class="notice bad">{{.Unavailable}}</p>{{else}}
+
+{{/*
+  The pulse of the page, and the way to ask for it by hand — the same badge
+  Today carries (admin.js holds the wrapper). It is rendered empty and says
+  nothing until the script can speak honestly; with scripting off, the
+  Refresh form beside it is the whole mechanism, and it works. The stream's
+  agent events move the refused figure below while the page is open.
+*/}}
+<div>
+  <span class="hint" data-live-badge role="status" aria-live="polite">{{if .Poll}}○ every 60s{{end}}</span>
+  <form method="get" action="/security/agents">
+    <button type="submit" class="btn-text">Refresh</button>
+  </form>
+</div>
+
+<p class="lead">Every agent observed in the last seven days, from the two
+  sources that watch them: the MCP sidecar and the analyst
+  (<code>vaigil/agent</code>), and GenAI telemetry pushed over OTLP
+  (<code>otel/genai</code>). A row exists because an event named it, and
+  never otherwise.</p>
+
+<dl class="stats-row">
+  <div><dt>Agents observed</dt><dd>{{len .Rows}}</dd></div>
+  {{/* data-live-count names this figure the way Today's tiles are named,
+       so the stream can move the number that changed without inventing a
+       second vocabulary. The records are the audit log's: a refused call
+       is written there before it is streamed here. */}}
+  <div{{if .Refused}} class="serious"{{end}} data-live-count="/security/agents"><dt>Calls refused</dt><dd><a href="/logs">{{.Refused}}</a></dd></div>
+  <div><dt>Proposals made</dt><dd>{{.ProposalsN}}</dd></div>
+  <div><dt>Active today</dt><dd>{{.Active}}</dd></div>
+</dl>
+<p class="hint">Counted now, from {{plural .Read "agent event" "agent events"}} that arrived in the window{{if .Short}} — only what arrived since {{.From.Format "2 Jan 15:04 UTC"}}, because this page load stayed inside its byte budget{{end}}.</p>
+{{if .RegistryErr}}
+<p class="hint">The agent registry could not be read ({{.RegistryErr}}), so no
+  row below can say whether its agent is registered. Unreadable is not the
+  same as empty, and “not registered” would claim a fact this page cannot
+  check.</p>
+{{else}}
+{{/*
+  The registry beside the observations, so a registered agent nobody has
+  observed is a fact on the page rather than an absence. Silence is not
+  absence: the board is what happened, the registry what was declared, and
+  neither stands in for the other.
+*/}}
+<p class="hint">{{plural .Registered "agent" "agents"}} registered,
+  {{plural .Observed "agent" "agents"}} observed in the window. A registered
+  agent with no row below is silent, not absent — the registry is what was
+  declared, this board what was observed.</p>
+{{end}}
+
+<nav class="chips" aria-label="Filter by source">
+  <span class="chips-label">Source</span>
+  {{range .Filters}}<a href="{{.Href}}"{{if .On}} class="on" aria-current="true"{{end}}>{{.Label}}<span class="count">{{.Count}}</span></a>{{end}}
+</nav>
+
+{{if not .Rows}}
+  {{if .Filtered}}<p class="notice">Nothing from this source arrived in the
+    window. <a href="/security/agents">Show every source</a>.</p>
+  {{else if .Stored}}<div class="notice warn">
+    <p><strong>No agent has been observed.</strong> Events have arrived from
+      other sources — none from <code>vaigil/agent</code> or
+      <code>otel/genai</code> — so an empty board here would be silence
+      rather than a quiet estate of agents.</p></div>
+  {{else}}<div class="notice warn">
+    <p><strong>No agent has been observed.</strong> Nothing is in the store
+      at all yet, which is not a quiet estate of agents — it is one nothing
+      is watching. Agent events arrive from the MCP sidecar and the analyst
+      (<code>vaigil/agent</code>), and from GenAI telemetry pushed over OTLP
+      (<code>otel/genai</code>).</p></div>
+  {{end}}
+{{else}}
+<div class="table-wrap">
+<table>
+  <caption class="visually-hidden">Agents, most recently active first</caption>
+  <thead><tr>
+    <th scope="col">Agent</th><th scope="col">Status</th>
+    <th scope="col">Registry</th>
+    <th scope="col">First seen</th><th scope="col">Last seen</th>
+    <th scope="col">Calls</th><th scope="col">Refused</th><th scope="col">Failed</th>
+    <th scope="col">Proposals</th><th scope="col">Tools</th><th scope="col">Tokens</th>
+  </tr></thead>
+  <tbody>
+  {{range .Rows}}
+  <tr>
+    <th scope="row"><a href="{{.Href}}"><code>{{.Key}}</code></a>
+      {{if .Models}}<div class="hint">{{range $i, $m := .Models}}{{if $i}}, {{end}}{{$m}}{{end}}</div>{{end}}
+    </th>
+    <td><span class="wf-word {{.StatusTone}}">{{.Status}}</span></td>
+    {{if $.RegistryErr}}
+    <td><span class="dim">registry unreadable</span></td>
+    {{else if not .Matches}}
+    <td><span class="chip-small">not registered</span></td>
+    {{else}}
+    {{/*
+      What the registry holds, joined because this row's own events named
+      the agent. A disabled entry is the loudest thing on the page on
+      purpose: the agent is observed still working while the registry says
+      its calls are refused, and that is the row to read first.
+    */}}
+    <td>{{range .Matches}}<div>
+      <span class="tag tag-ok">registered</span> <code>{{.Name}}</code>
+      <span class="wf-word {{.Tone}}">{{.Word}}</span>
+      <div class="hint">owner {{.Owner}}</div>
+      {{if .Allow}}<div>{{range .Allow}}<span class="chip-small">{{.}}</span> {{end}}</div>
+      {{else}}<div class="hint">allowed no tool</div>{{end}}
+    </div>{{end}}
+    {{if gt (len .Matches) 1}}<div class="hint">its events carried more than one registered name — one actor, more than one token</div>{{end}}
+    </td>
+    {{end}}
+    <td class="when">{{.First.Format "2 Jan 15:04"}}</td>
+    <td class="when">{{.LastAgo}}</td>
+    <td class="num">{{.Calls}}</td>
+    <td class="num">{{if .Refused}}<span class="warn">{{.Refused}}</span>{{else}}0{{end}}</td>
+    <td class="num">{{.Failed}}</td>
+    <td class="num">{{.Proposals}}</td>
+    <td>{{range .ToolsShown}}<span class="chip-small">{{.Name}}</span> {{end}}{{if .ToolsMore}}<span class="hint">{{.ToolsMore}} more</span>{{end}}</td>
+    <td class="num">{{if or .TokensIn .TokensOut}}{{.TokensInS}} in / {{.TokensOutS}} out{{else}}<span class="dim">—</span>{{end}}</td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+<p class="hint">Most recently active first. Identities are the actor each
+  event carried — a pseudonym under <code>vaigil/agent</code>, the SDK's
+  identifier under <code>otel/genai</code> — and refused is the blocked
+  disposition: the sidecar or a policy stopped the call. The registry column
+  is joined in only where a row's own events carried a name the registry
+  holds; an agent no event has observed is never given a row.</p>
+{{if .BothSources}}<p class="hint">The two sources name agents differently,
+  so one agent may hold two rows. Nothing is merged beyond the actor key the
+  events share{{if .Maybe}}; where an event under one row named itself by
+  another row's value, each row's page says so{{end}}.</p>{{end}}
+{{end}}
+{{end}}
+{{end}}
+{{template "foot" .}}

@@ -166,17 +166,60 @@ var textPairs = []struct{ fg, bg, what string }{
 	{"--on-error-container", "--error-container", "text in an error notice"},
 	{"--on-ok-container", "--ok-container", "text in a success notice"},
 	{"--on-warning-container", "--warning-container", "text in a warning notice"},
+	{"--on-serious-container", "--serious-container", "text in a serious chip"},
 	{"--primary", "--surface", "link"},
 	{"--inverse-on-surface", "--inverse-surface", "text on an inverted surface"},
 }
 
-// Non-text: borders, focus rings, the edge of an input. WCAG 1.4.11 asks 3:1.
+// Non-text: borders, focus rings, the edge of an input, and the marks a
+// chart draws. WCAG 1.4.11 asks 3:1 for a graphical object that carries
+// meaning.
+//
+// The viz hues are checked against both surfaces they are painted on: the
+// page itself, and the card a figure sits on. Two of them were once below
+// this line in the light scheme (#f9ab00 at 1.93:1, #e8710a at 2.95:1) and
+// nobody noticed until the ratios were computed, which is the reason the
+// five hues and their stroke variants are rows here rather than a claim in
+// a comment.
 var uiPairs = []struct{ fg, bg, what string }{
 	{"--outline", "--surface", "input border"},
 	{"--outline", "--surface-container-lowest", "input border on a field"},
 	{"--focus-ring", "--surface", "focus indicator on the page"},
 	{"--focus-ring", "--surface-container-low", "focus indicator on a card"},
+	{"--focus-ring", "--surface-container-high", "focus indicator on a raised card"},
 	{"--error", "--surface", "error accent"},
+	{"--viz-series", "--surface", "a chart's series mark"},
+	{"--viz-series", "--surface-container-lowest", "a series mark on a card"},
+	{"--viz-good", "--surface", "a good status mark"},
+	{"--viz-good", "--surface-container-lowest", "a good mark on a card"},
+	{"--viz-warning", "--surface", "a warning status mark"},
+	{"--viz-warning", "--surface-container-lowest", "a warning mark on a card"},
+	{"--viz-serious", "--surface", "a serious status mark"},
+	{"--viz-serious", "--surface-container-lowest", "a serious mark on a card"},
+	{"--viz-critical", "--surface", "a critical status mark"},
+	{"--viz-critical", "--surface-container-lowest", "a critical mark on a card"},
+	{"--viz-unknown", "--surface", "an unknown status mark"},
+	{"--viz-series-stroke", "--surface", "a sparkline stroke"},
+	{"--viz-series-stroke", "--surface-container-lowest", "a sparkline stroke on a card"},
+	{"--viz-warning-stroke", "--surface", "a gate box outline"},
+	{"--viz-warning-stroke", "--surface-container-lowest", "a gate outline on a card"},
+	{"--viz-serious-stroke", "--surface", "a serious stroke"},
+	{"--viz-critical-stroke", "--surface", "a critical stroke"},
+	{"--viz-good-stroke", "--surface", "a good stroke"},
+}
+
+// The M3 on-colour contract, which is AA (4.5:1) rather than this
+// interface's AAA floor: an accent's "on" colour sits on large filled shapes
+// (a filled button, a badge), where the spec's ContrastCurve demands 4.5 at
+// the default level. The body-text pairs above hold the 7:1 line; these hold
+// the line the component contract actually draws, so a role that drops below
+// its own spec is caught rather than excused by the stricter table it was
+// never in.
+var onColourPairs = []struct{ fg, bg, what string }{
+	{"--on-secondary", "--secondary", "label on a secondary fill"},
+	{"--on-tertiary", "--tertiary", "label on a tertiary fill"},
+	{"--on-error", "--error", "label on an error fill"},
+	{"--inverse-primary", "--inverse-surface", "a snackbar action label"},
 }
 
 func TestEveryTextPairingMeetsAAAInBothSchemes(t *testing.T) {
@@ -199,6 +242,23 @@ func TestNonTextPairingsMeetTheUIMinimum(t *testing.T) {
 			r := contrast(t, tok, p.fg, p.bg)
 			if r < 3.0 {
 				t.Errorf("%s/%s: %.2f:1 (%s on %s) — 1.4.11 needs 3:1",
+					scheme, p.what, r, tok[p.fg], tok[p.bg])
+			}
+		}
+	}
+}
+
+// The M3 component contract for an accent and its "on" colour: 4.5:1 at the
+// default contrast level, which is what the scheme generator enforces before
+// any theme is exported. Held here so a role that was never body text (and so
+// never in the AAA table) still cannot fall below its own specification.
+func TestOnColourPairsMeetTheM3Contract(t *testing.T) {
+	for _, scheme := range []string{"light", "dark"} {
+		tok := tokens(t, scheme)
+		for _, p := range onColourPairs {
+			r := contrast(t, tok, p.fg, p.bg)
+			if r < 4.5 {
+				t.Errorf("%s/%s: %.2f:1 (%s on %s) — the M3 on-colour contract needs 4.5:1",
 					scheme, p.what, r, tok[p.fg], tok[p.bg])
 			}
 		}

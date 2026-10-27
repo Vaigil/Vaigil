@@ -107,10 +107,18 @@ func (s *Server) handleToday(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	poll, refresh := pollMode(r)
+
 	s.render(w, r, "today.html", map[string]any{
 		"Title": "Today", "Nav": "today", "Principal": p,
 		"Message": r.URL.Query().Get("m"), "Error": r.URL.Query().Get("e"),
 		"Waiting": waiting, "WaitingTotal": total, "MoreWaiting": total - len(waiting),
 		"Lines": lines, "Date": now.Format("Monday 2 January"),
+		// The live stream's fallback (live.go): when the browser has given up
+		// on holding a stream, the script marks it with a cookie and the page
+		// reloads itself once a minute through the layout's Refresh hook. The
+		// badge says so, because a console that pretends to be live while it
+		// polls is the one lie this screen must never tell.
+		"Poll": poll, "Refresh": refresh,
 	})
 }

@@ -257,12 +257,15 @@
      weight heavier — regular to medium, medium to bold. */
   --weight-regular: 400; --weight-medium: 500; --weight-bold: 700;
 
-  /* State layer opacities, straight from the spec. Applied as a colour-mix
-     against the role's own "on" colour so a hover looks correct on every
-     surface without a hand-picked value per component. */
+  /* State layer opacities, straight from the spec: hover 8, focus 12,
+     pressed 12, dragged 16. Applied as a colour-mix against the role's own
+     "on" colour so a hover looks correct on every surface without a
+     hand-picked value per component. Focus and press were 10 here, which is
+     the one number in the set that was not the spec's; a focused control now
+     carries the same weight a pressed one does, as Material draws it. */
   --state-hover: 8%;
-  --state-focus: 10%;
-  --state-press: 10%;
+  --state-focus: 12%;
+  --state-press: 12%;
   --state-drag: 16%;
 
   /* The focus indicator as Material draws it: 3 pixels, 2 outside the
@@ -835,8 +838,20 @@ footer { margin-top: 3rem; padding-top: 1.5rem;
 /* -- reduced motion --------------------------------------------------------
    The Expressive springs overshoot by design, and overshoot is exactly what
    2.3.3 is about. Everything above degrades to an instant state change, which
-   is why none of it carries meaning that only the animation conveys. */
+   is why none of it carries meaning that only the animation conveys.
+   The springs' durations are zeroed at the token first — the M3 requirement,
+   so anything that reads a duration (a transition here, a curve handed to
+   the Web Animations API by admin.js) gets 0 rather than 0.01ms of it — and
+   then universally, for any animation or transition added outside :root. */
 @media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast-spatial-duration: 0ms;
+    --motion-default-spatial-duration: 0ms;
+    --motion-slow-spatial-duration: 0ms;
+    --motion-fast-effects-duration: 0ms;
+    --motion-default-effects-duration: 0ms;
+    --motion-slow-effects-duration: 0ms;
+  }
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
@@ -1350,7 +1365,7 @@ details[open] > summary > .chev .icon { rotate: 180deg; }
   border: 1px solid var(--outline-variant); border-radius: var(--shape-sm);
   background: var(--surface-container-low); cursor: pointer; }
 .shape:hover { border-color: var(--outline); }
-.shape:focus-within { outline: 2px solid var(--primary); outline-offset: 2px; }
+.shape:focus-within { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .shape input { margin: 0; }
 
 /* -- choosing a file ------------------------------------------------------- */
@@ -1376,7 +1391,7 @@ details[open] > summary > .chev .icon { rotate: 180deg; }
 /* The checked one is named by its border as well as by the radio, because a
    radio inside a card is small and the card is what the eye lands on. */
 .pick-on { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
-.pick:focus-within { outline: 2px solid var(--primary); outline-offset: 2px; }
+.pick:focus-within { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .pick input { position: absolute; top: .6rem; right: .6rem; margin: 0; }
 .pick-body { display: block; }
 .pick-thumb { display: block; width: 100%; height: 7rem; object-fit: contain;
@@ -1915,9 +1930,28 @@ table.queue td:nth-child(5), table.queue td:nth-child(6) {
 :root {
   --viz-series: light-dark(var(--primary-40), var(--primary-80));
   --viz-good: light-dark(#1e8e3e, #81c995);
-  --viz-warning: light-dark(#f9ab00, #fdd663);
-  --viz-serious: light-dark(#e8710a, #fcad70);
+  /* Warning and serious are the tones Google's status colours sit at, one
+     step darker in the light scheme than its bright fills, and the step is
+     not decoration: at the bright tones (#f9ab00, #e8710a) these marks
+     measured 1.93:1 and 2.95:1 on the light page, under the 3:1 WCAG
+     1.4.11 asks of any graphical object that carries meaning — a meter fill,
+     a bar, a donut segment — with no adjacent number to speak for it. The
+     darker tones clear it everywhere they are drawn (6.38 and 4.66 on the
+     light page; contrast_test.go holds both branches to 3:1 now, so a
+     revert is a failing build rather than a quieter chart). */
+  --viz-warning: light-dark(#8f4a00, #fdd663);
+  --viz-serious: light-dark(#b05a00, #fcad70);
   --viz-critical: light-dark(#d93025, #f28b82);
+  /* Thin marks — anything 2px or under: sparkline strokes, box outlines on
+     the agent maps, the flow-graph edges — get their own tokens, the same
+     hues resolved deeper still, because a hairline needs more contrast than
+     a 20px bar to read at all. Brighter area fills with a number beside
+     them may keep the fill hues above. */
+  --viz-series-stroke: light-dark(#0842a0, #a8c7fa);
+  --viz-good-stroke: light-dark(#0f5223, #6dd58c);
+  --viz-warning-stroke: light-dark(#8f4a00, #fdd663);
+  --viz-serious-stroke: light-dark(#b05a00, #ffb59d);
+  --viz-critical-stroke: light-dark(#b3261e, #f2b8b5);
   --viz-track: var(--surface-container-high);
   /* "Not measured" in a status donut: a grey a full step from both green
      and red in each theme (palette validator: ring neighbours pass for
@@ -1978,7 +2012,7 @@ table.queue td:nth-child(5), table.queue td:nth-child(6) {
 .wftrend { width: 100%; max-width: 56rem; height: auto; display: block;
   overflow: visible; }
 .wftrend .base { stroke: var(--viz-grid); stroke-width: 1; }
-.wftrend polyline { fill: none; stroke: var(--viz-series); stroke-width: 2;
+.wftrend polyline { fill: none; stroke: var(--viz-series-stroke); stroke-width: 2;
   stroke-linejoin: round; stroke-linecap: round; }
 .wftrend .hit { fill: transparent; }
 .wftrend .hit:hover { fill: var(--viz-series); fill-opacity: .15; }
@@ -2091,7 +2125,7 @@ table.queue td:nth-child(5), table.queue td:nth-child(6) {
 .agmap .box.core { fill: var(--primary-container); stroke: var(--primary); stroke-width: 1.5; }
 .agmap .box.write { stroke: var(--viz-critical); stroke-width: 1.5; }
 .agmap .box.none { stroke-dasharray: 4 3; }
-.agmap .box.gate { fill: var(--warning-container); stroke: var(--viz-warning); }
+.agmap .box.gate { fill: var(--warning-container); stroke: var(--viz-warning-stroke); }
 .agmap .box.cap, .agmap .box.read, .agmap .box.tool, .agmap .box.deleg { stroke: var(--outline-variant); }
 .agmap .edge { stroke: var(--outline-variant); stroke-width: 1; }
 .agmap .edge.write { stroke: var(--viz-critical); }
@@ -2111,7 +2145,7 @@ fieldset.caps-set { max-width: 56rem; }
 
 /* Beside a capability: whether the agent stops and asks before using it. */
 .caps label.ask { margin-left: auto; font: var(--body-sm); color: var(--on-surface-variant); }
-.agmap .box.ask { fill: var(--warning-container); stroke: var(--viz-warning); }
+.agmap .box.ask { fill: var(--warning-container); stroke: var(--viz-warning-stroke); }
 .agmap .label.ask { fill: var(--on-warning-container); }
 
 /* A button that is one of many in a table, and should not shout. */
@@ -2209,7 +2243,7 @@ thead th, .navgroup > summary > h2, .wf-word, .chip, .sev, .badge,
 .findbar { flex: 0 1 34rem; position: relative; }
 .findbar input { height: 48px; min-height: 48px; padding: 0 5.5rem 0 1.25rem;
   border: 0; background: var(--surface-container-high); font: var(--body-lg); }
-.findbar input:focus-visible { outline: 2px solid var(--primary); outline-offset: 0;
+.findbar input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 0;
   background: var(--surface-container-lowest); }
 .findbar > button[type=submit] { display: none; }
 .palette-open { position: absolute; right: .4rem; top: 50%; translate: 0 -50%;
@@ -2283,7 +2317,7 @@ td .danger:hover, td button.danger:hover { background: var(--error-container);
 .palette input { width: 100%; box-sizing: border-box; height: 52px; padding: 0 1rem;
   border: 0; border-radius: var(--shape-lg); background: var(--surface-container-high);
   color: var(--on-surface); font: var(--body-lg); }
-.palette input:focus-visible { outline: 2px solid var(--primary); outline-offset: 0; }
+.palette input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 0; }
 .palette ul { list-style: none; margin: .5rem 0 0; padding: 0; max-height: 50vh;
   overflow-y: auto; }
 .palette li { display: flex; justify-content: space-between; gap: 1rem;
@@ -2432,6 +2466,167 @@ th[scope="row"] { font-weight: 500; }
  * specificity is equal, and each block names the component it is.
  */
 
+/* The canonical token names, as every Material implementation publishes
+ * them: --md-sys-color-* for colour roles, --md-sys-state-* for the state
+ * layer opacities, --md-sys-elevation-* for levels, --md-sys-shape-corner-*
+ * for the corner scale. Aliases and nothing more — each names the role
+ * defined at the top of this file, so a component can be written in the
+ * names the M3 specifications use while the contrast test keeps checking
+ * the pair underneath. m3tokens_test.go holds an alias to its role: one
+ * that drifts, or is dropped, is a failing build rather than a component
+ * quietly reading its own colour.
+ *
+ * No aliases for the roles Material deprecated (background and
+ * on-background, absorbed into surface here) or for the custom success and
+ * warning roles (not M3 roles at all): an alias to something the spec does
+ * not define is a name that promises a contract and points nowhere. */
+:root {
+  --md-sys-color-primary: var(--primary);
+  --md-sys-color-on-primary: var(--on-primary);
+  --md-sys-color-primary-container: var(--primary-container);
+  --md-sys-color-on-primary-container: var(--on-primary-container);
+  --md-sys-color-secondary: var(--secondary);
+  --md-sys-color-on-secondary: var(--on-secondary);
+  --md-sys-color-secondary-container: var(--secondary-container);
+  --md-sys-color-on-secondary-container: var(--on-secondary-container);
+  --md-sys-color-tertiary: var(--tertiary);
+  --md-sys-color-on-tertiary: var(--on-tertiary);
+  --md-sys-color-tertiary-container: var(--tertiary-container);
+  --md-sys-color-on-tertiary-container: var(--on-tertiary-container);
+  --md-sys-color-error: var(--error);
+  --md-sys-color-on-error: var(--on-error);
+  --md-sys-color-error-container: var(--error-container);
+  --md-sys-color-on-error-container: var(--on-error-container);
+  --md-sys-color-surface: var(--surface);
+  --md-sys-color-on-surface: var(--on-surface);
+  --md-sys-color-surface-variant: var(--surface-variant);
+  --md-sys-color-on-surface-variant: var(--on-surface-variant);
+  --md-sys-color-surface-container-lowest: var(--surface-container-lowest);
+  --md-sys-color-surface-container-low: var(--surface-container-low);
+  --md-sys-color-surface-container: var(--surface-container);
+  --md-sys-color-surface-container-high: var(--surface-container-high);
+  --md-sys-color-surface-container-highest: var(--surface-container-highest);
+  --md-sys-color-surface-dim: var(--surface-dim);
+  --md-sys-color-surface-bright: var(--surface-bright);
+  /* Surface-tint is primary at the scheme's tone, by definition; elevation
+     here is the container ladder rather than a tint overlay, so components
+     read the name and the ladder decides. */
+  --md-sys-color-surface-tint: var(--primary);
+  --md-sys-color-outline: var(--outline);
+  --md-sys-color-outline-variant: var(--outline-variant);
+  --md-sys-color-inverse-surface: var(--inverse-surface);
+  --md-sys-color-inverse-on-surface: var(--inverse-on-surface);
+  --md-sys-color-inverse-primary: var(--inverse-primary);
+  --md-sys-color-shadow: var(--shadow);
+  --md-sys-color-scrim: var(--scrim);
+  --md-sys-color-primary-fixed: var(--primary-fixed);
+  --md-sys-color-primary-fixed-dim: var(--primary-fixed-dim);
+  --md-sys-color-on-primary-fixed: var(--on-primary-fixed);
+  --md-sys-color-on-primary-fixed-variant: var(--on-primary-fixed-variant);
+  --md-sys-color-secondary-fixed: var(--secondary-fixed);
+  --md-sys-color-secondary-fixed-dim: var(--secondary-fixed-dim);
+  --md-sys-color-on-secondary-fixed: var(--on-secondary-fixed);
+  --md-sys-color-on-secondary-fixed-variant: var(--on-secondary-fixed-variant);
+  --md-sys-color-tertiary-fixed: var(--tertiary-fixed);
+  --md-sys-color-tertiary-fixed-dim: var(--tertiary-fixed-dim);
+  --md-sys-color-on-tertiary-fixed: var(--on-tertiary-fixed);
+  --md-sys-color-on-tertiary-fixed-variant: var(--on-tertiary-fixed-variant);
+
+  /* The state layers under their published names: 8/12/12/16, as above. */
+  --md-sys-state-hover-state-layer-opacity: var(--state-hover);
+  --md-sys-state-focus-state-layer-opacity: var(--state-focus);
+  --md-sys-state-pressed-state-layer-opacity: var(--state-press);
+  --md-sys-state-dragged-state-layer-opacity: var(--state-drag);
+
+  /* Elevation levels, and the corner scale as Material numbers them. */
+  --md-sys-elevation-level-0: none;
+  --md-sys-elevation-level-1: var(--elevation-1);
+  --md-sys-elevation-level-2: var(--elevation-2);
+  --md-sys-elevation-level-3: var(--elevation-3);
+  --md-sys-elevation-level-4: var(--elevation-4);
+  --md-sys-elevation-level-5: var(--elevation-5);
+  --md-sys-shape-corner-none: var(--shape-none);
+  --md-sys-shape-corner-extra-small: var(--shape-xs);
+  --md-sys-shape-corner-small: var(--shape-sm);
+  --md-sys-shape-corner-medium: var(--shape-md);
+  --md-sys-shape-corner-large: var(--shape-lg);
+  --md-sys-shape-corner-large-increased: var(--shape-lg-inc);
+  --md-sys-shape-corner-extra-large: var(--shape-xl);
+  --md-sys-shape-corner-extra-large-increased: var(--shape-xl-inc);
+  --md-sys-shape-corner-extra-extra-large: var(--shape-xxl);
+  --md-sys-shape-corner-full: var(--shape-full);
+
+  /* The duration scale, for motion that is not a spring: effects, and
+     anything timed rather than settled. Colour and opacity belong to the
+     effect springs above when they can; these steps are the specification's
+     own ladder, so a component that needs 250ms says medium-1 rather than a
+     number somebody liked. */
+  --motion-duration-short-1: 50ms;
+  --motion-duration-short-2: 100ms;
+  --motion-duration-short-3: 150ms;
+  --motion-duration-short-4: 200ms;
+  --motion-duration-medium-1: 250ms;
+  --motion-duration-medium-2: 300ms;
+  --motion-duration-medium-3: 350ms;
+  --motion-duration-medium-4: 400ms;
+  --motion-duration-long-1: 450ms;
+  --motion-duration-long-2: 500ms;
+  --motion-duration-long-3: 550ms;
+  --motion-duration-long-4: 600ms;
+  --motion-duration-extra-long-1: 700ms;
+  --motion-duration-extra-long-2: 800ms;
+  --motion-duration-extra-long-3: 900ms;
+  --motion-duration-extra-long-4: 1000ms;
+
+  /* Component tokens, the numbers the component specifications publish for
+   * the parts this console has. Colour tokens name a role (and the sync
+   * test holds them to it); shape and size tokens carry the spec's own
+   * numbers. The components they describe are already built in the rules
+   * below — these are the contract stated once, where a component pass
+   * reads it rather than re-derives it. */
+  /* Snackbar (flash messages): the inverse roles on purpose, so a toast
+     reads above any surface it floats over; the action label
+     inverse-primary. Four corner, level 3. */
+  --md-comp-snackbar-container-color: var(--inverse-surface);
+  --md-comp-snackbar-supporting-text-color: var(--inverse-on-surface);
+  --md-comp-snackbar-action-label-color: var(--inverse-primary);
+  --md-comp-snackbar-container-shape: var(--shape-xs);
+  --md-comp-snackbar-elevation: var(--elevation-3);
+  /* Dialogs: surface-container-high, CornerExtraLarge (28), level 3, scrim. */
+  --md-comp-dialog-container-color: var(--surface-container-high);
+  --md-comp-dialog-container-shape: var(--shape-xl);
+  --md-comp-dialog-elevation: var(--elevation-3);
+  --md-comp-dialog-scrim-color: var(--scrim);
+  /* Filter chips (the list filters): 32 high, CornerSmall, outline-variant;
+     the selected one secondary-container, never primary. */
+  --md-comp-filter-chip-container-height: 32px;
+  --md-comp-filter-chip-container-shape: var(--shape-sm);
+  --md-comp-filter-chip-outline-color: var(--outline-variant);
+  --md-comp-filter-chip-selected-container-color: var(--secondary-container);
+  --md-comp-filter-chip-selected-label-text-color: var(--on-secondary-container);
+  /* Segmented buttons (tri-state switches): 40 high, full corners, a 1px
+     outline rule around the group, selected secondary-container. */
+  --md-comp-outlined-segmented-button-container-height: 40px;
+  --md-comp-outlined-segmented-button-container-shape: var(--shape-full);
+  --md-comp-outlined-segmented-button-outline-color: var(--outline);
+  --md-comp-outlined-segmented-button-outline-width: 1px;
+  --md-comp-outlined-segmented-button-selected-container-color: var(--secondary-container);
+  --md-comp-outlined-segmented-button-selected-label-text-color: var(--on-secondary-container);
+  /* Badges (counts on the rail): error on on-error, a 6px dot or a 16px
+     counter, full corners. The count is data; the colour is attention. */
+  --md-comp-badge-color: var(--error);
+  --md-comp-badge-label-text-color: var(--on-error);
+  --md-comp-badge-shape: var(--shape-full);
+  --md-comp-badge-small-size: 6px;
+  --md-comp-badge-large-size: 16px;
+  /* Search view (the command palette): surface-container-high, a 72 header
+     full-screen or 56 docked at CornerExtraLarge. */
+  --md-comp-search-view-container-color: var(--surface-container-high);
+  --md-comp-search-view-header-height: 72px;
+  --md-comp-search-view-docked-header-height: 56px;
+  --md-comp-search-view-docked-container-shape: var(--shape-xl);
+}
+
 /* Buttons: Small (40 high, 16 either side, LabelLarge) is the default;
  * pressed, the round shape morphs to CornerSmall (8) on the fast spatial
  * spring, so it gives a little as it settles. The 48px it used to be is
@@ -2483,6 +2678,13 @@ button:disabled, .btn[aria-disabled="true"] {
      middle of an 80-wide rail. */
   .bar { padding-inline: 16px; }
 }
+
+/* The page's own scrollbar, coloured from the theme as the menu's is, so
+ * the two a long page shows agree. Not thinned: the menu's is quiet and
+ * thin because nobody aims at it — the wheel and the keyboard reach what is
+ * underneath — while the page's is the one scrollbar a person does aim at,
+ * and its width is the platform's business. */
+html { scrollbar-color: var(--outline) transparent; }
 
 /* The search bar: 56 high, full round, surface-container-high, the search
  * symbol leading and the input in BodyLarge. The leading symbol is the
@@ -2537,7 +2739,7 @@ button:disabled, .btn[aria-disabled="true"] {
 
 /* The command palette is a dialog: surface-container-high, CornerExtraLarge,
  * elevation 3. */
-.palette { background: var(--surface-container-high); box-shadow: var(--elevation-3); }
+.palette { background: var(--md-comp-search-view-container-color); box-shadow: var(--elevation-3); }
 .palette input { background: var(--surface-container-highest); }
 
 /* Text fields, outlined: 56 high, 16 in, CornerExtraSmall (4), a 1px
@@ -2559,7 +2761,9 @@ input:hover, textarea:hover, select:hover { border-color: var(--on-surface); }
  * container and needs no outline; a neutral one keeps outline-variant. */
 .pill { border-radius: var(--shape-sm); font-weight: var(--weight-medium); letter-spacing: .03125rem; min-height: 24px; }
 .pill.critical, .pill.high, .pill.medium, .pill.ok { border-color: transparent; }
-.chips a { border-radius: var(--shape-sm); min-height: 32px; }
+/* The filter chips of the list screens, drawn from the component tokens. */
+.chips a { border-radius: var(--md-comp-filter-chip-container-shape);
+  min-height: var(--md-comp-filter-chip-container-height); }
 .wf-band { border-radius: var(--shape-sm); }
 
 /* Cards: CornerMedium (12), outlined in outline-variant. */
@@ -2887,7 +3091,7 @@ td code.cmd, th code.cmd, .run-steps td:nth-child(2) code { display: inline; max
 .fleetmap .box.agent { fill: var(--primary-container); stroke: var(--primary); }
 .fleetmap .box.external-agent, .fleetmap .box.app { fill: var(--secondary-container); }
 .fleetmap .box.tool-server, .fleetmap .box.model-route, .fleetmap .box.Vaigil { fill: var(--surface-container-low); }
-.fleetmap .box.host { fill: var(--warning-container); stroke: var(--viz-warning); }
+.fleetmap .box.host { fill: var(--warning-container); stroke: var(--viz-warning-stroke); }
 
 
 /* A row of labelled fields that wraps as a whole: each label stays with its
@@ -3181,6 +3385,19 @@ table.queue td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* A moment is one token: a date broken after its month reads as two. */
 table.evidence td.when { white-space: nowrap; font-variant-numeric: tabular-nums; }
 
+/* A finding's advice from a model: after the evidence and the decision, and
+   closed until it is asked for. The order is the point — a reader who meets
+   the verdict before the evidence takes the verdict (the automation-bias
+   finding), so the evidence is above and this is the last thing on the
+   page. The summary says only what is inside; the caution and the reasoning
+   open with it. 48 high, as every control that opens something is. */
+details.proposals { margin: 2rem 0 .5rem; }
+details.proposals > summary { display: flex; align-items: center; gap: .5rem;
+  min-height: 48px; margin: 0; }
+details.proposals > summary h2 { margin: 0; }
+details.proposals > summary .chev { margin-inline-start: auto; }
+details.proposals[open] > summary { margin-bottom: .5rem; }
+
 /* Declaring an incident is one column of fields at one width. */
 .case-declare { max-width: 44rem; }
 .case-declare > p { margin: 0 0 1.25rem; }
@@ -3328,3 +3545,30 @@ td .duty-more { margin: 4px 0 0; }
 .view-bar { display: block; width: 200px; height: .75rem; }
 .view-bar rect { fill: var(--primary); }
 .view-kept { margin: 0 0 1.5rem; }
+
+/* -- agent sessions: the timeline ---------------------------------------------
+ *
+ * A session's events as a vertical timeline: a time gutter beside a left
+ * rule, which is the notelist's own vocabulary for an annotation on the
+ * moment beside it rather than a card saying "separate object". A list and
+ * not a table because a timeline is read, not sorted or filtered: no column
+ * ever hides, so there is nothing for the stacking rules to do on a phone,
+ * and the gutter moves above its line instead.
+ *
+ * No animation and no colour beyond the outcome words the entries already
+ * carry: a timeline that moved would imply progress nobody is watching live,
+ * and the page is a record.
+ */
+ol.timeline { list-style: none; margin: .25rem 0 0; padding: 0; }
+ol.timeline > li { display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+  gap: .05rem .9rem; padding: .22rem 0 .22rem .9rem;
+  border-left: 3px solid var(--outline-variant); }
+.timeline .tl-when { font: var(--label-md); font-variant-numeric: tabular-nums;
+  color: var(--on-surface-variant); white-space: nowrap; }
+.timeline .tl-what { min-width: 0; }
+/* On a phone the gutter moves above the line it names; the rule stays, so
+   the order the timeline is read in survives the narrow screen. */
+@media (max-width: 40rem) {
+  ol.timeline > li { grid-template-columns: minmax(0, 1fr); gap: 0; }
+}

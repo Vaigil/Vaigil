@@ -15,6 +15,7 @@ import (
 
 	"github.com/vaigil/vaigil/internal/auth"
 	"github.com/vaigil/vaigil/internal/detect"
+	"github.com/vaigil/vaigil/internal/spool"
 	"github.com/vaigil/vaigil/internal/telemetry"
 )
 
@@ -141,8 +142,41 @@ func (s *Server) handleHunt(w http.ResponseWriter, r *http.Request) {
 	var events []telemetry.Event
 	var sample *telemetry.Event
 	tooMany := false
-	err = sp.Range(from, time.Time{}, func(e telemetry.Event) error {
-		scanned++
+
+	// One equality the sidecar can answer inside the read: an equals over
+	// the whole of source, class, actor.value or message — the fields the
+	// per-segment inverted index carries postings for. The read jumps to the
+	// posting's events instead of parsing every line, and skips segments
+	// whose dictionary refuses the value outright; every other condition —
+	// other fields, prefix, contains — reads everything, because postings
+	// over whole values cannot rule a segment out for a partial match.
+	keep := func(spool.Segment) bool { return true }
+	hinted := false
+	if filtered && where.Op == detect.Equals && len(where.Values) == 1 {
+		switch where.Field {
+		case "source", "class", "actor.value", "message":
+			hinted = true
+			// Counted as decided rather than read: the postings answer for
+			// every event in an admitted segment, so the page's count is the
+			// hunt's coverage, not its disk traffic — the same accounting a
+			// bloom-pruned segment always had.
+			keep = func(seg spool.Segment) bool {
+				scanned += seg.Events
+				return true
+			}
+		}
+	}
+	walk := func(fn func(telemetry.Event) error) error {
+		if hinted {
+			return sp.RangeWhereEqual(from, time.Time{}, where.Field,
+				where.Values[0], keep, fn)
+		}
+		return sp.RangeWhere(from, time.Time{}, keep, fn)
+	}
+	err = walk(func(e telemetry.Event) error {
+		if !hinted {
+			scanned++
+		}
 		f := e.Fields()
 		for k := range f {
 			fields[k]++
@@ -197,8 +231,10 @@ func (s *Server) handleHunt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The fields this store's events actually carry, most common first, so
-	// the choice is from what is there rather than from a list of names.
+	// The fields the events this hunt read carry, most common first, so the
+	// choice is from what is there rather than from a list of names. Under a
+	// pruned condition that is the fields of the events that can match —
+	// the skipped segments' events could not have been stacked anyway.
 	type fieldName struct {
 		Name  string
 		Count int

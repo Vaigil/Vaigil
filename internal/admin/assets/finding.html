@@ -33,19 +33,37 @@
   <dt>Id</dt><dd><code>{{.F.ID}}</code></dd>
 </dl>
 
-{{if .Proposals}}
-<h2>Suggested by an agent</h2>
-<div class="notice warn" role="note">
-  <p>These were written by a model that read the evidence further down —
-    evidence whoever is being detected may have written.
-    Nothing here has changed the finding. Check the reasoning against the
-    evidence, and if you agree, record the decision yourself below.</p>
+{{/*
+  The order of what follows is the page's design, not a convenience: the
+  evidence first, then what has been decided, then the form, then — last and
+  closed — what a model suggested. A reader who meets a verdict before the
+  evidence takes the verdict; the ordering is the whole of the defence.
+*/}}
+<h2>Evidence</h2>
+{{if not .Evidence}}<p class="dim">None recorded.</p>{{else}}
+<div class="table-wrap">
+<table class="evidence">
+  <thead><tr><th scope="col">When</th><th scope="col">From</th><th scope="col">What it said</th></tr></thead>
+  <tbody>
+  {{range .Evidence}}
+  <tr>
+    <td class="when">{{if gt .Times 1}}{{.Times}} times, {{.When}}<br>to {{.Last}}{{else}}{{.When}}{{end}}</td>
+    <td><code>{{.Source}}</code>{{if .Tainted}} <span class="tag tag-warn" title="Written by whoever can reach this source, which can include whoever is being detected">untrusted</span>{{end}}</td>
+    <td>{{if .What}}{{.What}}{{else}}<span class="dim">no message</span>{{end}}{{if .Ref}}<div class="hint mono">{{.Ref}}</div>{{end}}</td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
 </div>
+{{end}}
+
+<h2>What has been decided</h2>
+{{if not .History}}<p>Nobody has decided anything about this yet.</p>{{else}}
 <ol class="notelist">
-  {{range .Proposals}}
-  <li><strong>{{.To}}</strong> suggested for {{if .For}}{{.For}}{{else}}somebody{{end}}
-    <span class="dim">{{.When}}</span>
-    {{if .Because}}<div>{{.Because}}</div>{{end}}</li>
+  {{range .History}}
+  <li><strong>{{.To}}</strong> by {{.By}} <span class="dim">{{.When}}</span>
+    {{if .Because}}<div>{{.Because}}</div>{{end}}
+    {{if .Until}}<div class="hint">until {{.Until}}</div>{{end}}</li>
   {{end}}
 </ol>
 {{end}}
@@ -76,38 +94,39 @@
   <button type="submit">Record the decision</button>
   <p class="help">Written to the audit log under your name. A model may
     propose a decision through the machine interface; only a person records
-    one.</p>
+    one.{{if .Proposals}} A suggestion is waiting below — record your own
+    call first, or open it after.{{end}}</p>
 </form>
 {{else}}
 <p class="hint">Recording a decision is an analyst&rsquo;s; accepting a risk, a responder&rsquo;s.</p>
 {{end}}
-<h2>What has been decided</h2>
-{{if not .History}}<p>Nobody has decided anything about this yet.</p>{{else}}
-<ol class="notelist">
-  {{range .History}}
-  <li><strong>{{.To}}</strong> by {{.By}} <span class="dim">{{.When}}</span>
-    {{if .Because}}<div>{{.Because}}</div>{{end}}
-    {{if .Until}}<div class="hint">until {{.Until}}</div>{{end}}</li>
-  {{end}}
-</ol>
-{{end}}
 
-<h2>Evidence</h2>
-{{if not .Evidence}}<p class="dim">None recorded.</p>{{else}}
-<div class="table-wrap">
-<table class="evidence">
-  <thead><tr><th scope="col">When</th><th scope="col">From</th><th scope="col">What it said</th></tr></thead>
-  <tbody>
-  {{range .Evidence}}
-  <tr>
-    <td class="when">{{if gt .Times 1}}{{.Times}} times, {{.When}}<br>to {{.Last}}{{else}}{{.When}}{{end}}</td>
-    <td><code>{{.Source}}</code>{{if .Tainted}} <span class="tag tag-warn" title="Written by whoever can reach this source, which can include whoever is being detected">untrusted</span>{{end}}</td>
-    <td>{{if .What}}{{.What}}{{else}}<span class="dim">no message</span>{{end}}{{if .Ref}}<div class="hint mono">{{.Ref}}</div>{{end}}</td>
-  </tr>
-  {{end}}
-  </tbody>
-</table>
-</div>
+{{if .Proposals}}
+{{/*
+  Last on the page and closed until opened, and deliberately without an
+  accept button: adopting a suggestion in one press is the automation-bias
+  failure this page exists to prevent. The person chooses from the radio
+  list above and writes their own reason; agreeing is a decision they make,
+  not a link they click.
+*/}}
+<details class="proposals">
+  <summary><h2>Suggested by an agent</h2><span class="chev">{{icon "expand_more"}}</span></summary>
+  <div class="notice warn" role="note">
+    <p>These were written by a model that read the evidence above —
+      evidence whoever is being detected may have written.
+      Nothing here has changed the finding. Each says which agent proposed it;
+      an agent that cannot be named is not a reason to agree.
+      Check the reasoning against the evidence, and if you agree, record the
+      decision yourself above.</p>
+  </div>
+  <ol class="notelist">
+    {{range .Proposals}}
+    <li><strong>{{.To}}</strong> — {{.Source}}, for {{if .For}}{{.For}}{{else}}somebody{{end}}
+      <span class="dim">{{.When}}</span>
+      {{if .Because}}<div>{{.Because}}</div>{{end}}</li>
+    {{end}}
+  </ol>
+</details>
 {{end}}
 
 {{template "foot" .}}

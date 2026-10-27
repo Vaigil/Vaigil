@@ -221,9 +221,18 @@ func TestAnAgentsSuggestionIsShownAsOne(t *testing.T) {
 	caps := fr.wire()
 	id := finding.View(fr.reg, nil, time.Now())[0].ID
 	caps.Proposals = func(string) ([]finding.Proposal, error) {
-		return []finding.Proposal{{Finding: id, At: time.Now(), By: "p_agent",
-			For: "dana", To: finding.FalsePositive,
-			Because: "<script>alert(1)</script> the VPN egresses in NZ"}}, nil
+		return []finding.Proposal{
+			// One from an agent outside this program, one from the analyst
+			// this program runs itself: the page must say which is which,
+			// because the reason is free text either way, and beside the
+			// buttons that decide.
+			{Finding: id, At: time.Now(), By: "p_agent", For: "dana",
+				To: finding.FalsePositive, Client: "ops-copilot",
+				Because: "<script>alert(1)</script> the VPN egresses in NZ"},
+			{Finding: id, At: time.Now().Add(-time.Minute), By: "p_analyst",
+				For: "dana", To: finding.Triaged, Agent: "triage",
+				Because: "the counts line up with the load test"},
+		}, nil
 	}
 	srv.Findings = caps
 	body := get(t, srv, "/findings/"+id, token).Body.String()
@@ -234,8 +243,79 @@ func TestAnAgentsSuggestionIsShownAsOne(t *testing.T) {
 	if strings.Contains(body, "<script>alert(1)") {
 		t.Fatal("a model's reasoning reached the page unescaped")
 	}
+	// The two sources are named, and named differently: an outside agent by
+	// its client, this program's own analyst as itself.
+	if !strings.Contains(body, "proposed by an external agent: ops-copilot") {
+		t.Error("an outside agent's proposal does not name its client")
+	}
+	if !strings.Contains(body, "proposed by the built-in analyst") {
+		t.Error("the built-in analyst's proposal does not say what it is")
+	}
 	// And it did not change anything.
 	if got := finding.View(fr.reg, fr.decisions, time.Now())[0].State; got != finding.Open {
 		t.Fatalf("state %s", got)
+	}
+}
+
+// TestTheEvidenceIsMetBeforeTheAdviceAndTheDecision.
+//
+// The page's order is its design: a reader who meets a verdict before the
+// evidence takes the verdict — the automation-bias finding — so the evidence
+// comes first, the form a person decides with follows it, and what a model
+// suggested is last and closed until it is opened. And there is no accept
+// button anywhere near a suggestion: adopting one in a press is the failure
+// the order exists to prevent, so the block carries text and nothing that
+// submits.
+func TestTheEvidenceIsMetBeforeTheAdviceAndTheDecision(t *testing.T) {
+	srv, token := setup(t)
+	fr := newFakeRegister(detectionFinding("admin-dana", "failed sign-in", telemetry.SeverityHigh))
+	caps := fr.wire()
+	id := finding.View(fr.reg, nil, time.Now())[0].ID
+	caps.Proposals = func(string) ([]finding.Proposal, error) {
+		return []finding.Proposal{{Finding: id, At: time.Now(), By: "p_agent",
+			For: "dana", To: finding.FalsePositive, Client: "ops-copilot",
+			Because: "the VPN egresses in NZ"}}, nil
+	}
+	srv.Findings = caps
+	body := get(t, srv, "/findings/"+id, token).Body.String()
+
+	evidence := strings.Index(body, `<table class="evidence">`)
+	decide := strings.Index(body, `action="/findings/decide"`)
+	advice := strings.Index(body, `<details class="proposals">`)
+	if evidence < 0 || decide < 0 || advice < 0 {
+		t.Fatalf("the page is missing a part: evidence %d, decide %d, advice %d",
+			evidence, decide, advice)
+	}
+	if !(evidence < decide && decide < advice) {
+		t.Errorf("evidence (%d), decide (%d) and the advice (%d) are not in "+
+			"that order. The evidence is what a decision is made from; the "+
+			"advice is what it must be made against", evidence, decide, advice)
+	}
+
+	// Closed until it is opened — the reasoning is not on the page before
+	// somebody has read the evidence above it.
+	if strings.Contains(body, `<details class="proposals" open`) {
+		t.Error("the suggestions arrive open; they are the last thing read, " +
+			"not the first")
+	}
+
+	// No one-click adoption. The block holds words; anything that submits
+	// from inside it would be an accept button by another name.
+	block := body[advice:]
+	if end := strings.Index(block, "</details>"); end >= 0 {
+		block = block[:end]
+	}
+	for _, control := range []string{"<form", "<button", "<input"} {
+		if strings.Contains(block, control) {
+			t.Errorf("the suggestions carry a %q; a suggestion is agreed "+
+				"with by deciding from the form above it, never by pressing "+
+				"something beside it", control)
+		}
+	}
+
+	// And the form says a suggestion is waiting, so recording one's own call
+	// first is a choice the page offered rather than an order it implied.
+	if !strings.Contains(body, "A suggestion is waiting below") {
+		t.Error("the decide form does not say a suggestion is unopened below")
 	}
 }

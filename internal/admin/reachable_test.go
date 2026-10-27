@@ -61,13 +61,16 @@ func TestEveryScreenIsReachableFromSomewhere(t *testing.T) {
 	// enrol.html is the third, under /enrol/, a subtree needing a secret.
 	//
 	// Written down rather than matched by prefix, so a sixth passkey route
-	// added later is reported rather than excused by a pattern.
+	// added later is reported rather than excused by a pattern. /live is
+	// here for the same reason as /session/alive: a thing the script opens,
+	// which no link reaches and no form posts to.
 	byScript := map[string]string{
 		"/passkeys/challenge":       "passkeys.html asks for a registration challenge",
 		"/passkeys/register":        "passkeys.html posts what the authenticator made",
 		"/signin/passkey/challenge": "passkeysignin.html asks for a sign-in challenge",
 		"/signin/passkey/verify":    "passkeysignin.html posts the assertion",
 		"/session/alive":            "admin.js says somebody is using the page",
+		"/live":                     "admin.js opens the event stream Today follows",
 	}
 	for path := range byScript {
 		if !served[path] {

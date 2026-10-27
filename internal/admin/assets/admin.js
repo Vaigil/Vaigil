@@ -22,7 +22,12 @@
 //     each value under its column's name, instead of hiding the columns
 //     that matter past the edge of the screen. Without the script the table
 //     scrolls sideways, with a shadow at the edge that says it does;
-//   * on a run's page taken over, a click on the live picture presses there.
+//   * on a run's page taken over, a click on the live picture presses there;
+//   * on Today and the Agents board, a live stream of what the audit log
+//     records as it happens (server-sent events from /live), which moves
+//     the counts on the page and speaks when something waits for a person.
+//     If the stream cannot be held, the page says so and falls back to
+//     reloading once a minute — it never pretends to be live.
 //
 // The palette is a native <dialog> with the ARIA combobox pattern: the
 // input owns a listbox, arrow keys move the active option, Enter opens it,
@@ -565,6 +570,219 @@
       if (t) t.value = "";
     });
   });
+
+  // The live stream (Today and the Agents board, where the badge is).
+  // Server-sent events over the audit log: the stream carries ids, kinds,
+  // states and counters and nothing else (live.go holds itself to that),
+  // and every word shown to a person is written here — the stream cannot
+  // put a sentence on the page any more than a log entry can.
+  //
+  // Everything it moves already works without it: the counts are rendered
+  // by the server, the Refresh form reloads the page, and the badge stays
+  // silent rather than claiming something it is not doing.
+  (function () {
+    var badge = document.querySelector("[data-live-badge]");
+    if (!badge) return; // a screen without a badge has no stream to follow
+    var reduce = window.matchMedia
+      ? window.matchMedia("(prefers-reduced-motion: reduce)").matches : false;
+
+    // The states that take a finding out of the triage queue, and the run
+    // states that count as an automation having acted. Closed sets, kept in
+    // step with the server's by hand: an unknown word from the stream is
+    // ignored rather than guessed at.
+    var closing = { fixed: true, stale: true, "false-positive": true, benign: true };
+    var ranStates = { done: true, watched: true, limited: true };
+
+    function cookieNamed(name) {
+      var parts = document.cookie ? document.cookie.split(";") : [];
+      for (var i = 0; i < parts.length; i++) {
+        var bit = parts[i].trim();
+        if (bit.indexOf(name + "=") === 0) return bit.slice(name.length + 1);
+      }
+      return "";
+    }
+
+    // Move a figure the stream says moved. Clamped at zero: the deltas are
+    // a hint beside the truth, and a count of minus one on a page that
+    // started at zero is a lie with a number in it. The tile links to the
+    // records, which remain the count that is real.
+    function bump(href, by) {
+      var tile = document.querySelector('[data-live-count="' + href + '"]');
+      var dd = tile && tile.querySelector("dd a");
+      if (!dd) return;
+      var n = (parseInt(dd.textContent, 10) || 0) + by;
+      dd.textContent = String(Math.max(0, n));
+    }
+
+    function waiting(by) {
+      var h = document.querySelector('[data-live="waiting"]');
+      if (!h) return;
+      var span = h.querySelector(".count");
+      var n = (span ? parseInt(span.textContent, 10) || 0 : 0) + by;
+      if (!span) {
+        if (n <= 0) return; // nothing was shown; a removal changes nothing
+        span = document.createElement("span");
+        span.className = "count";
+        h.appendChild(span);
+      }
+      span.textContent = String(Math.max(0, n));
+      // The empty state stops being true the moment something waits.
+      var empty = document.querySelector('[data-live="waiting-empty"]');
+      if (empty && n > 0) {
+        empty.textContent = "";
+        var open = document.createElement("a");
+        open.href = "/approvals";
+        open.textContent = "Something is waiting for you.";
+        empty.appendChild(open);
+      }
+    }
+
+    // The snackbar: one at a time, announced without taking focus, gone on
+    // its own. Drawn with the stylesheet's snackbar component tokens
+    // through the style object, because the content security policy allows
+    // no style attributes and the palette of this interface lives in one
+    // place. A popover in the manual state so nothing on the page has to be
+    // stacked under it; the fade, when motion is welcome, runs on the
+    // motion tokens the stylesheet zeroes under prefers-reduced-motion —
+    // and the check above skips it there regardless, because a kill switch
+    // that depends on a variable resolving is not a kill switch.
+    var snack = null, away = null;
+    function say(what, href) {
+      if (snack) snack.remove();
+      clearTimeout(away);
+      snack = document.createElement("div");
+      snack.setAttribute("role", "status");
+      snack.setAttribute("popover", "manual");
+      var s = snack.style;
+      s.setProperty("position", "fixed");
+      s.setProperty("left", "50%");
+      s.setProperty("bottom", "1.5rem");
+      s.setProperty("transform", "translateX(-50%)");
+      s.setProperty("max-width", "min(32rem, calc(100vw - 2rem))");
+      s.setProperty("display", "flex");
+      s.setProperty("align-items", "baseline");
+      s.setProperty("gap", "1rem");
+      s.setProperty("padding", "0.75rem 1.25rem");
+      s.setProperty("background", "var(--md-comp-snackbar-container-color)");
+      s.setProperty("color", "var(--md-comp-snackbar-supporting-text-color)");
+      s.setProperty("border-radius", "var(--md-comp-snackbar-container-shape)");
+      s.setProperty("box-shadow", "var(--md-comp-snackbar-elevation)");
+      s.setProperty("border", "none");
+      if (!reduce) s.setProperty("transition",
+        "opacity var(--motion-default-effects-duration) var(--spring-effects)");
+      var text = document.createElement("span");
+      text.textContent = what;
+      snack.appendChild(text);
+      if (href) {
+        var open = document.createElement("a");
+        open.href = href;
+        open.textContent = "Open";
+        open.style.setProperty("color", "var(--md-comp-snackbar-action-label-color)");
+        snack.appendChild(open);
+      }
+      document.body.appendChild(snack);
+      if (snack.showPopover) snack.showPopover();
+      away = setTimeout(function () {
+        if (snack) snack.remove();
+        snack = null;
+      }, 6000);
+    }
+
+    if (!window.EventSource) return; // the Refresh form is the fallback, and it is already there
+
+    var waitingWords = {
+      act: "An act on another platform is waiting for you",
+      automation: "An automation is held for your approval",
+      change: "A change needs a second administrator"
+    };
+
+    function data(e) {
+      try { return JSON.parse(e.data); } catch (x) { return null; }
+    }
+
+    var es = null, fails = 0, polled = cookieNamed("vaigil_poll") !== "";
+
+    // The fallback, used once: after three failures the page stops
+    // pretending and reloads itself once a minute instead, visibly. Not
+    // while already in that mode — the reload is coming on its own minute,
+    // and re-marking it here would reload every few seconds forever, which
+    // is a page that cannot be read rather than one that is not live.
+    function fallback() {
+      if (polled) { badge.textContent = "○ every 60s"; return; }
+      es.close();
+      document.cookie = "vaigil_poll=1; path=/; Max-Age=3600; SameSite=Strict";
+      location.reload();
+    }
+
+    function connect() {
+      es = new EventSource("/live");
+      es.onopen = function () {
+        fails = 0;
+        badge.textContent = "● live";
+        // Holding the stream again ends poll mode on the next load: the
+        // cookie goes now, the reload that follows renders live.
+        if (polled) {
+          document.cookie = "vaigil_poll=; path=/; Max-Age=0; SameSite=Strict";
+          polled = false;
+        }
+      };
+      es.onerror = function () {
+        fails++;
+        if (fails >= 3) { fallback(); return; }
+        if (es.readyState === EventSource.CLOSED) {
+          // Refused outright — the cap, or a build with nothing to stream.
+          // EventSource does not retry a non-200 by itself, so this waits
+          // and tries again, one strike at a time, until fallback decides.
+          es.close();
+          setTimeout(connect, 3000 + fails * 2000);
+        } else {
+          badge.textContent = "○ reconnecting…";
+        }
+      };
+      es.addEventListener("waiting", function (e) {
+        var d = data(e);
+        if (!d) return;
+        waiting(d.delta);
+        if (d.delta > 0 && waitingWords[d.kind]) say(waitingWords[d.kind], "/approvals");
+      });
+      es.addEventListener("decision", function (e) {
+        var d = data(e);
+        if (d && closing[d.to]) bump("/findings", -1);
+      });
+      es.addEventListener("case", function (e) {
+        var d = data(e);
+        if (!d || !d.id) return;
+        if (d.state === "open") {
+          bump("/security/cases", 1);
+          say("A case was opened", "/security/case/" + encodeURIComponent(d.id));
+        } else if (d.state === "closed") {
+          bump("/security/cases", -1);
+        }
+      });
+      es.addEventListener("detection", function (e) {
+        var d = data(e);
+        if (d && d.opened > 0) bump("/findings", d.opened);
+      });
+      es.addEventListener("agent", function (e) {
+        var d = data(e);
+        if (d && d.refused) {
+          // The Agents board counts refusals; its tile carries the same
+          // data-live-count name wherever the page is open, so the figure
+          // moves on the board and the sentence goes to whoever is watching.
+          bump("/security/agents", 1);
+          say("An agent call was refused", "/security/agents");
+        }
+      });
+      es.addEventListener("automation", function (e) {
+        var d = data(e);
+        if (d && ranStates[d.state]) bump("/security/automations", 1);
+      });
+      // "proposal" arrives and is not shown: a suggestion is read on the
+      // finding it is about, which loads fresh, and a snackbar quoting a
+      // verdict nobody made is automation bias with a toast in it.
+    }
+    connect();
+  })();
 
   // The shortcut, shown where people look for search, in their platform's
   // spelling. Only once the script is running, since it is what makes it work.

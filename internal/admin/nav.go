@@ -74,6 +74,11 @@ var destinations = []destination{
 	{"cases", "Cases", "/security/cases", "Operations", "cases", auth.ActView},
 	{"risk", "Risk", "/security/risk", "Operations", "findings", auth.ActView},
 
+	// The AI-agent story, first in what happened: what each observed agent
+	// called, was refused and proposed, from the sidecar and GenAI
+	// telemetry. Triage rather than view because, like Events and Hunt, it
+	// reads raw telemetry — which names people's activity, pseudonymised.
+	{"agents", "Agents", "/security/agents", "Investigation", "mcp", auth.ActTriage},
 	{"events", "Events", "/security/events", "Investigation", "events", auth.ActTriage},
 	{"hunt", "Hunt", "/security/hunt", "Investigation", "events", auth.ActTriage},
 	{"indicators", "Indicators", "/security/indicators", "Investigation", "intelligence", auth.ActView},
@@ -405,6 +410,7 @@ func groupOf(key string) string {
 var screenAreas = map[string]string{
 	"findings": auth.AreaSecurity, "risk": auth.AreaSecurity, "cases": auth.AreaSecurity,
 	"events": auth.AreaSecurity, "hunt": auth.AreaSecurity, "detections": auth.AreaSecurity,
+	"agents":     auth.AreaSecurity,
 	"indicators": auth.AreaSecurity, "vulns": auth.AreaSecurity, "workforce": auth.AreaSecurity,
 	"automations": auth.AreaSecurity, "signins": auth.AreaSecurity, "feeds": auth.AreaSecurity,
 	"logs": auth.AreaLog,
@@ -468,6 +474,7 @@ func Screens() []find.Destination {
 		"risk":         {"score", "priority", "exposure"},
 		"events":       {"log", "telemetry", "raw"},
 		"hunt":         {"search", "query", "baseline", "stack"},
+		"agents":       {"ai", "bot", "mcp", "llm", "genai", "tool call", "sidecar"},
 		"indicators":   {"ioc", "intelligence", "threat", "hash", "domain"},
 		"detections":   {"rule", "sigma", "tuning", "suppression", "ring"},
 		"automations":  {"soar", "playbook", "rule", "response"},
