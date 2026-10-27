@@ -135,6 +135,18 @@ type detectSummary struct {
 // errNoRules is a pass with nothing to ask.
 var errNoRules = errors.New("no rules to run")
 
+// earlierWindow is the earlier of two window starts, where a zero window
+// means "from the beginning" and is therefore earlier than every date.
+func earlierWindow(a, b time.Time) time.Time {
+	if a.IsZero() || b.IsZero() {
+		return time.Time{}
+	}
+	if b.Before(a) {
+		return b
+	}
+	return a
+}
+
 // detectPass runs the rules over what arrived since the last pass: the
 // command's body, and what the server runs the moment events are pushed to
 // it or collected on a schedule.
@@ -211,24 +223,49 @@ func detectPass(root, rulesAt string, since time.Duration, caller *Caller, sp *s
 	if err != nil {
 		return nil, err
 	}
+	// What its models did, the same way: a proposal, a refusal, a tool
+	// call an agent made through MCP.
+	agentEvents, err := storeAgentEvents(root, sp, now)
+	if err != nil {
+		return nil, err
+	}
 
 	var events, matches, opened, suppressed int
 	var through time.Time
+	// The rules are run as compiled programs: every pattern and CIDR block
+	// prepared once, and the event's field map built once per event for
+	// every rule to share — the map is the event's to give, not each
+	// rule's to rebuild.
+	progs := make([]*detect.Program, len(rules))
+	for i, r := range rules {
+		p, cerr := r.Compile()
+		if cerr != nil {
+			return nil, fmt.Errorf("%s cannot be run: %w", r.ID, cerr)
+		}
+		progs[i] = p
+	}
+	match := func(e telemetry.Event) []*detect.Program {
+		f := e.Fields()
+		var hit []*detect.Program
+		for _, p := range progs {
+			if p.MatchesFields(e.Source, f) {
+				hit = append(hit, p)
+			}
+		}
+		return hit
+	}
 	// What one event does: every rule that matches it, through the
 	// suppressions and rings, into the queue.
-	consider := func(e telemetry.Event) {
+	consider := func(e telemetry.Event, matched []*detect.Program) {
 		events++
-		for _, r := range rules {
-			if !r.Matches(e) {
-				continue
-			}
+		for _, p := range matched {
 			matches++
 			// Suppressed: counted against the suppression that hid it and
 			// not recorded, so what a suppression costs is a number
 			// somebody can look at.
 			hidden := false
 			for _, sup := range sups {
-				if sup.Hides(r.ID, e, now) {
+				if sup.Hides(p.ID, e, now) {
 					hits[sup.ID]++
 					suppressed++
 					hidden = true
@@ -238,15 +275,15 @@ func detectPass(root, rulesAt string, since time.Duration, caller *Caller, sp *s
 			if hidden {
 				continue
 			}
-			if r.Quiet {
+			if p.Quiet {
 				// Counted by a correlation, and raising nothing itself.
 				continue
 			}
 			if _, isNew := reg.Record(finding.Finding{
-				Kind: finding.FromDetection, Title: r.Title, Source: r.ID,
-				Entity: e.Actor, Severity: r.Severity, State: finding.Open,
-				Technique: r.Technique,
-				Trial:     rings[r.ID].Ring == detect.Trial,
+				Kind: finding.FromDetection, Title: p.Title, Source: p.ID,
+				Entity: e.Actor, Severity: p.Severity, State: finding.Open,
+				Technique: p.Technique,
+				Trial:     rings[p.ID].Ring == detect.Trial,
 				Evidence: []finding.Evidence{{
 					At: e.Time, What: e.Message, Source: e.Source,
 					// Always. Log text is written by whoever can reach the
@@ -262,16 +299,84 @@ func detectPass(root, rulesAt string, since time.Duration, caller *Caller, sp *s
 	// once, and never by the pass below, so that their arrival time — now —
 	// does not move the cursor outside platforms' events are read by.
 	for _, e := range selfEvents {
-		consider(e)
+		consider(e, match(e))
 	}
-	err = sp.Range(from, time.Time{}, func(e telemetry.Event) error {
-		if e.Source == SelfSource {
+	for _, e := range agentEvents {
+		consider(e, match(e))
+	}
+
+	// The correlations and the indicators are prepared before the store is
+	// read, because each of the three — rules, correlations, indicators —
+	// keeps a window of its own and the one scan has to start at the
+	// earliest of them. Every consumer then applies its own window per
+	// event, which is what three separate scans did by starting in
+	// different places; the events each one sees, and the order it sees
+	// them in, are the same as they were, and that is the property the
+	// watermark logic in internal/correlate and the reproducibility of the
+	// whole run stand on.
+	corr, err := prepareCorrelations(rulesDir(root, rulesAt), rules, rings,
+		sp, cursors, now)
+	if err != nil {
+		return nil, err
+	}
+	held, err := loadIndicators(root)
+	if err != nil {
+		return nil, err
+	}
+	live := liveIndicators(held, now)
+	intelFrom := cursors[intelCursor]
+	if !intelFrom.IsZero() {
+		// Range is [from, to): the event at exactly the cursor was counted
+		// last time.
+		intelFrom = intelFrom.Add(time.Nanosecond)
+	}
+	// The earliest of the three windows, where a zero window means "from
+	// the beginning" and is therefore earlier than every date.
+	scanFrom := from
+	if corr != nil {
+		scanFrom = earlierWindow(scanFrom, corr.from)
+	}
+	if held.Len() > 0 {
+		scanFrom = earlierWindow(scanFrom, intelFrom)
+	}
+	var intelHit, intelOpened int
+	var intelThrough time.Time
+	err = sp.Range(scanFrom, time.Time{}, func(e telemetry.Event) error {
+		inRules := e.Source != SelfSource && e.Source != AgentSource &&
+			(from.IsZero() || !e.Received.Before(from))
+		inCorr := corr != nil &&
+			(corr.from.IsZero() || !e.Received.Before(corr.from))
+		inIntel := held.Len() > 0 &&
+			(intelFrom.IsZero() || !e.Received.Before(intelFrom))
+		if !inRules && !inCorr && !inIntel {
 			return nil
 		}
-		if e.Received.After(through) {
-			through = e.Received
+		var matched []*detect.Program
+		if inRules || inCorr {
+			matched = match(e)
 		}
-		consider(e)
+		if inRules {
+			if e.Received.After(through) {
+				through = e.Received
+			}
+			consider(e, matched)
+		}
+		if inCorr {
+			if oerr := corr.observe(e, matched, sups, now); oerr != nil {
+				return oerr
+			}
+		}
+		if inIntel {
+			if e.Received.After(intelThrough) {
+				intelThrough = e.Received
+			}
+			for _, h := range live.Match(e) {
+				intelHit++
+				if _, isNew := reg.Record(intelFinding(h, e), e.Time); isNew {
+					intelOpened++
+				}
+			}
+		}
 		return nil
 	})
 	if err != nil {
@@ -280,27 +385,17 @@ func detectPass(root, rulesAt string, since time.Duration, caller *Caller, sp *s
 	if !through.IsZero() {
 		cursors[detectCursor] = through
 	}
-	// Correlations: the detections about several events. Over every rule
-	// that is not switched off, whether or not it raises on its own.
-	corr, err := runCorrelations(root, sp, rulesDir(root, rulesAt), rules,
-		rings, sups, reg, cursors, now)
+	if !intelThrough.IsZero() {
+		cursors[intelCursor] = intelThrough
+	}
+	// The correlations decide only now: a window can be closed once every
+	// event that could land in it has been observed, and the scan above was
+	// the last of those.
+	corrRun, err := corr.finish(root, rings, reg, cursors, now)
 	if err != nil {
 		return nil, err
 	}
-	opened += corr.Opened
-	// Indicators: each new event against everything still believed.
-	held, err := loadIndicators(root)
-	if err != nil {
-		return nil, err
-	}
-	var intelHit, intelOpened int
-	if held.Len() > 0 {
-		_, intelHit, intelOpened, err = intelCatchUp(sp, held, reg, cursors, now)
-		if err != nil {
-			return nil, err
-		}
-		opened += intelOpened
-	}
+	opened += corrRun.Opened + intelOpened
 	if err := finding.Save(path, reg, cursors); err != nil {
 		return nil, err
 	}
@@ -316,17 +411,24 @@ func detectPass(root, rulesAt string, since time.Duration, caller *Caller, sp *s
 			"rules": strconv.Itoa(len(rules)), "events": strconv.Itoa(events),
 			"matches": strconv.Itoa(matches), "opened": strconv.Itoa(opened),
 			"suppressed": strconv.Itoa(suppressed), "off": strconv.Itoa(off),
-			"correlations":   strconv.Itoa(corr.Rules),
-			"correlated":     strconv.Itoa(corr.Hits),
+			"correlations":   strconv.Itoa(corrRun.Rules),
+			"correlated":     strconv.Itoa(corrRun.Hits),
 			"indicators":     strconv.Itoa(held.Len()),
 			"indicator_hits": strconv.Itoa(intelHit),
 		},
 	})
 	sum := &detectSummary{Rules: len(rules), Events: events, Matches: matches,
-		Opened: opened, Suppressed: suppressed, Off: off, Corr: corr,
+		Opened: opened, Suppressed: suppressed, Off: off, Corr: corrRun,
 		Indicators: held.Len(), IntelHit: intelHit, Findings: reg.Len(), Through: through}
 	for _, f := range reg.All(now) {
-		if !before[f.ID] && f.State == finding.Open {
+		// Trial findings are recorded but kept from the automations, as Risk
+		// keeps them from its scores (risk.go): a rule that has not earned
+		// the queue has not earned the power to suspend an account or mail
+		// people either. There is no "trial" condition a rule author could
+		// let them in by — Kinds lists no such field — so the exclusion is
+		// made here, where what the automations see of a run is collected,
+		// rather than left to every author to remember.
+		if !before[f.ID] && f.State == finding.Open && !f.Trial {
 			sum.New = append(sum.New, f)
 		}
 	}

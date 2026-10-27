@@ -1,0 +1,91 @@
+{
+  "id": "github.repo-visibility-changed",
+  "title": "A repository's visibility was changed on GitHub",
+  "why": "the accidental — or hostile — publication of the whole company is one API call",
+  "blind": "which way the visibility went: the audit record does not carry the direction, so a recovery to private matches too and the repository has to be looked at",
+  "sources": [
+    "github/audit"
+  ],
+  "severity": 4,
+  "when": {
+    "match": {
+      "field": "message",
+      "op": "equals",
+      "values": [
+        "repo.visibility_change"
+      ]
+    }
+  },
+  "technique": [
+    "T1562",
+    "T1530"
+  ],
+  "fixtures": [
+    {
+      "name": "a repository's visibility changed",
+      "match": true,
+      "event": {
+        "source": "github/audit",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "github",
+          "value": "dana-gh"
+        },
+        "message": "repo.visibility_change",
+        "raw": {
+          "action": "repo.visibility_change",
+          "repo": "acme/shop",
+          "org": "acme",
+          "person": "dana@acme.com"
+        }
+      }
+    },
+    {
+      "name": "a repository archived",
+      "match": false,
+      "event": {
+        "source": "github/audit",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "github",
+          "value": "dana-gh"
+        },
+        "message": "repo.archived",
+        "raw": {
+          "action": "repo.archived",
+          "repo": "acme/shop",
+          "org": "acme",
+          "person": "dana@acme.com"
+        }
+      }
+    },
+    {
+      "name": "a push",
+      "match": false,
+      "event": {
+        "source": "github/audit",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "github",
+          "value": "dana-gh"
+        },
+        "message": "git.push",
+        "raw": {
+          "action": "git.push",
+          "repo": "acme/shop",
+          "org": "acme",
+          "person": "dana@acme.com"
+        }
+      }
+    }
+  ]
+}

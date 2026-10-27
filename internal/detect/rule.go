@@ -199,11 +199,153 @@ type Rule struct {
 // Source first: a rule declares what it reads, and a rule evaluated against a
 // source it was not written for is being asked a question its author never
 // considered.
+//
+// The uncompiled path: every "matches" comparison compiles its expression
+// here, and the event's fields are built per call. A run compiles its rules
+// once instead — Compile — and asks them about a field map it built once per
+// event; this is for the callers that evaluate one rule against one event,
+// where preparing anything would cost more than it saves.
 func (r Rule) Matches(e telemetry.Event) bool {
 	if !r.reads(e.Source) {
 		return false
 	}
-	return eval(r.When, e.Fields())
+	return eval(r.When, e.Fields(), compare)
+}
+
+// Program is a rule with everything a comparison can prepare once prepared:
+// the regular expressions a "matches" names, compiled; the CIDR blocks an
+// "inside" names, parsed; the values a folded comparison names, lowered.
+//
+// A Rule is data, and the old reason for compiling per comparison was that
+// data can be edited between evaluations. The answer is not to keep paying
+// the compile on every event; it is to bind the compiled forms to one read
+// of the data. Rules are re-read from disk on every run, so an edited rule
+// is a different Program on the next one, and a compiled pattern cannot
+// outlive the text it came from.
+type Program struct {
+	Rule
+	// Keyed by the exact value text the predicate names, so the walk that
+	// evaluates a comparison finds the form prepared for the value it read.
+	// Duplicated values across matches share one entry, which is the same
+	// program and not a coincidence worth avoiding.
+	regexes map[string]*regexp.Regexp
+	nets    map[string]netip.Prefix
+	folded  map[string]string
+}
+
+// Compile prepares a rule for a run.
+//
+// Validate is where a pattern that does not compile is refused, and a run
+// validates before it compiles; the same refusal is made here for a caller
+// that compiles a rule it did not load, because the alternative is a
+// comparison that silently matches nothing.
+func (r Rule) Compile() (*Program, error) {
+	p := &Program{Rule: r,
+		regexes: map[string]*regexp.Regexp{},
+		nets:    map[string]netip.Prefix{},
+		folded:  map[string]string{},
+	}
+	var walk func(pr Predicate) error
+	walk = func(pr Predicate) error {
+		if pr.Match != nil {
+			m := pr.Match
+			if m.Op == Exists {
+				return nil
+			}
+			for _, v := range m.Values {
+				switch m.Op {
+				case Matches:
+					if _, ok := p.regexes[v]; ok {
+						continue
+					}
+					re, err := regexp.Compile("(?i)" + v)
+					if err != nil {
+						return fmt.Errorf(
+							"%s on %s has a pattern that does not compile: %w",
+							m.Op, m.Field, err)
+					}
+					p.regexes[v] = re
+				case Inside:
+					if _, ok := p.nets[v]; ok {
+						continue
+					}
+					net, err := netip.ParsePrefix(strings.TrimSpace(v))
+					if err != nil {
+						return fmt.Errorf(
+							"%s on %s wants a CIDR block like 10.0.0.0/8, "+
+								"and %q is not one", m.Op, m.Field, v)
+					}
+					p.nets[v] = net
+				case Contains, Prefix, Suffix:
+					p.folded[v] = strings.ToLower(v)
+				}
+			}
+			return nil
+		}
+		for _, sub := range append(append([]Predicate{}, pr.All...), pr.Any...) {
+			if err := walk(sub); err != nil {
+				return err
+			}
+		}
+		if pr.Not != nil {
+			return walk(*pr.Not)
+		}
+		return nil
+	}
+	if err := walk(r.When); err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+// Matches reports whether an event satisfies the compiled rule, building the
+// event's fields once for it.
+func (p *Program) Matches(e telemetry.Event) bool {
+	return p.MatchesFields(e.Source, e.Fields())
+}
+
+// MatchesFields is Matches against a field map the caller already holds.
+//
+// The shape a pass wants: one event is asked of every rule, and the map is
+// the event's to give once, not each rule's to rebuild. Source is checked
+// before anything else, as ever, so a rule is never asked about a platform
+// its author did not consider.
+func (p *Program) MatchesFields(source string, f map[string]string) bool {
+	if !p.reads(source) {
+		return false
+	}
+	return eval(p.When, f, p.compare)
+}
+
+// compare resolves one comparison through the prepared forms, falling back
+// to the uncompiled path for a value Compile never saw — which cannot happen
+// for a Program built from the tree it evaluates, and which degrades to
+// today's behaviour rather than to silence for one built by hand.
+func (p *Program) compare(op Op, got, want string) bool {
+	switch op {
+	case Matches:
+		if re := p.regexes[want]; re != nil {
+			return re.MatchString(got)
+		}
+	case Inside:
+		if net, ok := p.nets[want]; ok {
+			addr, err := netip.ParseAddr(strings.TrimSpace(got))
+			return err == nil && net.Contains(addr.Unmap())
+		}
+	case Contains:
+		if low, ok := p.folded[want]; ok {
+			return strings.Contains(strings.ToLower(got), low)
+		}
+	case Prefix:
+		if low, ok := p.folded[want]; ok {
+			return strings.HasPrefix(strings.ToLower(got), low)
+		}
+	case Suffix:
+		if low, ok := p.folded[want]; ok {
+			return strings.HasSuffix(strings.ToLower(got), low)
+		}
+	}
+	return compare(op, got, want)
 }
 
 func (r Rule) reads(source string) bool {
@@ -215,26 +357,30 @@ func (r Rule) reads(source string) bool {
 	return false
 }
 
-func eval(p Predicate, f map[string]string) bool {
+// comparer resolves one comparison against one alternative value. The rule
+// and the program walk the same tree; this is the one place they differ.
+type comparer func(op Op, got, want string) bool
+
+func eval(p Predicate, f map[string]string, cmp comparer) bool {
 	switch {
 	case p.Match != nil:
-		return p.Match.eval(f)
+		return p.Match.eval(f, cmp)
 	case len(p.All) > 0:
 		for _, sub := range p.All {
-			if !eval(sub, f) {
+			if !eval(sub, f, cmp) {
 				return false
 			}
 		}
 		return true
 	case len(p.Any) > 0:
 		for _, sub := range p.Any {
-			if eval(sub, f) {
+			if eval(sub, f, cmp) {
 				return true
 			}
 		}
 		return false
 	case p.Not != nil:
-		return !eval(*p.Not, f)
+		return !eval(*p.Not, f, cmp)
 	}
 	// An empty predicate. Validate refuses one, so reaching here means a
 	// caller built a Rule without loading it; false is the safe answer,
@@ -242,7 +388,7 @@ func eval(p Predicate, f map[string]string) bool {
 	return false
 }
 
-func (m Match) eval(f map[string]string) bool {
+func (m Match) eval(f map[string]string, cmp comparer) bool {
 	got, present := f[m.Field]
 	if m.Op == Exists {
 		return present
@@ -251,7 +397,7 @@ func (m Match) eval(f map[string]string) bool {
 		return false
 	}
 	for _, want := range m.Values {
-		if compare(m.Op, got, want) {
+		if cmp(m.Op, got, want) {
 			return true
 		}
 	}
@@ -282,11 +428,10 @@ func compare(op Op, got, want string) bool {
 		}
 		return g < w
 	case Matches:
-		// Compiled per comparison rather than cached, because a Rule is
-		// data that can be edited between evaluations and a stale cached
-		// program is a rule that has silently stopped matching what it
-		// says. An invalid expression is false rather than a panic:
-		// Validate is where a bad pattern is refused, and a detector that
+		// The uncompiled path, for a caller evaluating one rule once. A run
+		// compiles at load — Program — where a pattern that does not compile
+		// is refused rather than quietly matching nothing forever. An invalid
+		// expression is still false rather than a panic: a detector that
 		// crashes on an event is a detector somebody turns off.
 		re, err := regexp.Compile("(?i)" + want)
 		if err != nil {
@@ -579,7 +724,7 @@ func (r Rule) Test() []Result {
 // Holds reports whether a comparison is satisfied by an event's fields: the
 // same comparison a rule makes, for a hunt that is looking before there is
 // a rule.
-func (m Match) Holds(f map[string]string) bool { return m.eval(f) }
+func (m Match) Holds(f map[string]string) bool { return m.eval(f, compare) }
 
 // Usable reports whether a comparison could be evaluated, without the rest
 // of a rule around it.

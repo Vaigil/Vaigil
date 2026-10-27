@@ -1,0 +1,115 @@
+{
+  "id": "aws.backup-deleted",
+  "title": "A backup or snapshot was deleted",
+  "why": "deleting the backups is the minutes-before-ransomware move, made to deny the recovery nobody has tested",
+  "blind": "a retention job doing exactly its job; the backup role's arn belongs in a suppression, not in this rule",
+  "sources": [
+    "aws/cloudtrail"
+  ],
+  "severity": 5,
+  "when": {
+    "match": {
+      "field": "message",
+      "op": "equals",
+      "values": [
+        "DeleteSnapshot",
+        "DeleteBackupSelection",
+        "DeleteRecoveryPoint"
+      ]
+    }
+  },
+  "technique": [
+    "T1490",
+    "T1485"
+  ],
+  "fixtures": [
+    {
+      "name": "a recovery point deleted",
+      "match": true,
+      "event": {
+        "source": "aws/cloudtrail",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "aws",
+          "value": "arn:aws:iam::1:user/deploy"
+        },
+        "message": "DeleteRecoveryPoint",
+        "raw": {
+          "eventName": "DeleteRecoveryPoint",
+          "eventSource": "backup.amazonaws.com",
+          "awsRegion": "us-east-1",
+          "readOnly": "false"
+        }
+      }
+    },
+    {
+      "name": "a snapshot deleted",
+      "match": true,
+      "event": {
+        "source": "aws/cloudtrail",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "aws",
+          "value": "arn:aws:sts::1:assumed-role/op/dana"
+        },
+        "message": "DeleteSnapshot",
+        "raw": {
+          "eventName": "DeleteSnapshot",
+          "eventSource": "ec2.amazonaws.com",
+          "awsRegion": "us-east-1",
+          "readOnly": "false"
+        }
+      }
+    },
+    {
+      "name": "a snapshot described",
+      "match": false,
+      "event": {
+        "source": "aws/cloudtrail",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "aws",
+          "value": "arn:aws:sts::1:assumed-role/op/dana"
+        },
+        "message": "DescribeSnapshots",
+        "raw": {
+          "eventName": "DescribeSnapshots",
+          "eventSource": "ec2.amazonaws.com",
+          "awsRegion": "us-east-1",
+          "readOnly": "true"
+        }
+      }
+    },
+    {
+      "name": "a backup plan created",
+      "match": false,
+      "event": {
+        "source": "aws/cloudtrail",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "aws",
+          "value": "arn:aws:iam::1:user/deploy"
+        },
+        "message": "CreateBackupPlan",
+        "raw": {
+          "eventName": "CreateBackupPlan",
+          "eventSource": "backup.amazonaws.com",
+          "awsRegion": "us-east-1",
+          "readOnly": "false"
+        }
+      }
+    }
+  ]
+}

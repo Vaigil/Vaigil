@@ -1,0 +1,131 @@
+{
+  "id": "aws.iam-user-created",
+  "title": "An IAM user was created",
+  "why": "an IAM user is standing credentials waiting for a key; created and keyed within minutes is the persistence hand-off, and the correlation over this counts the pair. Counted by a correlation, and raises nothing itself",
+  "blind": "users created by the infrastructure pipeline, excluded by user agent, and users whose access keys arrive another way",
+  "sources": [
+    "aws/cloudtrail"
+  ],
+  "severity": 2,
+  "when": {
+    "all": [
+      {
+        "match": {
+          "field": "message",
+          "op": "equals",
+          "values": [
+            "CreateUser"
+          ]
+        }
+      },
+      {
+        "not": {
+          "any": [
+            {
+              "match": {
+                "field": "user_agent",
+                "op": "contains",
+                "values": [
+                  "terraform"
+                ]
+              }
+            },
+            {
+              "match": {
+                "field": "user_agent",
+                "op": "contains",
+                "values": [
+                  "cloudformation"
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "technique": [
+    "T1136.003"
+  ],
+  "quiet": true,
+  "fixtures": [
+    {
+      "name": "a user created by a person",
+      "match": true,
+      "event": {
+        "source": "aws/cloudtrail",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "aws",
+          "value": "arn:aws:iam::1:user/deploy"
+        },
+        "message": "CreateUser",
+        "observables": [
+          {
+            "kind": 10,
+            "value": "signin.amazonaws.com/console"
+          }
+        ],
+        "raw": {
+          "eventName": "CreateUser",
+          "eventSource": "iam.amazonaws.com",
+          "awsRegion": "us-east-1",
+          "readOnly": "false"
+        }
+      }
+    },
+    {
+      "name": "a user created by terraform",
+      "match": false,
+      "event": {
+        "source": "aws/cloudtrail",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "aws",
+          "value": "arn:aws:sts::1:assumed-role/deploy/terraform"
+        },
+        "message": "CreateUser",
+        "observables": [
+          {
+            "kind": 10,
+            "value": "Terraform/1.9.5 (+https://www.terraform.io)"
+          }
+        ],
+        "raw": {
+          "eventName": "CreateUser",
+          "eventSource": "iam.amazonaws.com",
+          "awsRegion": "us-east-1",
+          "readOnly": "false"
+        }
+      }
+    },
+    {
+      "name": "a user described",
+      "match": false,
+      "event": {
+        "source": "aws/cloudtrail",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "aws",
+          "value": "arn:aws:iam::1:user/deploy"
+        },
+        "message": "GetUser",
+        "raw": {
+          "eventName": "GetUser",
+          "eventSource": "iam.amazonaws.com",
+          "awsRegion": "us-east-1",
+          "readOnly": "true"
+        }
+      }
+    }
+  ]
+}

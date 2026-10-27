@@ -141,49 +141,70 @@ type correlationRun struct {
 	Rules, Hits, Opened, Late, Dropped int
 }
 
-// runCorrelations evaluates every correlation over the recent events and
-// folds new hits into the register.
-func runCorrelations(root string, sp *spool.Spool, dir string,
-	rules []detect.Rule, rings map[string]detect.Placement,
-	sups []detect.Suppression, reg *finding.Register,
-	cursors map[string]time.Time, now time.Time) (correlationRun, error) {
+// correlations is a correlation run between its two halves: the engines
+// built, the window and watermark decided, and nothing yet fed into them.
+//
+// Split in two so that one scan of the store can feed the rules, the
+// correlations and the indicators together — detectPass — without changing
+// what the correlations see. Their engines are built before anything is
+// read, fed the events of their own window in store order, and closed after
+// everything has been observed: the same events, in the same order, at the
+// same times as when the correlations were a pass of their own, which is
+// the order the watermark logic in internal/correlate is built around.
+type correlations struct {
+	run       correlationRun
+	engines   []*correlate.Engine
+	span      time.Duration
+	watermark time.Time
+	from      time.Time
+}
 
-	var run correlationRun
+// prepareCorrelations loads and validates every correlation, builds an
+// engine for each that is not switched off, and decides how far back this
+// run reads and to where it will close windows. It reads no events and
+// moves no cursor: the feeding is the caller's scan and the deciding is
+// finish.
+//
+// A nil return is not an error: it means there is nothing to correlate this
+// run, and every method on a nil *correlations says the same.
+func prepareCorrelations(dir string, rules []detect.Rule,
+	rings map[string]detect.Placement, sp *spool.Spool,
+	cursors map[string]time.Time, now time.Time) (*correlations, error) {
+
 	corrs, err := correlationsIn(dir)
 	if err != nil || len(corrs) == 0 {
-		return run, err
+		return nil, err
 	}
 	known := map[string]bool{}
 	for _, r := range rules {
 		known[strings.ToLower(r.ID)] = true
 	}
-	var engines []*correlate.Engine
-	var span time.Duration
-	for _, c := range corrs {
-		if rings[c.ID].Ring == detect.Off {
+	c := &correlations{}
+	for _, corr := range corrs {
+		if rings[corr.ID].Ring == detect.Off {
 			continue
 		}
-		for _, name := range c.Rules {
+		for _, name := range corr.Rules {
 			if !known[strings.ToLower(name)] {
 				// A correlation over a rule that is not there can never
 				// fire, and would sit on the screen looking like cover.
-				return run, fmt.Errorf("%s correlates %q, and there is no "+
-					"rule called that (or it is switched off)", c.ID, name)
+				return nil, fmt.Errorf("%s correlates %q, and there is no "+
+					"rule called that (or it is switched off)", corr.ID, name)
 			}
 		}
-		e, nerr := correlate.New(c)
+		e, nerr := correlate.New(corr)
 		if nerr != nil {
-			return run, fmt.Errorf("%s: %w", c.ID, nerr)
+			return nil, fmt.Errorf("%s: %w", corr.ID, nerr)
 		}
-		engines = append(engines, e)
-		if c.Timespan > span {
-			span = c.Timespan
+		c.engines = append(c.engines, e)
+		if corr.Timespan > c.span {
+			c.span = corr.Timespan
 		}
 	}
-	run.Rules = len(engines)
-	if len(engines) == 0 {
-		return run, nil
+	if len(c.engines) == 0 {
+		return nil, nil
 	}
+	c.run.Rules = len(c.engines)
 
 	// Complete up to here: everything older has arrived, by the spool's own
 	// measurement of how late this estate's events turn up.
@@ -199,90 +220,111 @@ func runCorrelations(root string, sp *spool.Spool, dir string,
 	if worst < correlate.Safe {
 		worst = correlate.Safe
 	}
-	watermark := correlate.Watermark(now, worst)
-	if w := sp.Watermark(); w.After(watermark) && !w.After(now) {
-		watermark = w
+	c.watermark = correlate.Watermark(now, worst)
+	if w := sp.Watermark(); w.After(c.watermark) && !w.After(now) {
+		c.watermark = w
 	}
 	// Back to where the last run had got to, and a little before: every
 	// window that run left open is read again whole. Not a fixed distance
 	// from now — a store nobody ran this on for six hours would have six
 	// hours of windows that were never decided, and nothing would say so.
 	// The first run reads everything the store holds.
-	var from time.Time
 	if prev := cursors[correlateCursor]; !prev.IsZero() {
-		from = prev.Add(-2*span - time.Hour)
+		c.from = prev.Add(-2*c.span - time.Hour)
 	}
-	err = sp.Range(from, time.Time{}, func(e telemetry.Event) error {
-		for _, r := range rules {
-			if !r.Matches(e) {
+	return c, nil
+}
+
+// observe feeds one event to every engine watching a rule it matched.
+//
+// matched is the rules the event matched, in load order, and the caller
+// holds it because the rules pass asked the same question of the same event
+// a moment before; matching is the expensive part and it is asked once.
+// Suppressed matches do not feed the engines, exactly as when the
+// correlations read the store themselves: a suppression is a decision that
+// the events it hides are not worth counting, not a decision about who
+// counts them.
+func (c *correlations) observe(e telemetry.Event, matched []*detect.Program,
+	sups []detect.Suppression, now time.Time) error {
+
+	if c == nil {
+		return nil
+	}
+	for _, p := range matched {
+		hidden := false
+		for _, s := range sups {
+			hidden = hidden || s.Hides(p.ID, e, now)
+		}
+		if hidden {
+			continue
+		}
+		for _, eng := range c.engines {
+			if !eng.Watches(p.ID) {
 				continue
 			}
-			hidden := false
-			for _, s := range sups {
-				hidden = hidden || s.Hides(r.ID, e, now)
-			}
-			if hidden {
-				continue
-			}
-			for _, eng := range engines {
-				if !eng.Watches(r.ID) {
-					continue
-				}
-				// No watermark on the way in: everything is read before
-				// anything is closed, so nothing is "late" within a run.
-				if oerr := eng.Observe(correlate.Seen{Rule: r.ID, Event: e},
-					time.Time{}); oerr != nil {
-					return oerr
-				}
+			// No watermark on the way in: everything is read before
+			// anything is closed, so nothing is "late" within a run.
+			if oerr := eng.Observe(correlate.Seen{Rule: p.ID, Event: e},
+				time.Time{}); oerr != nil {
+				return oerr
 			}
 		}
-		return nil
-	})
-	if err != nil {
-		return run, err
 	}
+	return nil
+}
 
+// finish decides every window the watermark has passed and folds new hits
+// into the register. Called once the scan that fed the engines is done,
+// because a window can only be decided once everything that could land in
+// it has been observed.
+func (c *correlations) finish(root string,
+	rings map[string]detect.Placement, reg *finding.Register,
+	cursors map[string]time.Time, now time.Time) (correlationRun, error) {
+
+	if c == nil {
+		return correlationRun{}, nil
+	}
 	raised := map[string]time.Time{}
 	if err := loadJSONFile(correlatedPath(root), &raised); err != nil {
-		return run, err
+		return c.run, err
 	}
-	for _, eng := range engines {
-		c := eng.Rule()
-		for _, h := range eng.Close(watermark) {
-			if !from.IsZero() && h.From.Before(from) {
+	for _, eng := range c.engines {
+		corr := eng.Rule()
+		for _, h := range eng.Close(c.watermark) {
+			if !c.from.IsZero() && h.From.Before(c.from) {
 				// A window that began before this run read back to. Its
 				// early events were not read, so its count is short and
 				// it is not decided here; the run that saw all of it did.
 				continue
 			}
-			run.Hits++
+			c.run.Hits++
 			entity := hitEntity(h)
-			key := fmt.Sprintf("%s|%s|%d", c.ID, entity, h.From.Unix())
+			key := fmt.Sprintf("%s|%s|%d", corr.ID, entity, h.From.Unix())
 			if _, done := raised[key]; done {
 				continue
 			}
 			raised[key] = h.To
 			if _, isNew := reg.Record(finding.Finding{
-				Kind: finding.FromDetection, Title: c.Title, Source: c.ID,
-				Entity: entity, Severity: c.Severity, State: finding.Open,
-				Trial: rings[c.ID].Ring == detect.Trial,
+				Kind: finding.FromDetection, Title: corr.Title, Source: corr.ID,
+				Entity: entity, Severity: corr.Severity, State: finding.Open,
+				Trial: rings[corr.ID].Ring == detect.Trial,
 				Evidence: []finding.Evidence{{At: h.To, What: h.Why(),
 					Source: "correlation", Tainted: true}},
 			}, h.To); isNew {
-				run.Opened++
+				c.run.Opened++
 			}
 		}
-		run.Late += eng.Late()
-		run.Dropped += eng.Dropped()
+		c.run.Late += eng.Late()
+		c.run.Dropped += eng.Dropped()
 	}
 	// Forgotten once no run could raise them again.
 	for k, to := range raised {
-		if now.Sub(to) > 4*span+48*time.Hour {
+		if now.Sub(to) > 4*c.span+48*time.Hour {
 			delete(raised, k)
 		}
 	}
-	cursors[correlateCursor] = watermark
-	return run, saveJSONFile(correlatedPath(root), raised)
+	cursors[correlateCursor] = c.watermark
+	return c.run, saveJSONFile(correlatedPath(root), raised)
 }
 
 // quietRulesAreCounted refuses a quiet rule that no correlation names. It

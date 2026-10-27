@@ -10,6 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/vaigil/vaigil/internal/automate"
+	"github.com/vaigil/vaigil/internal/detect"
 	"github.com/vaigil/vaigil/internal/finding"
 	"github.com/vaigil/vaigil/internal/out"
 	"github.com/vaigil/vaigil/internal/spool"
@@ -59,7 +62,7 @@ func signIn(src, who string, d telemetry.Disposition, msg string,
 
 // siemSite is a store with the rule on disk and a labelled corpus in the
 // event store.
-func siemSite(t *testing.T, corpus []labelled) (root, rules string) {
+func siemSite(t testing.TB, corpus []labelled) (root, rules string) {
 	t.Helper()
 	if w == nil {
 		w = out.New(false)
@@ -80,7 +83,7 @@ func siemSite(t *testing.T, corpus []labelled) (root, rules string) {
 	return root, rules
 }
 
-func appendEvents(t *testing.T, root string, corpus []labelled) {
+func appendEvents(t testing.TB, root string, corpus []labelled) {
 	t.Helper()
 	sp, err := openSpool(root, spool.Options{})
 	if err != nil {
@@ -280,4 +283,170 @@ func TestTheRegisterIsNotWorldReadable(t *testing.T) {
 	if err := json.Unmarshal(b, &l); err != nil || l.Cursors[detectCursor].IsZero() {
 		t.Fatalf("no cursor was written: %v", err)
 	}
+}
+
+// TestDetectTrialFindingsDoNotReachTheAutomations.
+//
+// A rule in its trial ring has not earned the queue, and it has not earned
+// the automations either: nothing it raises may step somebody up, end their
+// sessions or mail people, and there is no condition a rule author could
+// write to let it — Kinds lists no "trial" field. The finding is still
+// recorded, for the verdicts that will earn the rule its place. Promoted,
+// what it raises reaches the automations like any other rule's.
+func TestDetectTrialFindingsDoNotReachTheAutomations(t *testing.T) {
+	t0 := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
+	root, rules := siemSite(t, []labelled{{"spray", true, signIn("okta/system",
+		"admin-dana", telemetry.DispositionFailed, "", t0)}})
+	if _, err := automationEngine(root).Save(automate.Rule{
+		Name: "a finding is raised", Enabled: true, Mode: "act",
+		When: "finding",
+		Then: []automate.Step{{Action: "open-case"}},
+	}, "dana"); err != nil {
+		t.Fatal(err)
+	}
+	if err := setRing(root, rules, "auth.privileged-failed", detect.Trial,
+		"new, and unproven on this estate", "dana", audit.KindHuman); err != nil {
+		t.Fatal(err)
+	}
+	if err := detectRun(root, []string{"--rules", rules}); err != nil {
+		t.Fatal(err)
+	}
+	all := queue(t, root)
+	if len(all) != 1 || !all[0].Trial {
+		t.Fatalf("a trial rule's finding was not recorded: %+v", all)
+	}
+	if runs, _ := automationEngine(root).Runs(); len(runs) != 0 {
+		t.Fatalf("%d automation run(s) came from a trial rule's finding; an "+
+			"unearned rule acted", len(runs))
+	}
+
+	// Promoted, the next finding reaches them.
+	if err := setRing(root, rules, "auth.privileged-failed", detect.Live, "",
+		"dana", audit.KindHuman); err != nil {
+		t.Fatal(err)
+	}
+	appendEvents(t, root, []labelled{{"again", true, signIn("okta/system",
+		"admin-ops", telemetry.DispositionFailed, "", t0.Add(time.Minute))}})
+	if err := detectRun(root, []string{"--rules", rules}); err != nil {
+		t.Fatal(err)
+	}
+	runs, _ := automationEngine(root).Runs()
+	if len(runs) != 1 || runs[0].State != "done" || !runs[0].Steps[0].OK {
+		t.Fatalf("a live rule's finding reached %d run(s): %+v", len(runs), runs)
+	}
+}
+
+// TestTheRulesTheCorrelationsAndTheIndicatorsKeepTheirOwnWindows.
+//
+// One scan now feeds all three, and each holds a cursor of its own; a run
+// moves each only over what it read for itself. A fusion that shared one
+// window would silently change all three answers at once — rules would
+// re-count settled events, correlations would lose windows they should
+// re-read, indicators would miss events or count them twice. So the three
+// cursors are pulled apart between runs here — the rules' into the middle
+// of what arrived, the correlations' and the indicators' back to the
+// beginning — and each consumer must answer from its own window and no
+// other's. This is the one test that fails if the fused scan starts
+// anywhere but the earliest of the three windows, or filters any consumer
+// by a window not its own.
+func TestTheRulesTheCorrelationsAndTheIndicatorsKeepTheirOwnWindows(t *testing.T) {
+	w0 := closedWindow() // a fifteen-minute window the watermark has passed
+	b0 := w0.Add(time.Hour)
+	corpus := append(failures("admin-dana", w0, 5),
+		went("dana", "203.0.113.9", 175, "connect"))
+	root, rules := corrSite(t, corpus)
+	if err := cmdIntel(root, []string{"add", "203.0.113.9", "--source",
+		"cert"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := detectRun(root, []string{"--rules", rules}); err != nil {
+		t.Fatal(err)
+	}
+	seen := func(source, who string) int {
+		for _, f := range queue(t, root) {
+			if f.Source == source && f.Entity.Value == who {
+				return f.Seen
+			}
+		}
+		return 0
+	}
+	if n := seen("auth.privileged-failed", "admin-dana"); n != 5 {
+		t.Fatalf("the first run counted %d of dana's five failures", n)
+	}
+	if n := len(correlated(t, root)); n != 1 {
+		t.Fatalf("the first run raised %d correlation finding(s)", n)
+	}
+	if n := seen("intel/"+intelID(t, root, "203.0.113.9"), "dana"); n != 1 {
+		t.Fatalf("the look back counted dana's connection %d times", n)
+	}
+
+	// What arrived since: another five failures, an hour on, and a second
+	// connection to the listed address.
+	appendEvents(t, root, append(failures("admin-raj", b0, 5),
+		went("sam", "203.0.113.9", 60, "connect")))
+
+	// The cursors pulled apart. The rules' sits inside raj's five, so the
+	// rules see only their last three; the correlations' and the
+	// indicators' are wiped, so those two read everything again.
+	reg, cursors, err := finding.Load(findingsPath(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cursors[detectCursor] = b0.Add(2*time.Minute + 30*time.Second)
+	cursors[correlateCursor] = time.Time{}
+	cursors[intelCursor] = time.Time{}
+	if err := finding.Save(findingsPath(root), reg, cursors); err != nil {
+		t.Fatal(err)
+	}
+	if err := detectRun(root, []string{"--rules", rules}); err != nil {
+		t.Fatal(err)
+	}
+
+	// The rules answered from their own window: dana's settled finding was
+	// not re-counted, and raj's counted only the three that arrived after
+	// the cursor.
+	if n := seen("auth.privileged-failed", "admin-dana"); n != 5 {
+		t.Errorf("the rules re-read %d of dana's events they had already "+
+			"counted", n-5)
+	}
+	if n := seen("auth.privileged-failed", "admin-raj"); n != 3 {
+		t.Errorf("the rules counted %d of raj's three in-window failures", n)
+	}
+	// The correlations read the whole store again: raj's window fired, and
+	// dana's — re-read but already raised — fired once, not twice.
+	got := correlated(t, root)
+	if len(got) != 2 {
+		t.Fatalf("%d correlation finding(s), want dana's and raj's", len(got))
+	}
+	for _, f := range got {
+		if f.Seen != 1 {
+			t.Errorf("a window was raised %d times", f.Seen)
+		}
+	}
+	// The indicators read the whole store again too: dana's finding counted
+	// the connection twice, sam's once.
+	id := intelID(t, root, "203.0.113.9")
+	if n := seen("intel/"+id, "dana"); n != 2 {
+		t.Errorf("dana's connection was counted %d times over two reads of "+
+			"it", n)
+	}
+	if n := seen("intel/"+id, "sam"); n != 1 {
+		t.Errorf("sam's connection was counted %d times", n)
+	}
+}
+
+// intelID is the identifier of the one indicator holding a value.
+func intelID(t *testing.T, root, value string) string {
+	t.Helper()
+	set, err := loadIndicators(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, i := range set.All() {
+		if i.Value == value {
+			return i.ID
+		}
+	}
+	t.Fatalf("no indicator holds %s", value)
+	return ""
 }

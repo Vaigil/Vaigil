@@ -1,0 +1,114 @@
+{
+  "id": "aws.public-access-lowered",
+  "title": "The S3 public-access block was written, or a bucket policy was",
+  "why": "the moment a bucket becomes the internet's bucket is one API call, and nobody writes these outside a deliberate data-publish change",
+  "blind": "which way the block moved: the request body is not carried, so the operation is the alert and raising the block matches too; and a bucket policy that only tightened",
+  "sources": [
+    "aws/cloudtrail"
+  ],
+  "severity": 4,
+  "when": {
+    "match": {
+      "field": "message",
+      "op": "equals",
+      "values": [
+        "PutAccountPublicAccessBlock",
+        "PutBucketPolicy"
+      ]
+    }
+  },
+  "technique": [
+    "T1562",
+    "T1530"
+  ],
+  "fixtures": [
+    {
+      "name": "the account block written",
+      "match": true,
+      "event": {
+        "source": "aws/cloudtrail",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "aws",
+          "value": "arn:aws:iam::1:user/deploy"
+        },
+        "message": "PutAccountPublicAccessBlock",
+        "raw": {
+          "eventName": "PutAccountPublicAccessBlock",
+          "eventSource": "s3.amazonaws.com",
+          "awsRegion": "us-east-1",
+          "readOnly": "false"
+        }
+      }
+    },
+    {
+      "name": "a bucket policy written",
+      "match": true,
+      "event": {
+        "source": "aws/cloudtrail",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "aws",
+          "value": "arn:aws:iam::1:user/deploy"
+        },
+        "message": "PutBucketPolicy",
+        "raw": {
+          "eventName": "PutBucketPolicy",
+          "eventSource": "s3.amazonaws.com",
+          "awsRegion": "us-east-1",
+          "readOnly": "false"
+        }
+      }
+    },
+    {
+      "name": "a bucket policy read back",
+      "match": false,
+      "event": {
+        "source": "aws/cloudtrail",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "aws",
+          "value": "arn:aws:iam::1:user/deploy"
+        },
+        "message": "GetBucketPolicy",
+        "raw": {
+          "eventName": "GetBucketPolicy",
+          "eventSource": "s3.amazonaws.com",
+          "awsRegion": "us-east-1",
+          "readOnly": "true"
+        }
+      }
+    },
+    {
+      "name": "a bucket created",
+      "match": false,
+      "event": {
+        "source": "aws/cloudtrail",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "aws",
+          "value": "arn:aws:iam::1:user/deploy"
+        },
+        "message": "CreateBucket",
+        "raw": {
+          "eventName": "CreateBucket",
+          "eventSource": "s3.amazonaws.com",
+          "awsRegion": "us-east-1",
+          "readOnly": "false"
+        }
+      }
+    }
+  ]
+}

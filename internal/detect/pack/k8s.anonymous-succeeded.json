@@ -1,0 +1,128 @@
+{
+  "id": "k8s.anonymous-succeeded",
+  "title": "A Kubernetes request succeeded as system:anonymous",
+  "why": "an anonymous request the API server answered is a misconfiguration being used, not one being probed",
+  "blind": "which verb succeeded, where a write is worse than a read, and the anonymous requests that failed, which are only the internet knocking",
+  "sources": [
+    "kubernetes/audit"
+  ],
+  "severity": 4,
+  "when": {
+    "all": [
+      {
+        "match": {
+          "field": "actor.value",
+          "op": "equals",
+          "values": [
+            "system:anonymous"
+          ]
+        }
+      },
+      {
+        "match": {
+          "field": "disposition",
+          "op": "equals",
+          "values": [
+            "allowed"
+          ]
+        }
+      }
+    ]
+  },
+  "technique": [
+    "T1190",
+    "T1078.001"
+  ],
+  "fixtures": [
+    {
+      "name": "an anonymous pod created",
+      "match": true,
+      "event": {
+        "source": "kubernetes/audit",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "kubernetes",
+          "value": "system:anonymous"
+        },
+        "message": "create",
+        "raw": {
+          "verb": "create",
+          "resource": "pods",
+          "namespace": "default",
+          "name": "nginx",
+          "code": "201"
+        }
+      }
+    },
+    {
+      "name": "an anonymous list that worked",
+      "match": true,
+      "event": {
+        "source": "kubernetes/audit",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "kubernetes",
+          "value": "system:anonymous"
+        },
+        "message": "list",
+        "raw": {
+          "verb": "list",
+          "resource": "secrets",
+          "namespace": "default",
+          "code": "200"
+        }
+      }
+    },
+    {
+      "name": "an anonymous list refused",
+      "match": false,
+      "event": {
+        "source": "kubernetes/audit",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 4,
+        "actor": {
+          "issuer": "kubernetes",
+          "value": "system:anonymous"
+        },
+        "message": "list",
+        "raw": {
+          "verb": "list",
+          "resource": "secrets",
+          "namespace": "default",
+          "code": "403"
+        }
+      }
+    },
+    {
+      "name": "an authenticated pod created",
+      "match": false,
+      "event": {
+        "source": "kubernetes/audit",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "kubernetes",
+          "value": "dana@acme.com"
+        },
+        "message": "create",
+        "raw": {
+          "verb": "create",
+          "resource": "pods",
+          "namespace": "default",
+          "name": "nginx",
+          "code": "201"
+        }
+      }
+    }
+  ]
+}

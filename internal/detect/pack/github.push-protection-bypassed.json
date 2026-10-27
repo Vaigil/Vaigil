@@ -1,0 +1,91 @@
+{
+  "id": "github.push-protection-bypassed",
+  "title": "Push protection was bypassed on GitHub",
+  "why": "somebody pushed past the secret-scanning guardrail, and the guardrail said so itself",
+  "blind": "a secret pushed to a repository where push protection was never switched on",
+  "sources": [
+    "github/audit"
+  ],
+  "severity": 4,
+  "when": {
+    "match": {
+      "field": "message",
+      "op": "equals",
+      "values": [
+        "secret_scanning_push_protection_bypassed"
+      ]
+    }
+  },
+  "technique": [
+    "T1552.001",
+    "T1562"
+  ],
+  "fixtures": [
+    {
+      "name": "a bypass recorded",
+      "match": true,
+      "event": {
+        "source": "github/audit",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "github",
+          "value": "dana-gh"
+        },
+        "message": "secret_scanning_push_protection_bypassed",
+        "raw": {
+          "action": "secret_scanning_push_protection_bypassed",
+          "repo": "acme/shop",
+          "org": "acme",
+          "person": "dana@acme.com"
+        }
+      }
+    },
+    {
+      "name": "an alert resolved as used in tests",
+      "match": false,
+      "event": {
+        "source": "github/audit",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "github",
+          "value": "dana-gh"
+        },
+        "message": "secret_scanning_alert.resolve",
+        "raw": {
+          "action": "secret_scanning_alert.resolve",
+          "repo": "acme/shop",
+          "org": "acme",
+          "person": "dana@acme.com"
+        }
+      }
+    },
+    {
+      "name": "protection disabled",
+      "match": false,
+      "event": {
+        "source": "github/audit",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "github",
+          "value": "dana-gh"
+        },
+        "message": "repository_secret_scanning_push_protection.disable",
+        "raw": {
+          "action": "repository_secret_scanning_push_protection.disable",
+          "repo": "acme/shop",
+          "org": "acme",
+          "person": "dana@acme.com"
+        }
+      }
+    }
+  ]
+}

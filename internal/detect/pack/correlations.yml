@@ -1,6 +1,7 @@
 # Correlations across platforms. Each counts rules in this directory.
 # The person a group is about is the address every platform knows them by,
-# carried on each event as raw.person.
+# carried on each event as raw.person, or — for the sources that keep no
+# address, like Duo and CloudTrail — the actor they know them by.
 title: One person failed to sign in many times
 id: corr.signin-failures-one-person
 correlation:
@@ -59,3 +60,79 @@ correlation:
         - raw.person
     timespan: 24h
 level: critical
+---
+# Deny then allow, in that order: a person pushed "no" several times and
+# then said "yes". The order is the detection — approving first and denying
+# the leftover prompt afterwards is the opposite of being pressured.
+title: One person's second factor was denied and then allowed
+id: corr.mfa-fatigue
+correlation:
+    type: temporal_ordered
+    rules:
+        - duo.push-denied
+        - duo.push-allowed
+    group-by:
+        - actor.value
+    timespan: 30m
+level: high
+---
+# The helpdesk-vishing chain, compressed: a factor reset and then the
+# sign-in it was cleared for. The reset rule fires on its own as well; this
+# is the consequence that makes it worth waking somebody.
+title: A second factor was reset and the account signed in
+id: corr.reset-then-signin
+correlation:
+    type: temporal_ordered
+    rules:
+        - okta.mfa-reset
+        - okta.signin-succeeded
+    group-by:
+        - raw.person
+    timespan: 24h
+level: high
+---
+# The persistence hand-off: credentials manufactured, not stolen. The base
+# rules refuse the infrastructure pipeline's own user agent, so this counts
+# only hands and consoles.
+title: An IAM user was created and given an access key
+id: corr.iam-user-then-key
+correlation:
+    type: temporal
+    rules:
+        - aws.iam-user-created
+        - aws.access-key-created
+    group-by:
+        - actor.value
+    timespan: 15m
+level: high
+---
+# A model being told no, again and again: one refusal is the boundary
+# working, ten inside fifteen minutes is a loop or a prompt that will not
+# take the answer.
+title: One agent's tool calls were refused in a run
+id: corr.agent-refusal-burst
+correlation:
+    type: event_count
+    rules:
+        - vaigil.agent-call-denied
+    group-by:
+        - actor.value
+    timespan: 15m
+    condition:
+        gte: 10
+level: medium
+---
+# A rate, not an alarm: an agent proposing a finding every two minutes is
+# either doing the backlog or running away, and both are worth a look.
+title: One agent proposed findings faster than a person could read them
+id: corr.agent-proposal-burst
+correlation:
+    type: event_count
+    rules:
+        - vaigil.agent-proposed
+    group-by:
+        - actor.value
+    timespan: 1h
+    condition:
+        gte: 30
+level: low

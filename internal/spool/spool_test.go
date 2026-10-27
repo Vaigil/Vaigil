@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -21,7 +22,7 @@ type clock struct{ at time.Time }
 
 func (c *clock) now() time.Time { return c.at }
 
-func openAt(t *testing.T, c *clock, o Options) (*Spool, string) {
+func openAt(t testing.TB, c *clock, o Options) (*Spool, string) {
 	t.Helper()
 	dir := t.TempDir()
 	o.Now = c.now
@@ -612,6 +613,176 @@ func TestAPlanThatEmptiesTheSpoolSaysSoInWords(t *testing.T) {
 	}
 }
 
+// TestTwoWritersKeepEveryEvent: serve ingesting while a command writes. The
+// segments append, but the index does not — every save writes it whole — so
+// without a writer's lock the second save discards the first's counts and
+// the store answers with fewer events than it holds.
+func TestTwoWritersKeepEveryEvent(t *testing.T) {
+	c := &clock{at: base}
+	dir := t.TempDir()
+	const each = 50
+
+	write := func(name string) func() error {
+		return func() error {
+			s, err := Open(dir, Options{Now: c.now})
+			if err != nil {
+				return err
+			}
+			for i := range each {
+				if _, aerr := s.Append(event(base, base,
+					fmt.Sprintf("%s %d", name, i))); aerr != nil {
+					return aerr
+				}
+			}
+			return s.Close()
+		}
+	}
+	var wg sync.WaitGroup
+	errs := make(chan error, 2)
+	for _, name := range []string{"serve", "command"} {
+		wg.Add(1)
+		go func(f func() error) {
+			defer wg.Done()
+			errs <- f()
+		}(write(name))
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// A third, fresh open: what the store says, not what either writer left
+	// in its own memory.
+	fresh, err := Open(dir, Options{Now: c.now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fresh.Close()
+	if got := fresh.Events(); got != 2*each {
+		t.Errorf("the index holds %d events after two writers wrote %d", got,
+			2*each)
+	}
+	var inIndex, onDisk int
+	for _, seg := range fresh.Segments() {
+		inIndex += seg.Events
+	}
+	if inIndex != 2*each {
+		t.Errorf("the segments' counts sum to %d, want %d", inIndex, 2*each)
+	}
+	if err := fresh.Range(time.Time{}, time.Time{},
+		func(telemetry.Event) error { onDisk++; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if onDisk != 2*each {
+		t.Errorf("%d events on disk, want %d", onDisk, 2*each)
+	}
+	if bad, err := fresh.Verify(); err != nil || len(bad) != 0 {
+		t.Errorf("a spool two writers filled does not verify: %v %v", bad, err)
+	}
+}
+
+// TestAStaleLockDoesNotBlockForever: a writer that died holding the lock
+// must not stop ingestion until somebody notices a file. The lock is aged by
+// mtime, because a crashed holder can tell nobody it crashed.
+func TestAStaleLockDoesNotBlockForever(t *testing.T) {
+	c := &clock{at: base}
+	s, dir := openAt(t, c, Options{})
+	defer s.Close()
+	lock := filepath.Join(dir, "index.json.lock")
+	if err := os.WriteFile(lock, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dead := time.Now().Add(-2 * lockStale)
+	if err := os.Chtimes(lock, dead, dead); err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := s.Append(event(base, base, "after the crash"))
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(3 * lockWait):
+		t.Fatal("a lock from a dead holder still blocks the writer")
+	}
+	if _, err := os.Stat(lock); !os.IsNotExist(err) {
+		t.Errorf("the taken-over lock was left behind")
+	}
+}
+
+// TestALockAnotherWriterHoldsIsWaitedForNotIgnored: a lock too young to be
+// stale belongs to a live writer, and the second must fail rather than
+// write beside it.
+func TestALockAnotherWriterHoldsIsWaitedForNotIgnored(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "index.json.lock")
+	unlock, err := lockFile(path, 50*time.Millisecond, lockStale)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := lockFile(path, 50*time.Millisecond, lockStale); err == nil {
+		t.Fatal("a second writer took a lock the first still holds")
+	}
+	unlock()
+	again, err := lockFile(path, 50*time.Millisecond, lockStale)
+	if err != nil {
+		t.Fatalf("a released lock was not given up: %v", err)
+	}
+	again()
+}
+
+// TestTheLockIsHeldPerOperationAndReleasedOnClose: readers never wait on a
+// writer, which is only possible because the lock lasts exactly as long as
+// the operation that changed the store.
+func TestTheLockIsHeldPerOperationAndReleasedOnClose(t *testing.T) {
+	c := &clock{at: base}
+	s, dir := openAt(t, c, Options{})
+	lock := filepath.Join(dir, "index.json.lock")
+	if _, err := s.Append(event(base, base, "one")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(lock); !os.IsNotExist(err) {
+		t.Fatal("the writer's lock outlived the append")
+	}
+	// Reading takes nothing, so a reader never waits on a writer.
+	if len(s.Segments()) != 1 {
+		t.Fatalf("the store holds %d segment(s)", len(s.Segments()))
+	}
+	if bad, err := s.Verify(); err != nil || len(bad) != 0 {
+		t.Fatalf("verify: %v %v", bad, err)
+	}
+	if err := s.Range(time.Time{}, time.Time{},
+		func(telemetry.Event) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(lock); !os.IsNotExist(err) {
+		t.Fatal("reading the spool took the writer's lock")
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(lock); !os.IsNotExist(err) {
+		t.Fatal("Close left the writer's lock behind")
+	}
+
+	// And the next writer takes the store straight after.
+	next, err := Open(dir, Options{Now: c.now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer next.Close()
+	if _, err := next.Append(event(base, base, "two")); err != nil {
+		t.Fatalf("a released lock still stood in the way: %v", err)
+	}
+}
+
 // A writer that releases rather than closes leaves one growing segment, not
 // a sealed one for every few events; the day still rolls and seals it, and a
 // segment whose file is not what the index says is never added to.
@@ -661,4 +832,536 @@ func TestAReleasedSegmentIsResumed(t *testing.T) {
 		t.Errorf("a segment whose size disagrees with the index was resumed: %d segments", len(segs))
 	}
 	_ = again.Close()
+}
+
+// TestABatchLandsWholeAndCounted: the shape a push source produces —
+// hundreds of events handed over together — stored by one call. Everything
+// the batch held is on disk in order, the index counts it after a reopen
+// rather than only in the writer's memory, and the segment each event landed
+// in is said, in order.
+func TestABatchLandsWholeAndCounted(t *testing.T) {
+	c := &clock{at: base}
+	s, dir := openAt(t, c, Options{})
+	batch := make([]telemetry.Event, 0, 500)
+	for i := range 500 {
+		at := base.Add(time.Duration(i) * time.Second)
+		batch = append(batch, event(at, at, fmt.Sprintf("push %d", i)))
+	}
+	into, err := s.AppendBatch(batch)
+	if err != nil {
+		t.Fatalf("append batch: %v", err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	fresh, err := Open(dir, Options{Now: c.now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fresh.Close()
+	if got := fresh.Events(); got != 500 {
+		t.Fatalf("the index holds %d events after a reopen, want the 500 in "+
+			"the batch — the counts were not saved with them", got)
+	}
+	if segs := fresh.Segments(); len(segs) != 1 || segs[0].Events != 500 {
+		t.Fatalf("the segment says %v", segs)
+	}
+	var read []string
+	if err := fresh.Range(time.Time{}, time.Time{},
+		func(e telemetry.Event) error {
+			read = append(read, e.Message)
+			return nil
+		}); err != nil {
+		t.Fatal(err)
+	}
+	if len(read) != 500 || read[0] != "push 0" || read[499] != "push 499" {
+		t.Fatalf("read back %d events; first %q last %q", len(read),
+			read[0], read[len(read)-1])
+	}
+	for i, name := range into {
+		if name != fresh.Segments()[0].Name {
+			t.Errorf("event %d was said to land in %q, not %q", i, name,
+				fresh.Segments()[0].Name)
+		}
+	}
+}
+
+// TestABatchIsRefusedWhole: an event that cannot be stored refuses the
+// batch it is part of, storing none of it. The alternative — storing the
+// events before the bad one — is what a loop of single Appends leaves, and a
+// caller that retries then stores that half twice.
+func TestABatchIsRefusedWhole(t *testing.T) {
+	c := &clock{at: base}
+	s, dir := openAt(t, c, Options{})
+	defer s.Close()
+	ok := event(base, base, "fine")
+	batch := []telemetry.Event{ok,
+		{Received: base, Source: "okta/system"}, // no time: nothing can window it
+		ok}
+	if _, err := s.AppendBatch(batch); err == nil {
+		t.Fatal("a batch holding an event with no time was accepted")
+	}
+	if s.Events() != 0 {
+		t.Errorf("the refused batch left %d event(s) behind", s.Events())
+	}
+	files, _ := filepath.Glob(filepath.Join(dir, "*.jsonl"))
+	if len(files) != 0 {
+		t.Errorf("the refused batch left %d segment file(s)", len(files))
+	}
+}
+
+// TestABatchThatCrossesADayRollsInsideItself: a batch spanning midnight is
+// not one segment falsely dated by its first arrival. The day rolls where it
+// always does, mid-batch, and both segments are counted and named.
+func TestABatchThatCrossesADayRollsInsideItself(t *testing.T) {
+	c := &clock{at: base}
+	s, _ := openAt(t, c, Options{})
+	defer s.Close()
+	next := base.Add(24 * time.Hour)
+	batch := []telemetry.Event{
+		event(base, base, "before midnight"),
+		event(next, next, "after midnight"),
+		event(next.Add(time.Second), next.Add(time.Second), "still after"),
+	}
+	into, err := s.AppendBatch(batch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	segs := s.Segments()
+	if len(segs) != 2 || segs[0].Events != 1 || segs[1].Events != 2 {
+		t.Fatalf("a batch over midnight made %v", segs)
+	}
+	if into[0] != segs[0].Name || into[1] != segs[1].Name ||
+		into[2] != segs[1].Name {
+		t.Errorf("segments named %v for events landed in %v", into, segs)
+	}
+	if bad, err := s.Verify(); err != nil || len(bad) != 0 {
+		t.Errorf("a spool a rolled batch filled does not verify: %v %v", bad, err)
+	}
+}
+
+// TestAConcurrentMixOfBatchAndSingleWritesKeepsEveryEvent: a batching
+// writer and a one-at-a-time writer at once, under the race detector. The
+// batch holds the lock once for all of it, so the two interleave between
+// operations and never inside one; what must survive is every event either
+// wrote, in a store that still verifies.
+func TestAConcurrentMixOfBatchAndSingleWritesKeepsEveryEvent(t *testing.T) {
+	c := &clock{at: base}
+	dir := t.TempDir()
+	const batches, perBatch, alone = 20, 50, 300
+
+	batcher := func() error {
+		s, err := Open(dir, Options{Now: c.now})
+		if err != nil {
+			return err
+		}
+		for i := range batches {
+			batch := make([]telemetry.Event, 0, perBatch)
+			for j := range perBatch {
+				batch = append(batch, event(base, base,
+					fmt.Sprintf("batch %d %d", i, j)))
+			}
+			if _, err := s.AppendBatch(batch); err != nil {
+				return err
+			}
+		}
+		return s.Close()
+	}
+	oneAtATime := func() error {
+		s, err := Open(dir, Options{Now: c.now})
+		if err != nil {
+			return err
+		}
+		for i := range alone {
+			if _, err := s.Append(event(base, base,
+				fmt.Sprintf("single %d", i))); err != nil {
+				return err
+			}
+		}
+		return s.Close()
+	}
+	var wg sync.WaitGroup
+	errs := make(chan error, 2)
+	for _, f := range []func() error{batcher, oneAtATime} {
+		wg.Add(1)
+		go func(f func() error) {
+			defer wg.Done()
+			errs <- f()
+		}(f)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	fresh, err := Open(dir, Options{Now: c.now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fresh.Close()
+	want := batches*perBatch + alone
+	if got := fresh.Events(); got != want {
+		t.Errorf("the index holds %d events after two writers wrote %d", got,
+			want)
+	}
+	var onDisk int
+	if err := fresh.Range(time.Time{}, time.Time{},
+		func(telemetry.Event) error { onDisk++; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if onDisk != want {
+		t.Errorf("%d events on disk, want %d", onDisk, want)
+	}
+	if bad, err := fresh.Verify(); err != nil || len(bad) != 0 {
+		t.Errorf("the store two kinds of writer filled does not verify: %v %v",
+			bad, err)
+	}
+}
+
+// TestTheFloorRefusesEvidenceYoungerThanIt: the byte cap is the one limit
+// that deletes young evidence, so it is the one the floor has to bind. A
+// spool over cap with everything inside the floor plans to drop nothing,
+// says it is over cap, and names the segments the floor is holding.
+func TestTheFloorRefusesEvidenceYoungerThanIt(t *testing.T) {
+	c := &clock{at: base}
+	s, dir := openAt(t, c, Options{
+		SegmentBytes: 200, Keep: 365 * 24 * time.Hour, Cap: 1 << 30,
+	})
+	defer s.Close()
+	for day := range 3 {
+		c.at = base.Add(time.Duration(day) * 24 * time.Hour)
+		if _, err := s.Append(event(c.at, c.at, "day")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c.at = base.Add(3 * 24 * time.Hour)
+	if err := s.Seal(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Over cap, keep a year: without a floor the cap drops the oldest
+	// sealed segment whatever its age. That is the behaviour the floor
+	// exists to bound.
+	s.opt.Cap = 1
+	if p := s.Retain(); p.Empty() {
+		t.Fatal("a spool one byte over cap with no floor planned to drop " +
+			"nothing, so the test is not exercising the cap")
+	}
+
+	s.opt.Floor = 10 * 24 * time.Hour
+	p := s.Retain()
+	if !p.Empty() {
+		t.Fatalf("the cap planned to drop %d segment(s) younger than the "+
+			"floor", len(p.Drop))
+	}
+	if len(p.Pinned) != 3 {
+		t.Errorf("the floor pinned %d segment(s), want all 3", len(p.Pinned))
+	}
+	if p.Over == 0 {
+		t.Error("a spool held over cap by its own floor reported being " +
+			"under cap, which is the quiet version of the same failure")
+	}
+	if !strings.Contains(p.Why(), "floor") {
+		t.Errorf("the explanation does not name the floor: %q", p.Why())
+	}
+	// And nothing went anywhere.
+	left, _ := filepath.Glob(filepath.Join(dir, "*.jsonl"))
+	if len(left) != 3 {
+		t.Fatalf("%d segment file(s) left, want 3", len(left))
+	}
+}
+
+// TestAFloorAboveTheAgeLimitRaisesIt: a keep shorter than the floor would
+// delete evidence the organisation promised to keep, so the floor wins and
+// the plan carries the raised limit rather than the configured one.
+func TestAFloorAboveTheAgeLimitRaisesIt(t *testing.T) {
+	c := &clock{at: base}
+	s, _ := openAt(t, c, Options{
+		SegmentBytes: 200, Keep: time.Hour, Floor: 2 * 24 * time.Hour,
+		Cap: 1 << 30,
+	})
+	defer s.Close()
+	for day := range 4 {
+		c.at = base.Add(time.Duration(day) * 24 * time.Hour)
+		if _, err := s.Append(event(c.at, c.at, "day")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c.at = base.Add(5 * 24 * time.Hour)
+	if err := s.Seal(); err != nil {
+		t.Fatal(err)
+	}
+
+	p := s.Retain()
+	if p.Keep != 2*24*time.Hour {
+		t.Errorf("the plan's age limit is %s, not the 2d floor it should "+
+			"have been raised to", p.Keep)
+	}
+	for _, seg := range p.Drop {
+		if c.at.Sub(seg.Last) <= p.Floor {
+			t.Errorf("%s is %s old, inside the %s floor, and was planned",
+				seg.Name, c.at.Sub(seg.Last), p.Floor)
+		}
+	}
+	// Days 0, 1 and 2 are outside the floor; day 3 is exactly two days old
+	// and must stay. One hour of keep without the floor would have taken it.
+	if len(p.Drop) != 3 {
+		t.Fatalf("the raised limit planned to drop %d segment(s), want the "+
+			"3 older than the floor: %s", len(p.Drop), p.Why())
+	}
+}
+
+// TestApplyRechecksTheFloorAtDeletionTime: a plan made before a floor was
+// declared is not a licence to delete young evidence after it was. The same
+// re-check the hold gets, for the same reason.
+func TestApplyRechecksTheFloorAtDeletionTime(t *testing.T) {
+	c := &clock{at: base}
+	s, dir := openAt(t, c, Options{SegmentBytes: 200, Keep: time.Hour})
+	for day := range 3 {
+		c.at = base.Add(time.Duration(day) * 24 * time.Hour)
+		if _, err := s.Append(event(c.at, c.at, "day")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c.at = base.Add(3 * 24 * time.Hour)
+	if err := s.Seal(); err != nil {
+		t.Fatal(err)
+	}
+	p := s.Retain()
+	if p.Empty() {
+		t.Fatal("nothing was planned, so the test is not exercising Apply")
+	}
+
+	// The floor is declared after the plan was made and approved.
+	s.opt.Floor = 30 * 24 * time.Hour
+	gone, err := s.Apply(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gone != 0 {
+		t.Fatalf("%d segment(s) were deleted inside a floor declared after "+
+			"the plan", gone)
+	}
+	left, _ := filepath.Glob(filepath.Join(dir, "*.jsonl"))
+	if len(left) != 3 {
+		t.Fatalf("%d segment file(s) left, want all 3", len(left))
+	}
+}
+
+// TestRetentionAppliesUnderTheWritersLock: Apply changes the index like
+// Append does, and was left outside the writer's lock when the lock landed.
+// The failure is quiet and asymmetric: an Apply that acted on the index as
+// its own handle last saw it saves that stale copy over the one another
+// writer saved in between, and the other writer's events stay on disk while
+// vanishing from the index — a store that answers with fewer events than it
+// holds, which reads exactly like a quiet period.
+func TestRetentionAppliesUnderTheWritersLock(t *testing.T) {
+	c := &clock{at: base}
+	dir := t.TempDir()
+	// SegmentBytes big enough that the other writer's five events all land
+	// in the open segment: the count of segments must not move, or the plan
+	// is refused for staleness rather than applied against fresh counts.
+	planner, err := Open(dir, Options{Now: c.now, SegmentBytes: 4096,
+		Keep: time.Hour})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Two sealed days and one open segment: the shape a live store has while
+	// serve is ingesting into today.
+	for day := range 3 {
+		c.at = base.Add(time.Duration(day) * 24 * time.Hour)
+		if _, aerr := planner.Append(event(c.at, c.at, "day")); aerr != nil {
+			t.Fatal(aerr)
+		}
+	}
+	plan := planner.Retain()
+	if plan.Empty() {
+		t.Fatal("nothing was planned")
+	}
+
+	// Another writer stores into the open segment and saves — exactly what
+	// ingestion does while a command plans retention. The segment count does
+	// not move, so the plan is not stale; only the counts change.
+	writer, err := Open(dir, Options{Now: c.now, SegmentBytes: 4096,
+		Keep: time.Hour})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range 5 {
+		if _, aerr := writer.Append(event(c.at, c.at,
+			fmt.Sprintf("late %d", i))); aerr != nil {
+			t.Fatal(aerr)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := planner.Apply(plan); err != nil {
+		t.Fatal(err)
+	}
+	fresh, err := Open(dir, Options{Now: c.now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fresh.Close()
+	if got := fresh.Events(); got != 6 {
+		t.Fatalf("the index holds %d events; one writer stored 1 and the "+
+			"other 5, and Apply saved an index that lost the second "+
+			"writer's", got)
+	}
+	var onDisk int
+	if err := fresh.Range(time.Time{}, time.Time{},
+		func(telemetry.Event) error { onDisk++; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if onDisk != 6 {
+		t.Errorf("%d events on disk, want the 6 the index must account for",
+			onDisk)
+	}
+	if bad, verr := fresh.Verify(); verr != nil || len(bad) != 0 {
+		t.Errorf("the spool retention ran beside does not verify: %v %v",
+			bad, verr)
+	}
+}
+
+// TestConcurrentRetentionAndAppendKeepTheIndexWhole: the three index writers
+// the lock has to cover at once — ingestion appending, retention applying,
+// and a hold going on and coming off — under the race detector. A plan that
+// runs against a spool whose segment count moved is refused, which is the
+// stale-plan rule doing its job, so the applier replans until the writers
+// stop. What must survive is every event anybody wrote, in a store that
+// still verifies.
+func TestConcurrentRetentionAndAppendKeepTheIndexWhole(t *testing.T) {
+	c := &clock{at: base}
+	dir := t.TempDir()
+	seed, err := Open(dir, Options{Now: c.now, SegmentBytes: 200,
+		Keep: time.Hour})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for day := range 3 {
+		c.at = base.Add(time.Duration(day) * 24 * time.Hour)
+		if _, aerr := seed.Append(event(c.at, c.at, "old day")); aerr != nil {
+			t.Fatal(aerr)
+		}
+	}
+	if err := seed.Close(); err != nil {
+		t.Fatal(err)
+	}
+	c.at = base.Add(3 * 24 * time.Hour) // today, from here on
+
+	const appended = 300
+	var wg sync.WaitGroup
+	errs := make(chan error, 3)
+
+	appender := func() error {
+		s, err := Open(dir, Options{Now: c.now, SegmentBytes: 200,
+			Keep: time.Hour})
+		if err != nil {
+			return err
+		}
+		for i := range appended {
+			if _, aerr := s.Append(event(c.at, c.at,
+				fmt.Sprintf("today %d", i))); aerr != nil {
+				return aerr
+			}
+		}
+		return s.Close()
+	}
+	retainer := func() error {
+		for range 30 {
+			s, err := Open(dir, Options{Now: c.now, SegmentBytes: 200,
+				Keep: time.Hour})
+			if err != nil {
+				return err
+			}
+			p := s.Retain()
+			if !p.Empty() {
+				// A refusal is the stale-plan rule doing its job — the
+				// appender sealed another segment between the plan and the
+				// apply — so the applier replans, which is the next turn of
+				// this loop. What is under test is that the applies that do
+				// run cannot lose the appender's index writes.
+				_, _ = s.Apply(p)
+			}
+			if cerr := s.Close(); cerr != nil {
+				return cerr
+			}
+		}
+		return nil
+	}
+	holder := func() error {
+		for i := range 30 {
+			s, err := Open(dir, Options{Now: c.now})
+			if err != nil {
+				return err
+			}
+			name := fmt.Sprintf("hold-%d", i)
+			if herr := s.Hold(Hold{Name: name, By: "rashik",
+				Why: "the investigation is still open"}); herr != nil {
+				s.Close()
+				return herr
+			}
+			if lerr := s.Lift(name); lerr != nil {
+				s.Close()
+				return lerr
+			}
+			if cerr := s.Close(); cerr != nil {
+				return cerr
+			}
+		}
+		return nil
+	}
+	for _, f := range []func() error{appender, retainer, holder} {
+		wg.Add(1)
+		go func(f func() error) {
+			defer wg.Done()
+			errs <- f()
+		}(f)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	fresh, err := Open(dir, Options{Now: c.now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fresh.Close()
+	// What must hold is not which segments retention reached — with the
+	// appender rolling segments under it, most applies are refused by the
+	// stale-plan rule and the old days may or may not have gone. It is that
+	// every event anybody wrote is on disk, that the index accounts for
+	// every one of them, and that the seals still hold.
+	var today, onDisk int
+	if err := fresh.Range(time.Time{}, time.Time{},
+		func(e telemetry.Event) error {
+			onDisk++
+			if strings.HasPrefix(e.Message, "today ") {
+				today++
+			}
+			return nil
+		}); err != nil {
+		t.Fatal(err)
+	}
+	if today != appended {
+		t.Errorf("%d of today's %d events survived the run", today, appended)
+	}
+	if got := fresh.Events(); got != onDisk {
+		t.Errorf("the index holds %d events and %d are on disk; an index "+
+			"write was lost to a racing retention or hold", got, onDisk)
+	}
+	if bad, verr := fresh.Verify(); verr != nil || len(bad) != 0 {
+		t.Errorf("the store three kinds of writer shared does not verify: "+
+			"%v %v", bad, verr)
+	}
 }

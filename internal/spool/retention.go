@@ -1,4 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Rashik Adhikari
+// SPDX-FileCopyrightText: 2026 Anthropic PBC
 // SPDX-License-Identifier: Apache-2.0
 
 package spool
@@ -24,10 +25,16 @@ type Plan struct {
 	// nobody remembers is a disk that fills for a reason somebody has to be
 	// told about.
 	Held []Segment `json:"held,omitempty"`
+	// Pinned is what the size limit said to drop and the retention floor
+	// refused. A floor that quietly stopped binding whenever the disk got
+	// full would be a floor on paper only, so a spool held over its cap by
+	// its own floor says so in the plan — the same discipline as Held.
+	Pinned []Segment `json:"pinned,omitempty"`
 	// Freed is how many bytes dropping would recover.
 	Freed int64 `json:"freed"`
 	// Over is how far past the cap the spool would still be afterwards.
-	// Non-zero means the holds are the binding constraint, not the policy.
+	// Non-zero means the holds or the floor are the binding constraint, not
+	// the policy.
 	Over int64 `json:"over,omitempty"`
 	// Covers is the earliest arrival the spool would still answer for.
 	Covers time.Time `json:"covers"`
@@ -36,6 +43,13 @@ type Plan struct {
 	// Segments is how many the spool held when the plan was made, which is
 	// what Apply checks against.
 	Segments int `json:"segments"`
+	// Keep, Cap and Floor are the limits the plan was made under, carried so
+	// a plan can be read on its own and Why can say which of them did the
+	// work. Keep is the age limit actually applied — the configured one,
+	// raised to the floor when the floor was higher.
+	Keep  time.Duration `json:"keep"`
+	Cap   int64         `json:"cap"`
+	Floor time.Duration `json:"floor,omitempty"`
 }
 
 // Empty reports whether there is nothing to do.
@@ -43,17 +57,30 @@ func (p Plan) Empty() bool { return len(p.Drop) == 0 }
 
 // Why explains a plan in one line.
 func (p Plan) Why() string {
+	// What could not go and why, for the two reasons an operator can act
+	// on: a hold is lifted by whoever placed it, a floor by whoever set the
+	// policy.
+	blockedBy := ""
 	switch {
-	case p.Empty() && len(p.Held) > 0:
-		return fmt.Sprintf(
-			"nothing to drop: %d segment(s) are on hold", len(p.Held))
+	case len(p.Held) > 0 && len(p.Pinned) > 0:
+		blockedBy = fmt.Sprintf("%d segment(s) are on hold and %d are inside "+
+			"the %s retention floor", len(p.Held), len(p.Pinned), inDays(p.Floor))
+	case len(p.Held) > 0:
+		blockedBy = fmt.Sprintf("%d segment(s) are on hold", len(p.Held))
+	case len(p.Pinned) > 0:
+		blockedBy = fmt.Sprintf("%d segment(s) are inside the %s retention "+
+			"floor", len(p.Pinned), inDays(p.Floor))
+	}
+	switch {
+	case p.Empty() && blockedBy != "":
+		return "nothing to drop: " + blockedBy
 	case p.Empty():
 		return "nothing is older than the age limit and the spool is under cap"
 	case p.Over > 0:
 		return fmt.Sprintf(
 			"dropping %d segment(s) frees %d bytes and leaves the spool %d "+
-				"bytes over cap, because %d held segment(s) cannot go",
-			len(p.Drop), p.Freed, p.Over, len(p.Held))
+				"bytes over cap, because %s",
+			len(p.Drop), p.Freed, p.Over, blockedBy)
 	case p.Covers.IsZero():
 		// Everything goes. Printed as a sentence rather than as a zero date,
 		// because "answer from 0001-01-01" is the one line in this output
@@ -70,6 +97,17 @@ func (p Plan) Why() string {
 	}
 }
 
+// inDays renders a retention duration the way a policy is written: whole
+// days. A floor set as thirty days prints as 30d rather than 720h0m0s,
+// which is a number a person has to convert back to check against the
+// policy that set it.
+func inDays(d time.Duration) string {
+	if d%(24*time.Hour) == 0 {
+		return fmt.Sprintf("%dd", int(d/(24*time.Hour)))
+	}
+	return d.String()
+}
+
 // Retain plans what to delete. It changes nothing.
 //
 // Two limits, applied in that order: everything past the age limit goes, and
@@ -77,9 +115,25 @@ func (p Plan) Why() string {
 // is never a candidate — a store that deletes the file it is currently
 // writing to is one that loses the events arriving during the delete, which
 // is the window somebody is most likely to care about.
+//
+// The floor bounds both limits (NIST SP 800-53 AU-11 asks for one). It is
+// the youngest age at which evidence may be deleted at all: an age limit
+// shorter than the floor is raised to it, because a keep that undercuts the
+// floor would delete evidence the organisation promised to keep, and the
+// byte cap is not allowed to eat young evidence either — a spool that
+// deletes this week's segment because March was busy is one that fails its
+// retention commitments at exactly the moment somebody needs them. Over cap
+// and pinned by the floor, the plan says it is over cap. The disk is then
+// the operator's problem, which is the honest direction for the failure to
+// land: a full disk is loud, an early delete is silent.
 func (s *Spool) Retain() Plan {
 	now := s.opt.Now()
-	p := Plan{Made: now, Segments: len(s.idx.Segments)}
+	keep := s.opt.Keep
+	if s.opt.Floor > keep {
+		keep = s.opt.Floor
+	}
+	p := Plan{Made: now, Segments: len(s.idx.Segments), Keep: keep,
+		Cap: s.opt.Cap, Floor: s.opt.Floor}
 	segs := s.Segments()
 
 	held := map[string]bool{}
@@ -90,6 +144,13 @@ func (s *Spool) Retain() Plan {
 	}
 
 	total := s.Bytes()
+	// floored is what the floor protects from the size limit. The age limit
+	// already respects it — keep was raised above — so this is the only
+	// other road to a delete, and the one that would otherwise delete the
+	// youngest evidence first.
+	floored := func(seg Segment) bool {
+		return s.opt.Floor > 0 && now.Sub(seg.Last) <= s.opt.Floor
+	}
 	candidate := func(seg Segment) bool {
 		return seg.Sealed() && !held[seg.Name]
 	}
@@ -99,7 +160,7 @@ func (s *Spool) Retain() Plan {
 		if !candidate(seg) {
 			continue
 		}
-		if now.Sub(seg.Last) > s.opt.Keep {
+		if now.Sub(seg.Last) > keep {
 			p.Drop = append(p.Drop, seg)
 			dropped[seg.Name] = true
 			p.Freed += seg.Bytes
@@ -113,6 +174,9 @@ func (s *Spool) Retain() Plan {
 		if !candidate(seg) || dropped[seg.Name] {
 			continue
 		}
+		if floored(seg) {
+			continue
+		}
 		p.Drop = append(p.Drop, seg)
 		dropped[seg.Name] = true
 		p.Freed += seg.Bytes
@@ -124,8 +188,12 @@ func (s *Spool) Retain() Plan {
 
 	for _, seg := range segs {
 		if held[seg.Name] &&
-			(now.Sub(seg.Last) > s.opt.Keep || p.Over > 0) {
+			(now.Sub(seg.Last) > keep || p.Over > 0) {
 			p.Held = append(p.Held, seg)
+		}
+		if !held[seg.Name] && !dropped[seg.Name] && p.Over > 0 &&
+			candidate(seg) && floored(seg) {
+			p.Pinned = append(p.Pinned, seg)
 		}
 		if !dropped[seg.Name] && (p.Covers.IsZero() ||
 			seg.First.Before(p.Covers)) {
@@ -137,18 +205,30 @@ func (s *Spool) Retain() Plan {
 
 // Apply carries out a plan.
 //
-// Refuses a plan made against a different shape of spool. The gap between
-// planning and applying is where an operator looks at what would go, decides
-// it is fine, and applies it ten minutes later — by which time a segment may
-// have sealed, a hold may have been placed, and the list they approved is not
-// the list that would run. Deleting evidence is not a thing to be approximately
-// right about.
+// Under the writer's lock, like every index change: an Apply that acted on
+// the index as this handle last saw it would save that stale copy over the
+// one another writer saved in between, and the events of theirs would be on
+// disk and missing from the index — a store that answers with fewer events
+// than it holds, which reads exactly like a quiet period.
+//
+// Refuses a plan made against a different shape of spool, checked after the
+// rejoin so it is checked against the store as it is now rather than as this
+// handle remembers it. The gap between planning and applying is where an
+// operator looks at what would go, decides it is fine, and applies it ten
+// minutes later — by which time a segment may have sealed, a hold may have
+// been placed, and the list they approved is not the list that would run.
+// Deleting evidence is not a thing to be approximately right about.
 func (s *Spool) Apply(p Plan) (int, error) {
 	if p.Made.IsZero() {
 		return 0, fmt.Errorf(
 			"that plan was never made by Retain, so nobody has seen what it " +
 				"would delete")
 	}
+	unlock, err := s.lock()
+	if err != nil {
+		return 0, err
+	}
+	defer unlock()
 	if p.Segments != len(s.idx.Segments) {
 		return 0, fmt.Errorf(
 			"the spool held %d segment(s) when the plan was made and holds "+
@@ -156,7 +236,7 @@ func (s *Spool) Apply(p Plan) (int, error) {
 			p.Segments, len(s.idx.Segments))
 	}
 	now := s.opt.Now()
-	keep := s.idx.Segments[:0:0]
+	remaining := s.idx.Segments[:0:0]
 	going := map[string]bool{}
 	for _, seg := range p.Drop {
 		going[seg.Name] = true
@@ -164,14 +244,22 @@ func (s *Spool) Apply(p Plan) (int, error) {
 	var gone int
 	for _, seg := range s.idx.Segments {
 		if !going[seg.Name] {
-			keep = append(keep, seg)
+			remaining = append(remaining, seg)
 			continue
 		}
 		// Re-checked at the moment of deletion, not trusted from the plan. A
 		// hold placed after the plan was made is a hold placed by somebody
 		// who had a reason.
 		if why := s.holding(now); why != "" {
-			keep = append(keep, seg)
+			remaining = append(remaining, seg)
+			continue
+		}
+		// The floor is re-checked the same way. A plan made before a floor
+		// was declared is not a licence to delete young evidence after it
+		// was, and an operator applying an old plan with a new policy in
+		// force is the one case where the two disagree.
+		if s.opt.Floor > 0 && now.Sub(seg.Last) <= s.opt.Floor {
+			remaining = append(remaining, seg)
 			continue
 		}
 		if err := os.Remove(filepath.Join(s.dir, seg.Name)); err != nil &&
@@ -180,7 +268,7 @@ func (s *Spool) Apply(p Plan) (int, error) {
 		}
 		gone++
 	}
-	s.idx.Segments = keep
+	s.idx.Segments = remaining
 	if s.cur >= 0 {
 		// The open segment moved in the slice. Find it again by name rather
 		// than trusting an index across a rewrite.
@@ -231,6 +319,15 @@ func (s *Spool) Hold(h Hold) error {
 	if h.At.IsZero() {
 		h.At = s.opt.Now()
 	}
+	// Under the writer's lock, like every index change. A hold is the one
+	// write that must not be lost to a racing append: the hold is placed
+	// because an investigation started, and the writer it races with is the
+	// ingestion that investigation is about to depend on.
+	unlock, err := s.lock()
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	for _, existing := range s.idx.Holds {
 		if existing.Name == h.Name {
 			return fmt.Errorf("there is already a hold called %q", h.Name)
@@ -241,7 +338,16 @@ func (s *Spool) Hold(h Hold) error {
 }
 
 // Lift removes a hold by name.
+//
+// Under the writer's lock for the same reason as Hold: lifting a hold is
+// what lets deletion run again, and a lift lost to a racing append is a
+// hold nobody can see that retention keeps refusing for.
 func (s *Spool) Lift(name string) error {
+	unlock, err := s.lock()
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	keep := s.idx.Holds[:0:0]
 	var found bool
 	for _, h := range s.idx.Holds {

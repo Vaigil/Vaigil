@@ -1,4 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Rashik Adhikari
+// SPDX-FileCopyrightText: 2026 Anthropic PBC
 // SPDX-License-Identifier: Apache-2.0
 
 // Package spool is where events land before anything reasons about them.
@@ -38,7 +39,9 @@
 // keeps two years and a noisy week keeps four days, and nobody can say what
 // the store will answer for. Both are set, Oldest() says what the store
 // currently covers, and that number is the honest answer to "how far back can
-// we look", rather than the configured one.
+// we look", rather than the configured one. Under both sits a floor — a
+// youngest age below which nothing is deleted whatever the cap says — so the
+// size limit can narrow retention but never gut it.
 //
 // # Deleting is never a side effect
 //
@@ -63,6 +66,7 @@ package spool
 import (
 	"bufio"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -100,6 +104,13 @@ type Options struct {
 	// Keep is the age limit and Cap the size limit. Both apply.
 	Keep time.Duration
 	Cap  int64
+	// Floor is the youngest age at which evidence may be deleted at all
+	// (NIST SP 800-53 AU-11). It raises Keep when Keep is shorter, and it
+	// stops the cap from eating young segments: over cap and inside the
+	// floor, the spool stays over cap and says so. Zero means no floor —
+	// the pre-floor behaviour, and an honest default rather than a policy,
+	// because a floor is a promise an organisation makes on purpose.
+	Floor time.Duration
 	// Now is the clock, injectable so a test can age a store without
 	// sleeping. Nil means time.Now.
 	Now func() time.Time
@@ -114,6 +125,9 @@ func (o Options) withDefaults() Options {
 	}
 	if o.Cap <= 0 {
 		o.Cap = DefaultCap
+	}
+	if o.Floor < 0 {
+		o.Floor = 0
 	}
 	if o.Now == nil {
 		o.Now = func() time.Time { return time.Now().UTC() }
@@ -212,46 +226,199 @@ func Open(dir string, o Options) (*Spool, error) {
 	return s, nil
 }
 
+// lockWait is how long one writer waits for another's lock; lockStale is
+// how old a lock file must be before it is taken to be from a process that
+// died holding it.
+const (
+	lockWait  = 5 * time.Second
+	lockStale = time.Minute
+)
+
+// lockFile takes a lock file, waiting a little for another holder and taking
+// over one left by a process that died.
+//
+// Created exclusively rather than advised, so it works the same on every
+// platform this builds for, and aged by mtime because a crashed holder can
+// tell nobody it crashed — the same discipline as internal/automate and the
+// finding register.
+func lockFile(path string, wait, stale time.Duration) (func(), error) {
+	deadline := time.Now().Add(wait)
+	for {
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		if err == nil {
+			_ = f.Close()
+			return func() { _ = os.Remove(path) }, nil
+		}
+		if !os.IsExist(err) {
+			return nil, err
+		}
+		if fi, serr := os.Stat(path); serr == nil &&
+			time.Since(fi.ModTime()) > stale {
+			_ = os.Remove(path)
+			continue
+		}
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("%s is held by another writer", path)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// lock takes the store for one writer and brings this handle back in step
+// with what other writers did while it held nothing.
+//
+// A spool is opened by processes that share no memory — serve ingesting
+// while a command writes — and the segments append, but index.json does not:
+// every save writes the whole index, so without this the second save
+// discards the first's events, its histogram, or a whole segment entry, and
+// nothing reports an error. Taken per operation and never held between
+// them, so a reader never waits and a writer that takes long enough to look
+// dead is waited for rather than duplicated.
+//
+// The writes are Append, Seal, Release, Close, and the retention operations
+// Hold, Lift and Apply in retention.go: every path that mutates the index
+// passes through here, so a save can never be built on a copy of the index
+// another writer has already replaced.
+func (s *Spool) lock() (func(), error) {
+	unlock, err := lockFile(filepath.Join(s.dir, "index.json.lock"),
+		lockWait, lockStale)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.rejoin(); err != nil {
+		unlock()
+		return nil, err
+	}
+	return unlock, nil
+}
+
+// rejoin reloads the index, which is the truth under the lock, and keeps the
+// open segment only while it is still the last one, still unsealed and
+// still the size the index says. A segment another writer rolled or sealed
+// is not one to hold open: it is let go, and ensure re-decides which segment
+// an arrival belongs in against the index as it now stands.
+func (s *Spool) rejoin() error {
+	var held string
+	if s.open != nil && s.cur >= 0 && s.cur < len(s.idx.Segments) {
+		held = s.idx.Segments[s.cur].Name
+	}
+	b, err := os.ReadFile(filepath.Join(s.dir, "index.json"))
+	switch {
+	case os.IsNotExist(err):
+		s.idx = index{}
+	case err != nil:
+		return err
+	default:
+		var fresh index
+		if uerr := json.Unmarshal(b, &fresh); uerr != nil {
+			return fmt.Errorf("%s/index.json is unreadable: %w", s.dir, uerr)
+		}
+		s.idx = fresh
+	}
+	if s.idx.Late == nil {
+		s.idx.Late = map[int]int64{}
+	}
+	if s.open == nil {
+		return nil
+	}
+	n := len(s.idx.Segments)
+	if held != "" && n > 0 && s.idx.Segments[n-1].Name == held &&
+		s.idx.Segments[n-1].Digest == "" {
+		if st, serr := os.Stat(filepath.Join(s.dir, held)); serr == nil &&
+			st.Size() == s.idx.Segments[n-1].Bytes {
+			s.cur = n - 1
+			return nil
+		}
+	}
+	if err := s.open.Sync(); err != nil {
+		return err
+	}
+	err = s.open.Close()
+	s.open, s.cur = nil, -1
+	return err
+}
+
 // Append writes one event and returns the segment it landed in.
 //
 // Received is stamped here when the caller left it zero, because the spool is
 // the moment of delivery and nothing upstream is better placed to say so.
 func (s *Spool) Append(e telemetry.Event) (string, error) {
-	if e.Received.IsZero() {
-		e.Received = s.opt.Now()
-	}
-	if err := e.Validate(); err != nil {
-		return "", err
-	}
-	line, err := json.Marshal(e)
+	segs, err := s.AppendBatch([]telemetry.Event{e})
 	if err != nil {
 		return "", err
 	}
-	if len(line)+1 > MaxLine {
-		return "", fmt.Errorf(
-			"one event is %d bytes, over the %d-byte line limit; a source "+
-				"that can write an unbounded record can fill the disk",
-			len(line), MaxLine)
-	}
-	if err := s.ensure(e.Received); err != nil {
-		return "", err
-	}
-	if _, err := s.open.Write(append(line, '\n')); err != nil {
-		return "", err
-	}
+	return segs[0], nil
+}
 
-	seg := &s.idx.Segments[s.cur]
-	seg.Events++
-	seg.Bytes += int64(len(line)) + 1
-	seg.Last = e.Received
-	if seg.Earliest.IsZero() || e.Time.Before(seg.Earliest) {
-		seg.Earliest = e.Time
+// AppendBatch writes a batch of events under one lock and returns the
+// segment each landed in, in order.
+//
+// Every event pays for the lock, the whole-index rewrite and the fsync once
+// per batch rather than once per event: a push source hands over hundreds of
+// events together, and a store that fsyncs an index per line caps the estate
+// at the speed of the disk's willingness to flush, not the speed events
+// arrive. A segment that rolls mid-batch seals — and saves — as rolling
+// always does; everything else is one save at the end.
+//
+// The batch is prepared before the first line is written: an event that
+// cannot be validated or marshalled refuses the whole batch rather than
+// half-storing it, so a caller that retries retries all of it, where a caller
+// retrying a half-failed loop of Appends would store the half that succeeded
+// twice. A failure while the lines are being written leaves the same torn
+// tail a failed single Append leaves, and is recovered from the same way.
+func (s *Spool) AppendBatch(events []telemetry.Event) ([]string, error) {
+	if len(events) == 0 {
+		return nil, nil
 	}
-	if e.Time.After(seg.Latest) {
-		seg.Latest = e.Time
+	stamped := make([]telemetry.Event, len(events))
+	lines := make([][]byte, len(events))
+	for i, e := range events {
+		if e.Received.IsZero() {
+			e.Received = s.opt.Now()
+		}
+		if err := e.Validate(); err != nil {
+			return nil, fmt.Errorf("event %d of the batch: %w", i+1, err)
+		}
+		line, err := json.Marshal(e)
+		if err != nil {
+			return nil, fmt.Errorf("event %d of the batch: %w", i+1, err)
+		}
+		if len(line)+1 > MaxLine {
+			return nil, fmt.Errorf(
+				"event %d of the batch is %d bytes, over the %d-byte line "+
+					"limit; a source that can write an unbounded record can "+
+					"fill the disk", i+1, len(line), MaxLine)
+		}
+		stamped[i] = e
+		lines[i] = line
 	}
-	s.observe(e.Lateness())
-	return seg.Name, s.save()
+	unlock, err := s.lock()
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	into := make([]string, len(events))
+	for i, e := range stamped {
+		if err := s.ensure(e.Received); err != nil {
+			return into, err
+		}
+		if _, err := s.open.Write(append(lines[i], '\n')); err != nil {
+			return into, err
+		}
+		seg := &s.idx.Segments[s.cur]
+		seg.Events++
+		seg.Bytes += int64(len(lines[i])) + 1
+		seg.Last = e.Received
+		if seg.Earliest.IsZero() || e.Time.Before(seg.Earliest) {
+			seg.Earliest = e.Time
+		}
+		if e.Time.After(seg.Latest) {
+			seg.Latest = e.Time
+		}
+		s.observe(e.Lateness())
+		into[i] = seg.Name
+	}
+	return into, s.save()
 }
 
 // observe records one arrival delay in the histogram.
@@ -296,12 +463,27 @@ func (s *Spool) ensure(at time.Time) error {
 		if sameDay && seg.Bytes < s.opt.SegmentBytes {
 			return nil
 		}
-		if err := s.Seal(); err != nil {
+		if err := s.seal(); err != nil {
 			return err
 		}
 	}
-	name := fmt.Sprintf("%s-%04d.jsonl", at.UTC().Format("20060102"),
-		len(s.idx.Segments))
+	// A name that already exists on disk is not a name to reuse. The count
+	// is only a starting point: retention applying a plan shrinks the index,
+	// and a writer rolling its next segment against that shrunken index
+	// would compute the name of a file still on disk — appending today's
+	// events into a sealed segment of the same day, whose digest then
+	// matches nothing and whose events are counted twice. Existing files win
+	// over the count, always; called under the writer's lock, where the
+	// check and the create cannot interleave with another writer's.
+	seq := len(s.idx.Segments)
+	var name string
+	for {
+		name = fmt.Sprintf("%s-%04d.jsonl", at.UTC().Format("20060102"), seq)
+		if _, serr := os.Stat(filepath.Join(s.dir, name)); os.IsNotExist(serr) {
+			break
+		}
+		seq++
+	}
 	f, err := os.OpenFile(filepath.Join(s.dir, name),
 		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
@@ -315,7 +497,21 @@ func (s *Spool) ensure(at time.Time) error {
 }
 
 // Seal closes the open segment and digests it.
+//
+// Under the lock, because a digest is an index change like any other: it is
+// saved, and another writer's save would otherwise drop it.
 func (s *Spool) Seal() error {
+	unlock, err := s.lock()
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	return s.seal()
+}
+
+// seal is Seal under a lock already held — ensure, rolling a segment in the
+// middle of an append, already has it.
+func (s *Spool) seal() error {
 	if s.open == nil {
 		return nil
 	}
@@ -331,6 +527,11 @@ func (s *Spool) Seal() error {
 		return err
 	}
 	s.idx.Segments[s.cur].Digest = digest
+	// Built while the writer's lock is held, so no reader ever meets a
+	// sealed segment and starts rebuilding an index another process is
+	// writing. The build reads the file the digest above just read; see
+	// index.go for why that cost belongs here rather than on the read path.
+	s.writeSidecar(s.idx.Segments[s.cur])
 	s.cur = -1
 	return s.save()
 }
@@ -344,6 +545,16 @@ func (s *Spool) Close() error { return s.Seal() }
 // next Open appends to the same segment, until the day or the size rolls it
 // and it is sealed like any other.
 func (s *Spool) Release() error {
+	unlock, err := s.lock()
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	return s.release()
+}
+
+// release is Release under a lock already held.
+func (s *Spool) release() error {
 	if s.open == nil {
 		return nil
 	}
@@ -376,6 +587,7 @@ func (s *Spool) sealReleased() error {
 		return err
 	}
 	s.idx.Segments[n-1].Digest = digest
+	s.writeSidecar(s.idx.Segments[n-1])
 	return nil
 }
 
@@ -475,6 +687,27 @@ func (s *Spool) Events() int {
 // source's clock is allowed to influence what gets read — and the worst a
 // wrong clock can do there is cost a read.
 func (s *Spool) Range(from, to time.Time, fn func(telemetry.Event) error) error {
+	return s.RangeWhere(from, to, nil, fn)
+}
+
+// RangeWhere is Range over the segments keep still allows.
+//
+// keep is asked once per segment the arrival window has not already pruned,
+// and a segment it refuses is not opened at all. It must refuse only
+// segments no event of which the caller's own per-event test would have
+// kept — the question CouldHold answers for an equality on source, class or
+// actor.value. A keep that is wrong in that direction does not slow a read,
+// it narrows one: the caller sees fewer events and nothing says so.
+//
+// The segments that remain are read in parallel — see parallel.go — and
+// handed to fn in the order this function has always produced. Which
+// segments those are is settled below before any of them is opened, by the
+// same three tests that have always settled it, so a hunt's byte budget,
+// passed here as a from that excludes the segments it will not pay for,
+// prunes exactly what it always pruned.
+func (s *Spool) RangeWhere(from, to time.Time, keep func(Segment) bool,
+	fn func(telemetry.Event) error) error {
+
 	if s.open != nil {
 		// Flushed, not sealed. A reader that missed the events written a
 		// second ago is a reader that will report an incident as quiet.
@@ -482,6 +715,7 @@ func (s *Spool) Range(from, to time.Time, fn func(telemetry.Event) error) error 
 			return err
 		}
 	}
+	var reads []func(func(telemetry.Event) error) error
 	for _, seg := range s.Segments() {
 		if !to.IsZero() && !seg.First.Before(to) {
 			continue
@@ -489,19 +723,249 @@ func (s *Spool) Range(from, to time.Time, fn func(telemetry.Event) error) error 
 		if !from.IsZero() && seg.Last.Before(from) {
 			continue
 		}
-		if err := s.each(seg, func(e telemetry.Event) error {
+		if keep != nil && !keep(seg) {
+			continue
+		}
+		reads = append(reads, s.arrivalsIn(seg, from, to))
+	}
+	return inOrder(reads, fn)
+}
+
+// arrivalsIn is one segment's contribution to a Range: eachFrom's seek
+// where the sidecar has earned it, then the arrival window applied to every
+// line it lands on. Pure in from and to — the same line is kept whichever
+// goroutine asks — so it is safe to run beside the other segments' reads,
+// and only ever its own, one worker to a segment.
+func (s *Spool) arrivalsIn(seg Segment, from, to time.Time) func(func(telemetry.Event) error) error {
+	return func(emit func(telemetry.Event) error) error {
+		return s.eachFrom(seg, from, func(e telemetry.Event) error {
 			if !from.IsZero() && e.Received.Before(from) {
 				return nil
 			}
 			if !to.IsZero() && !e.Received.Before(to) {
 				return nil
 			}
-			return fn(e)
-		}); err != nil {
+			return emit(e)
+		})
+	}
+}
+
+// RangeWhereEqual is RangeWhere with an equality inside the read: fn is
+// handed exactly the events, of those keep still allows, whose field
+// EqualFolds value — the comparison a detection's equals makes — in the same
+// order RangeWhere produces, segment by segment and line by line within
+// each.
+//
+// The equality is a hint about where the answer lives, never the answer
+// itself. For a sealed segment whose sidecar carries postings for the field
+// (source, class, actor.value and message; see postings.go), the segment is
+// skipped whole when the dictionary refuses the value — an exact refusal, no
+// false negatives — and otherwise read at just the postings' line offsets,
+// each event re-checked against the equality before it is handed over. Every
+// other case — an unsealed tail, a missing or unreadable index, a field with
+// no postings, a file whose size has moved behind the index's back — reads
+// the segment linearly with the equality applied per event, which yields
+// exactly the same events. The two paths differ in what they parse to
+// produce an answer, never in the answer.
+//
+// keep runs before any of that, exactly as in RangeWhere, and may refuse
+// only segments no event of which the equality would have kept. It cannot
+// consult the postings itself; CouldHold remains the advisory, fixed-size
+// question a keep wants answered.
+func (s *Spool) RangeWhereEqual(from, to time.Time, field, value string,
+	keep func(Segment) bool, fn func(telemetry.Event) error) error {
+
+	if s.open != nil {
+		if err := s.open.Sync(); err != nil {
 			return err
 		}
 	}
-	return nil
+	var reads []func(func(telemetry.Event) error) error
+	for _, seg := range s.Segments() {
+		if !to.IsZero() && !seg.First.Before(to) {
+			continue
+		}
+		if !from.IsZero() && seg.Last.Before(from) {
+			continue
+		}
+		if keep != nil && !keep(seg) {
+			continue
+		}
+		reads = append(reads, s.equalsIn(seg, from, to, field, value))
+	}
+	return inOrder(reads, fn)
+}
+
+// equalsIn is arrivalsIn's counterpart for an equality: the segment's
+// contribution to a RangeWhereEqual, decided by the postings where they
+// apply and by a filtered linear read everywhere else. Pure in its inputs
+// like arrivalsIn, for the same reason — one worker to a segment, and the
+// same lines kept whichever goroutine asks.
+func (s *Spool) equalsIn(seg Segment, from, to time.Time, field,
+	value string) func(func(telemetry.Event) error) error {
+
+	return func(emit func(telemetry.Event) error) error {
+		f, err := os.Open(filepath.Join(s.dir, seg.Name))
+		if os.IsNotExist(err) {
+			return missingSegment(seg.Name)
+		}
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+
+		// The filtered linear read: what the equality falls back to whenever
+		// the postings cannot be consulted. It yields, by construction, the
+		// same events the jump does — which is the whole equivalence the
+		// tests stand on.
+		linear := func() error {
+			return scanEvents(f, seg.Name, 1, func(e telemetry.Event) error {
+				if !withinArrival(e, from, to) {
+					return nil
+				}
+				if !equalField(e, field, value) {
+					return nil
+				}
+				return emit(e)
+			})
+		}
+
+		// The postings may only be consulted over bytes the seal digested:
+		// a file whose size has moved is not the one the ordinals describe,
+		// and the linear read answers from what is there, as ever.
+		if st, serr := f.Stat(); serr != nil || st.Size() != seg.Bytes {
+			return linear()
+		}
+		ords, sc, decided := s.postingOrdinals(seg, field, value)
+		if !decided {
+			return linear()
+		}
+		defer sc.close()
+
+		// A sorted times column lets a lower bound cut the ordinals before
+		// a single line is read: everything below the first event at or
+		// after from is a line the window would have dropped anyway. An
+		// unsorted column cannot say that, and the per-event window check
+		// below keeps it honest instead.
+		skipBelow := 0
+		if sc.sorted && !from.IsZero() {
+			_, idx, ok := sc.firstAtOrAfter(from)
+			if !ok {
+				// Every arrival in the segment precedes the window; the
+				// linear read would have emitted nothing either.
+				return nil
+			}
+			skipBelow = idx
+		}
+		for _, ord := range ords {
+			if ord < skipBelow {
+				continue
+			}
+			off, ok := sc.offsetOf(ord)
+			if !ok {
+				return fmt.Errorf("%s: the times column is shorter than its "+
+					"own postings", seg.Name)
+			}
+			if off > uint64(seg.Bytes) {
+				return fmt.Errorf("%s: a posting points past the sealed "+
+					"bytes it indexes", seg.Name)
+			}
+			line, lerr := lineAt(f, int64(off))
+			if lerr != nil {
+				return lerr
+			}
+			text := strings.TrimSpace(string(line))
+			if text == "" {
+				continue
+			}
+			var e telemetry.Event
+			if uerr := json.Unmarshal([]byte(text), &e); uerr != nil {
+				return fmt.Errorf("%s line %d: %w", seg.Name, ord+1, uerr)
+			}
+			if !withinArrival(e, from, to) {
+				continue
+			}
+			// The index chose what to parse; the event itself decides what
+			// the answer is. A posting that pointed anywhere but at an
+			// event carrying the value is dropped here, so a corrupt
+			// section can cost reads in the inclusion direction, never
+			// events — and the refusal direction never gets the chance,
+			// because an unreadable section never reached this path.
+			if !equalField(e, field, value) {
+				continue
+			}
+			if err := emit(e); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}
+
+// postingOrdinals asks the segment's postings for the value's event
+// ordinals. decided is true when the sidecar answered exactly — including
+// the answer "nothing", for ordinals empty — and then sc is the open sidecar
+// the caller must close. decided false means no exact answer existed (no
+// seal, no sidecar, no postings for the field, a size the index does not
+// vouch for, a section that would not read), and the caller falls back to
+// the filtered linear read; a sidecar opened on that path is closed here.
+func (s *Spool) postingOrdinals(seg Segment, field,
+	value string) (ords []int, sc *sidecar, decided bool) {
+
+	if !seg.Sealed() || postColumn(field) < 0 {
+		return nil, nil, false
+	}
+	sc = s.sidecarOf(seg)
+	if sc == nil {
+		return nil, nil, false
+	}
+	col := sc.postingsOf(field)
+	if col == nil {
+		sc.close()
+		return nil, nil, false
+	}
+	from, to, ok, err := col.run(bloomKey(value))
+	if err != nil {
+		sc.close()
+		return nil, nil, false
+	}
+	if !ok {
+		// The dictionary's refusal is exact: no event in this segment
+		// carries the value, so the read contributes nothing. The sidecar
+		// stays open for the times column in case a window wants it.
+		return nil, sc, true
+	}
+	ords, err = col.ordinals(from, to)
+	if err != nil {
+		sc.close()
+		return nil, nil, false
+	}
+	return ords, sc, true
+}
+
+// offsetOf is event ordinal i's line offset, out of the times column.
+func (sc *sidecar) offsetOf(i int) (uint64, bool) {
+	if i < 0 || i >= int(sc.events) {
+		return 0, false
+	}
+	var buf [8]byte
+	if _, err := sc.r.ReadAt(buf[:], sidecarOffsetOf(i)); err != nil {
+		return 0, false
+	}
+	return binary.LittleEndian.Uint64(buf[:]), true
+}
+
+// withinArrival is the arrival window Range and RangeWhere apply to every
+// event they hand over, stated once so the equality read applies the same
+// one.
+func withinArrival(e telemetry.Event, from, to time.Time) bool {
+	if !from.IsZero() && e.Received.Before(from) {
+		return false
+	}
+	if !to.IsZero() && !e.Received.Before(to) {
+		return false
+	}
+	return true
 }
 
 // During calls fn for every event whose own timestamp is in [from, to).
@@ -509,7 +973,11 @@ func (s *Spool) Range(from, to time.Time, fn func(telemetry.Event) error) error 
 // The query an analyst means. Separate from Range so that the choice between
 // the two clocks is made at the call site by somebody who knows which one
 // their question is about, rather than by a default nobody remembers.
+//
+// Fanned out over its segments like RangeWhere, gathered in the same order
+// this function has always produced.
 func (s *Spool) During(from, to time.Time, fn func(telemetry.Event) error) error {
+	var reads []func(func(telemetry.Event) error) error
 	for _, seg := range s.Segments() {
 		if !to.IsZero() && !seg.Earliest.IsZero() && !seg.Earliest.Before(to) {
 			continue
@@ -517,43 +985,123 @@ func (s *Spool) During(from, to time.Time, fn func(telemetry.Event) error) error
 		if !from.IsZero() && !seg.Latest.IsZero() && seg.Latest.Before(from) {
 			continue
 		}
-		if err := s.each(seg, func(e telemetry.Event) error {
+		reads = append(reads, s.happeningsIn(seg, from, to))
+	}
+	return inOrder(reads, fn)
+}
+
+// happeningsIn is arrivalsIn's counterpart for During: the whole segment
+// scanned — there is no arrival order to seek on for a question about event
+// time — with the event-time window applied per line. Pure like arrivalsIn,
+// for the same reason.
+func (s *Spool) happeningsIn(seg Segment, from, to time.Time) func(func(telemetry.Event) error) error {
+	return func(emit func(telemetry.Event) error) error {
+		return s.each(seg, func(e telemetry.Event) error {
 			if !from.IsZero() && e.Time.Before(from) {
 				return nil
 			}
 			if !to.IsZero() && !e.Time.Before(to) {
 				return nil
 			}
-			return fn(e)
-		}); err != nil {
-			return err
-		}
+			return emit(e)
+		})
 	}
-	return nil
 }
 
 func (s *Spool) each(seg Segment, fn func(telemetry.Event) error) error {
 	f, err := os.Open(filepath.Join(s.dir, seg.Name))
 	if os.IsNotExist(err) {
-		return fmt.Errorf(
-			"%s is in the index and not on disk. The spool is reporting "+
-				"coverage it does not have", seg.Name)
+		return missingSegment(seg.Name)
 	}
 	if err != nil {
 		return err
 	}
 	defer f.Close()
+	return scanEvents(f, seg.Name, 1, fn)
+}
+
+// eachFrom is each with a head start. When the segment is sealed, the file
+// on disk is still the size the index says it is, and its sidecar says
+// arrivals never ran backwards down the file, the read starts at the first
+// line that can hold an event in [from, …) instead of at the top of the
+// file — everything skipped is a line the caller's own window would have
+// dropped without a second glance, which is the only property that makes a
+// seek like this admissible.
+//
+// Any doubt — unsealed, absent, stale, unsorted, unreadable, or a file whose
+// size has moved since the index described it — reads the whole file as
+// before. The active tail stays linear because it is small and because an
+// index of a file still being appended to is a claim that stops being true a
+// millisecond later.
+func (s *Spool) eachFrom(seg Segment, from time.Time,
+	fn func(telemetry.Event) error) error {
+
+	f, err := os.Open(filepath.Join(s.dir, seg.Name))
+	if os.IsNotExist(err) {
+		return missingSegment(seg.Name)
+	}
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if from.IsZero() || !seg.Sealed() {
+		return scanEvents(f, seg.Name, 1, fn)
+	}
+	if st, serr := f.Stat(); serr != nil || st.Size() != seg.Bytes {
+		// Grew or shrank behind the index's back. The sidecar's offsets
+		// describe the file the seal digested, not this one, so they are not
+		// trusted; the scan reads what is actually there, as the linear
+		// reader always did. What to make of it is Verify's to say.
+		return scanEvents(f, seg.Name, 1, fn)
+	}
+	sc := s.sidecarOf(seg)
+	if sc == nil || !sc.sorted {
+		if sc != nil {
+			sc.close()
+		}
+		return scanEvents(f, seg.Name, 1, fn)
+	}
+	defer sc.close()
+	off, at, ok := sc.firstAtOrAfter(from)
+	if !ok {
+		// Every arrival in this segment is before the window: the linear
+		// read would have called fn for none of them either.
+		return nil
+	}
+	if _, err := f.Seek(int64(off), io.SeekStart); err != nil {
+		return err
+	}
+	// at is the entry the seek landed on; the lines before it are the ones
+	// skipped, so counting from at+1 keeps line numbers in errors the same
+	// ones a scan from the top would have printed.
+	return scanEvents(f, seg.Name, at+1, fn)
+}
+
+// missingSegment is the one error a reader must never soften: a store that
+// answers a window with the events of a file it no longer has is reporting
+// coverage it does not have.
+func missingSegment(name string) error {
+	return fmt.Errorf(
+		"%s is in the index and not on disk. The spool is reporting "+
+			"coverage it does not have", name)
+}
+
+// scanEvents reads whole JSONL lines out of an open segment, from wherever
+// it is positioned, calling fn for each. line is the number of the line at
+// that position, so errors name the same lines a scan from the top would.
+func scanEvents(f *os.File, name string, line int,
+	fn func(telemetry.Event) error) error {
 
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 0, 64<<10), MaxLine)
-	for line := 1; sc.Scan(); line++ {
+	for ; sc.Scan(); line++ {
 		text := strings.TrimSpace(sc.Text())
 		if text == "" {
 			continue
 		}
 		var e telemetry.Event
 		if uerr := json.Unmarshal([]byte(text), &e); uerr != nil {
-			return fmt.Errorf("%s line %d: %w", seg.Name, line, uerr)
+			return fmt.Errorf("%s line %d: %w", name, line, uerr)
 		}
 		if ferr := fn(e); ferr != nil {
 			return ferr

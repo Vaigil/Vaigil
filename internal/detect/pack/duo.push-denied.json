@@ -1,0 +1,107 @@
+{
+  "id": "duo.push-denied",
+  "title": "A second-factor push was denied on Duo",
+  "why": "a person said no to a prompt; several denials and then a yes is the fatigue pattern, and the correlation over this counts it. Counted by a correlation, and raises nothing itself",
+  "blind": "denials over a factor that is not a push, and a user who reported fraud without denying first",
+  "sources": [
+    "duo/auth"
+  ],
+  "severity": 2,
+  "when": {
+    "all": [
+      {
+        "match": {
+          "field": "raw.factor",
+          "op": "contains",
+          "values": [
+            "push"
+          ]
+        }
+      },
+      {
+        "match": {
+          "field": "disposition",
+          "op": "equals",
+          "values": [
+            "failed"
+          ]
+        }
+      }
+    ]
+  },
+  "technique": [
+    "T1621"
+  ],
+  "quiet": true,
+  "fixtures": [
+    {
+      "name": "a push denied",
+      "match": true,
+      "event": {
+        "source": "duo/auth",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 3002,
+        "disposition": 4,
+        "actor": {
+          "issuer": "duo",
+          "value": "DU12345"
+        },
+        "message": "user rejected the request",
+        "raw": {
+          "result": "failure",
+          "reason": "user rejected the request",
+          "factor": "Duo Push",
+          "name": "Acme SSO",
+          "country": "US"
+        }
+      }
+    },
+    {
+      "name": "a push approved",
+      "match": false,
+      "event": {
+        "source": "duo/auth",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 3002,
+        "disposition": 1,
+        "actor": {
+          "issuer": "duo",
+          "value": "DU12345"
+        },
+        "message": "user approved",
+        "raw": {
+          "result": "success",
+          "reason": "user approved",
+          "factor": "Duo Push",
+          "name": "Acme SSO",
+          "country": "US"
+        }
+      }
+    },
+    {
+      "name": "a passcode refused",
+      "match": false,
+      "event": {
+        "source": "duo/auth",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 3002,
+        "disposition": 4,
+        "actor": {
+          "issuer": "duo",
+          "value": "DU12345"
+        },
+        "message": "invalid passcode",
+        "raw": {
+          "result": "failure",
+          "reason": "invalid passcode",
+          "factor": "Passcode",
+          "name": "Acme SSO",
+          "country": "US"
+        }
+      }
+    }
+  ]
+}

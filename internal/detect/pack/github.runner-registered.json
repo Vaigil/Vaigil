@@ -1,0 +1,91 @@
+{
+  "id": "github.runner-registered",
+  "title": "A self-hosted runner joined the build fleet on GitHub",
+  "why": "a machine with the organisation's secrets joined the fleet that runs arbitrary workflow code, and GitHub has advised against self-hosted runners on public repositories for years",
+  "blind": "whether the repository is public — the dangerous case — which the audit record does not carry",
+  "sources": [
+    "github/audit"
+  ],
+  "severity": 3,
+  "when": {
+    "match": {
+      "field": "message",
+      "op": "equals",
+      "values": [
+        "self_hosted_runner_group_runner_registered",
+        "repository_self_hosted_runner_updated"
+      ]
+    }
+  },
+  "technique": [
+    "T1195.002"
+  ],
+  "fixtures": [
+    {
+      "name": "a runner registered to a group",
+      "match": true,
+      "event": {
+        "source": "github/audit",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "github",
+          "value": "dana-gh"
+        },
+        "message": "self_hosted_runner_group_runner_registered",
+        "raw": {
+          "action": "self_hosted_runner_group_runner_registered",
+          "repo": "acme/shop",
+          "org": "acme",
+          "person": "dana@acme.com"
+        }
+      }
+    },
+    {
+      "name": "a runner updated on a repository",
+      "match": true,
+      "event": {
+        "source": "github/audit",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "github",
+          "value": "dana-gh"
+        },
+        "message": "repository_self_hosted_runner_updated",
+        "raw": {
+          "action": "repository_self_hosted_runner_updated",
+          "repo": "acme/shop",
+          "org": "acme",
+          "person": "dana@acme.com"
+        }
+      }
+    },
+    {
+      "name": "a runner removed",
+      "match": false,
+      "event": {
+        "source": "github/audit",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "github",
+          "value": "dana-gh"
+        },
+        "message": "self_hosted_runner_group_runner_deleted",
+        "raw": {
+          "action": "self_hosted_runner_group_runner_deleted",
+          "repo": "acme/shop",
+          "org": "acme",
+          "person": "dana@acme.com"
+        }
+      }
+    }
+  ]
+}

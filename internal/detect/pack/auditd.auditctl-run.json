@@ -1,0 +1,109 @@
+{
+  "id": "auditd.auditctl-run",
+  "title": "The audit daemon's control tool was run",
+  "why": "auditctl is how the audit rules are flushed and the daemon's ears are closed, and nobody runs it outside a change window",
+  "blind": "what it was told to do — the arguments are not carried, so listing the rules matches too — and a daemon stopped through systemctl, whose arguments are not carried either",
+  "sources": [
+    "auditd/events"
+  ],
+  "severity": 4,
+  "when": {
+    "match": {
+      "field": "raw.comm",
+      "op": "equals",
+      "values": [
+        "auditctl"
+      ]
+    }
+  },
+  "technique": [
+    "T1562.008"
+  ],
+  "fixtures": [
+    {
+      "name": "auditctl run on a host",
+      "match": true,
+      "event": {
+        "source": "auditd/events",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 1007,
+        "disposition": 1,
+        "actor": {
+          "issuer": "auditd",
+          "value": "1001"
+        },
+        "device": {
+          "issuer": "auditd",
+          "value": "web-1"
+        },
+        "message": "SYSCALL",
+        "raw": {
+          "type": "SYSCALL",
+          "exe": "/usr/sbin/auditctl",
+          "comm": "auditctl",
+          "auid": "1001",
+          "uid": "0",
+          "res": "success",
+          "tty": "pts0"
+        }
+      }
+    },
+    {
+      "name": "logrotate turning the logs over",
+      "match": false,
+      "event": {
+        "source": "auditd/events",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 1007,
+        "disposition": 1,
+        "actor": {
+          "issuer": "auditd",
+          "value": "0"
+        },
+        "device": {
+          "issuer": "auditd",
+          "value": "web-1"
+        },
+        "message": "SYSCALL",
+        "raw": {
+          "type": "SYSCALL",
+          "exe": "/usr/sbin/logrotate",
+          "comm": "logrotate",
+          "auid": "0",
+          "uid": "0",
+          "res": "success"
+        }
+      }
+    },
+    {
+      "name": "journalctl reading the journal",
+      "match": false,
+      "event": {
+        "source": "auditd/events",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 1007,
+        "disposition": 1,
+        "actor": {
+          "issuer": "auditd",
+          "value": "1001"
+        },
+        "device": {
+          "issuer": "auditd",
+          "value": "web-1"
+        },
+        "message": "SYSCALL",
+        "raw": {
+          "type": "SYSCALL",
+          "exe": "/usr/bin/journalctl",
+          "comm": "journalctl",
+          "auid": "1001",
+          "uid": "1001",
+          "res": "success"
+        }
+      }
+    }
+  ]
+}

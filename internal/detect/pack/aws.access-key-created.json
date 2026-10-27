@@ -1,0 +1,131 @@
+{
+  "id": "aws.access-key-created",
+  "title": "An access key was created",
+  "why": "an access key is the credential that outlives the session; given to a user made minutes before, it is persistence manufactured rather than stolen, and the correlation over this counts the pair. Counted by a correlation, and raises nothing itself",
+  "blind": "keys created by the infrastructure pipeline, excluded by user agent, and keys created for a user nobody had just made",
+  "sources": [
+    "aws/cloudtrail"
+  ],
+  "severity": 2,
+  "when": {
+    "all": [
+      {
+        "match": {
+          "field": "message",
+          "op": "equals",
+          "values": [
+            "CreateAccessKey"
+          ]
+        }
+      },
+      {
+        "not": {
+          "any": [
+            {
+              "match": {
+                "field": "user_agent",
+                "op": "contains",
+                "values": [
+                  "terraform"
+                ]
+              }
+            },
+            {
+              "match": {
+                "field": "user_agent",
+                "op": "contains",
+                "values": [
+                  "cloudformation"
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "technique": [
+    "T1098"
+  ],
+  "quiet": true,
+  "fixtures": [
+    {
+      "name": "a key created by a person",
+      "match": true,
+      "event": {
+        "source": "aws/cloudtrail",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "aws",
+          "value": "arn:aws:iam::1:user/deploy"
+        },
+        "message": "CreateAccessKey",
+        "observables": [
+          {
+            "kind": 10,
+            "value": "signin.amazonaws.com/console"
+          }
+        ],
+        "raw": {
+          "eventName": "CreateAccessKey",
+          "eventSource": "iam.amazonaws.com",
+          "awsRegion": "us-east-1",
+          "readOnly": "false"
+        }
+      }
+    },
+    {
+      "name": "a key created by terraform",
+      "match": false,
+      "event": {
+        "source": "aws/cloudtrail",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "aws",
+          "value": "arn:aws:sts::1:assumed-role/deploy/terraform"
+        },
+        "message": "CreateAccessKey",
+        "observables": [
+          {
+            "kind": 10,
+            "value": "Terraform/1.9.5 (+https://www.terraform.io)"
+          }
+        ],
+        "raw": {
+          "eventName": "CreateAccessKey",
+          "eventSource": "iam.amazonaws.com",
+          "awsRegion": "us-east-1",
+          "readOnly": "false"
+        }
+      }
+    },
+    {
+      "name": "the keys listed",
+      "match": false,
+      "event": {
+        "source": "aws/cloudtrail",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "aws",
+          "value": "arn:aws:iam::1:user/deploy"
+        },
+        "message": "ListAccessKeys",
+        "raw": {
+          "eventName": "ListAccessKeys",
+          "eventSource": "iam.amazonaws.com",
+          "awsRegion": "us-east-1",
+          "readOnly": "true"
+        }
+      }
+    }
+  ]
+}

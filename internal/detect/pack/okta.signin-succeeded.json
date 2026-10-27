@@ -1,0 +1,100 @@
+{
+  "id": "okta.signin-succeeded",
+  "title": "A sign-in to Okta worked",
+  "why": "on its own this is Tuesday; after a factor reset it is the consequence the reset was for, and the correlation over this counts the pair. Counted by a correlation, and raises nothing itself",
+  "blind": "sign-ins that started no session, and every platform that is not Okta",
+  "sources": [
+    "okta/system"
+  ],
+  "severity": 2,
+  "when": {
+    "all": [
+      {
+        "match": {
+          "field": "raw.eventType",
+          "op": "equals",
+          "values": [
+            "user.session.start"
+          ]
+        }
+      },
+      {
+        "match": {
+          "field": "disposition",
+          "op": "equals",
+          "values": [
+            "allowed"
+          ]
+        }
+      }
+    ]
+  },
+  "technique": [
+    "T1078"
+  ],
+  "quiet": true,
+  "fixtures": [
+    {
+      "name": "a sign-in that worked",
+      "match": true,
+      "event": {
+        "source": "okta/system",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 3002,
+        "disposition": 1,
+        "actor": {
+          "issuer": "okta",
+          "value": "00u1"
+        },
+        "message": "User login to Okta",
+        "raw": {
+          "eventType": "user.session.start",
+          "person": "dana@acme.com",
+          "country": "US"
+        }
+      }
+    },
+    {
+      "name": "a sign-in that did not",
+      "match": false,
+      "event": {
+        "source": "okta/system",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 3002,
+        "disposition": 4,
+        "actor": {
+          "issuer": "okta",
+          "value": "00u1"
+        },
+        "message": "User login to Okta",
+        "raw": {
+          "eventType": "user.session.start",
+          "person": "dana@acme.com",
+          "country": "US"
+        }
+      }
+    },
+    {
+      "name": "a policy changed",
+      "match": false,
+      "event": {
+        "source": "okta/system",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 3002,
+        "disposition": 1,
+        "actor": {
+          "issuer": "okta",
+          "value": "00u1"
+        },
+        "message": "policy.lifecycle.update",
+        "raw": {
+          "eventType": "policy.lifecycle.update",
+          "person": "dana@acme.com"
+        }
+      }
+    }
+  ]
+}

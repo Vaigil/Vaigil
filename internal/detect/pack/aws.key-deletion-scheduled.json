@@ -1,0 +1,91 @@
+{
+  "id": "aws.key-deletion-scheduled",
+  "title": "A KMS key's deletion was scheduled",
+  "why": "scheduling a key's deletion destroys everything it ever encrypted, and the waiting period is the only window to cancel it",
+  "blind": "a key disabled rather than scheduled for deletion, which keeps the material and only stops the use",
+  "sources": [
+    "aws/cloudtrail"
+  ],
+  "severity": 5,
+  "when": {
+    "match": {
+      "field": "message",
+      "op": "equals",
+      "values": [
+        "ScheduleKeyDeletion"
+      ]
+    }
+  },
+  "technique": [
+    "T1486",
+    "T1490"
+  ],
+  "fixtures": [
+    {
+      "name": "deletion scheduled",
+      "match": true,
+      "event": {
+        "source": "aws/cloudtrail",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "aws",
+          "value": "arn:aws:iam::1:user/deploy"
+        },
+        "message": "ScheduleKeyDeletion",
+        "raw": {
+          "eventName": "ScheduleKeyDeletion",
+          "eventSource": "kms.amazonaws.com",
+          "awsRegion": "us-east-1",
+          "readOnly": "false"
+        }
+      }
+    },
+    {
+      "name": "a key disabled",
+      "match": false,
+      "event": {
+        "source": "aws/cloudtrail",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "aws",
+          "value": "arn:aws:iam::1:user/deploy"
+        },
+        "message": "DisableKey",
+        "raw": {
+          "eventName": "DisableKey",
+          "eventSource": "kms.amazonaws.com",
+          "awsRegion": "us-east-1",
+          "readOnly": "false"
+        }
+      }
+    },
+    {
+      "name": "rotation enabled",
+      "match": false,
+      "event": {
+        "source": "aws/cloudtrail",
+        "time": "2026-09-01T00:00:00Z",
+        "received": "2026-09-01T00:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "aws",
+          "value": "arn:aws:iam::1:user/deploy"
+        },
+        "message": "EnableKeyRotation",
+        "raw": {
+          "eventName": "EnableKeyRotation",
+          "eventSource": "kms.amazonaws.com",
+          "awsRegion": "us-east-1",
+          "readOnly": "false"
+        }
+      }
+    }
+  ]
+}

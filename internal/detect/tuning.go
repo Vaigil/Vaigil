@@ -154,6 +154,19 @@ func (s Suppression) Validate(now time.Time) error {
 				"event with that %s. Move the rule to the trial ring if it "+
 				"is wrong that widely", s.Field, s.Rule, s.Field)
 	}
+	// raw.* is whatever else the source said, flattened: user agents,
+	// command lines, URLs. Free text, where whoever is being detected can
+	// put any word they like next to their own — including a suppressed
+	// value they have learned. A suppression may only name a field with one
+	// meaning, so that one exact value is one thing and cannot be assembled
+	// around.
+	if strings.HasPrefix(s.Field, "raw.") {
+		return fmt.Errorf(
+			"%s is free text from the source, where whoever is being "+
+				"detected can put any word. Suppress on a field with one "+
+				"meaning — actor, target — where one exact value is one thing",
+			s.Field)
+	}
 	if strings.TrimSpace(s.Value) == "" || len(s.Value) > 256 ||
 		strings.ContainsAny(s.Value, "*?\r\n") {
 		return fmt.Errorf("a suppression is for one exact value, with no " +
@@ -192,22 +205,35 @@ func (s Suppression) Validate(now time.Time) error {
 func (s Suppression) Active(now time.Time) bool { return now.Before(s.Until) }
 
 // Hides reports whether an event raised by a rule is covered.
+//
+// The declared field only, and the whole of its value: the field is part of
+// the suppression's identity, and the value is never matched as a word
+// inside a longer one. Whoever is being detected can append a suppressed
+// value to free text they control ("Evil/9.9 CorpBackup/1.0"), and a
+// suppression that hid on a token would be an off switch they could press
+// once they had learned the value.
 func (s Suppression) Hides(rule string, e telemetry.Event, now time.Time) bool {
 	if s.Rule != rule || !s.Active(now) {
 		return false
 	}
-	got, ok := e.Fields()[s.Field]
-	if !ok {
-		return false
-	}
-	// An observable field holds every value of its kind, space-separated;
-	// one of them being the value is a match.
-	for _, part := range strings.Fields(got) {
-		if strings.EqualFold(part, s.Value) {
+	// An observable field holds every value of its kind, so each
+	// observable's whole value is compared — never the space-joined form,
+	// which several observables can be arranged to spell.
+	multi := false
+	for _, o := range e.Observables {
+		if o.Kind.String() != s.Field {
+			continue
+		}
+		multi = true
+		if strings.EqualFold(o.Value, s.Value) {
 			return true
 		}
 	}
-	return strings.EqualFold(got, s.Value)
+	if multi {
+		return false
+	}
+	got, ok := e.Fields()[s.Field]
+	return ok && strings.EqualFold(got, s.Value)
 }
 
 // MinVerdicts is how many decided findings a rule needs before its

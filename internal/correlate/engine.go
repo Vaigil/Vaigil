@@ -81,13 +81,30 @@ type Engine struct {
 	rule Rule
 
 	// buckets are keyed by group then by window start.
-	buckets map[string]map[int64]*bucket
+	buckets map[string]*group
 	dropped int
 	late    int
 	groups  int
 }
 
+// group is one group-by value's open windows, and the window that closed
+// most recently beside them. The retained one exists because a pair inside
+// the timespan can sit either side of a window boundary, and neither window
+// alone can see it; see window for why the boundaries are fixed.
+type group struct {
+	windows map[int64]*bucket
+	prior   *closed
+}
+
 type bucket struct {
+	events []Seen
+}
+
+// closed is a window that has been evaluated, whose events are kept until
+// the window beside them has closed too — and no longer, so the retention
+// costs one window per group rather than the group's whole history.
+type closed struct {
+	start  int64
 	events []Seen
 }
 
@@ -96,7 +113,7 @@ func New(r Rule) (*Engine, error) {
 	if err := r.Validate(); err != nil {
 		return nil, err
 	}
-	return &Engine{rule: r, buckets: map[string]map[int64]*bucket{}}, nil
+	return &Engine{rule: r, buckets: map[string]*group{}}, nil
 }
 
 // Rule is the correlation this evaluates.
@@ -145,8 +162,10 @@ func (e *Engine) group(ev telemetry.Event) (string, map[string]string, bool) {
 // window has to be recomputed on every arrival and cannot be closed by a
 // watermark at all, because there is always another window still open. The
 // cost is that two events fifteen minutes apart can land in different
-// buckets, which is why the engine also evaluates the pair of adjacent
-// windows for the temporal types below.
+// buckets, which is why the temporal types are evaluated over each closing
+// window together with the one before it: Close keeps the closed window's
+// events beside the next, and decide reports the occurrences that reach
+// across the boundary, which no single window could have seen.
 func (e *Engine) window(t time.Time) int64 {
 	span := int64(e.rule.Timespan)
 	return (t.UnixNano() / span) * span
@@ -181,20 +200,20 @@ func (e *Engine) Observe(s Seen, watermark time.Time) error {
 		return nil
 	}
 
-	byWindow, seen := e.buckets[key]
+	gb, seen := e.buckets[key]
 	if !seen {
 		if e.groups >= MaxGroups {
 			e.dropped++
 			return nil
 		}
-		byWindow = map[int64]*bucket{}
-		e.buckets[key] = byWindow
+		gb = &group{windows: map[int64]*bucket{}}
+		e.buckets[key] = gb
 		e.groups++
 	}
-	b, ok := byWindow[start]
+	b, ok := gb.windows[start]
 	if !ok {
 		b = &bucket{}
-		byWindow[start] = b
+		gb.windows[start] = b
 	}
 	b.events = append(b.events, s)
 	return nil
@@ -208,9 +227,9 @@ func (e *Engine) Observe(s Seen, watermark time.Time) error {
 func (e *Engine) Close(watermark time.Time) []Hit {
 	var out []Hit
 	span := int64(e.rule.Timespan)
-	for key, byWindow := range e.buckets {
-		starts := make([]int64, 0, len(byWindow))
-		for s := range byWindow {
+	for key, gb := range e.buckets {
+		starts := make([]int64, 0, len(gb.windows))
+		for s := range gb.windows {
 			starts = append(starts, s)
 		}
 		sort.Slice(starts, func(i, j int) bool { return starts[i] < starts[j] })
@@ -218,13 +237,24 @@ func (e *Engine) Close(watermark time.Time) []Hit {
 			if watermark.UnixNano() < start+span {
 				continue // still open
 			}
-			b := byWindow[start]
-			if h, ok := e.evaluate(key, start, b); ok {
+			b := gb.windows[start]
+			if h, ok := e.decide(key, start, b, gb.prior); ok {
 				out = append(out, h)
 			}
-			delete(byWindow, start)
+			if e.pairs() {
+				// Kept beside the next window, which is the one whose events
+				// can still pair with these; the window before it is let go,
+				// because a pair reaches no further back than that.
+				gb.prior = &closed{start: start, events: b.events}
+			}
+			delete(gb.windows, start)
 		}
-		if len(byWindow) == 0 {
+		// A group goes once nothing pairs with what closed. The window beside
+		// a retained one closes — or is revealed never to have existed — by
+		// the time the watermark is two windows past it, and holding it
+		// longer would keep a group's memory alive after its events ran out.
+		if len(gb.windows) == 0 && (gb.prior == nil ||
+			watermark.UnixNano() >= gb.prior.start+2*span) {
 			delete(e.buckets, key)
 			e.groups--
 		}
@@ -247,6 +277,159 @@ func (e *Engine) Flush() []Hit {
 	return e.Close(time.Unix(1<<62/int64(time.Second), 0))
 }
 
+// pairs reports whether this type's occurrences can reach across a window
+// boundary, and so are evaluated over the pair of adjacent windows rather
+// than one window at a time. The counting types are not: a count over two
+// windows is a different number rather than the same one seen twice, and
+// each window's count is already the whole of what the rule asks.
+func (e *Engine) pairs() bool {
+	return e.rule.Type == Temporal || e.rule.Type.Ordered()
+}
+
+// decide evaluates one closing window, beside the window that closed before
+// it when there is one.
+func (e *Engine) decide(key string, start int64, b *bucket, prior *closed) (Hit, bool) {
+	if !e.pairs() {
+		return e.evaluate(key, start, b)
+	}
+	return e.temporal(key, start, b, prior)
+}
+
+// temporal evaluates a closing window for the temporal types, over its own
+// events together with the immediately preceding window's.
+//
+// The events are scanned as spans of the timespan anchored at each event,
+// because the two windows together are twice the timespan wide and most of
+// what they hold was never close to the rest. A span is reported only when
+// it involves an event of the closing window: everything the earlier window
+// could satisfy was reported when it closed, and reporting it again from
+// beside the next window would fire one occurrence twice. Nothing is lost
+// by that — an occurrence involving the closing window was invisible until
+// now, and one involving only earlier events is more than the timespan from
+// anything still arriving.
+func (e *Engine) temporal(key string, start int64, b *bucket, prior *closed) (Hit, bool) {
+	span := int64(e.rule.Timespan)
+	// Only the window immediately before pairs: anything further back is
+	// more than the timespan from everything closing now.
+	paired := prior != nil && prior.start == start-span
+	var events []Seen
+	if paired {
+		events = append(events, prior.events...)
+	}
+	events = append(events, b.events...)
+	sort.SliceStable(events, func(i, j int) bool {
+		return at(events[i].Event).Before(at(events[j].Event))
+	})
+	for i := range events {
+		t := at(events[i].Event).UnixNano()
+		j := i + 1
+		for j < len(events) && at(events[j].Event).UnixNano() < t+span {
+			j++
+		}
+		within := events[i:j]
+		if paired && !reachesInto(within, start) {
+			continue
+		}
+		if !e.holds(within, start) {
+			continue
+		}
+		from := at(events[i].Event).UTC()
+		h := Hit{
+			Rule: e.rule.Title, From: from, To: from.Add(e.rule.Timespan),
+			Severity: e.rule.Severity, Group: groupOf(key),
+			Rules: firedOrder(within),
+		}
+		for _, s := range within {
+			if len(h.Sample) < MaxSample {
+				h.Sample = append(h.Sample, s.Event)
+			}
+		}
+		if e.rule.Type.Ordered() {
+			h.Count = len(e.rule.Rules)
+		} else {
+			h.Count = len(h.Rules)
+		}
+		return h, true
+	}
+	return Hit{}, false
+}
+
+// reachesInto reports whether the span includes an event of the window that
+// is closing now rather than only of the one before it.
+func reachesInto(within []Seen, boundary int64) bool {
+	for _, s := range within {
+		if at(s.Event).UnixNano() >= boundary {
+			return true
+		}
+	}
+	return false
+}
+
+// holds reports whether a span of events satisfies the rule. When it is
+// paired with the window before, an ordered match must also be one that
+// uses an event of the closing window: the leftmost reading of a span can
+// be satisfied entirely by the earlier window's events, which were reported
+// when that window closed.
+func (e *Engine) holds(within []Seen, boundary int64) bool {
+	if e.rule.Type == Temporal {
+		want := map[string]bool{}
+		for _, r := range e.rule.Rules {
+			want[strings.ToLower(r)] = false
+		}
+		for _, s := range within {
+			want[strings.ToLower(s.Rule)] = true
+		}
+		for _, got := range want {
+			if !got {
+				return false
+			}
+		}
+		return true
+	}
+	if !follows(firedOrder(within), e.rule.Rules) {
+		return false
+	}
+	return usesClosing(within, e.rule.Rules, boundary)
+}
+
+// usesClosing reports whether some in-order choice of the wanted rules over
+// the span includes an event at or after the boundary. The choice that
+// follows finds the leftmost one; when that falls entirely in the earlier
+// window, each closing-window event takes its turn standing for its rule
+// with the rest matched around it.
+func usesClosing(within []Seen, want []string, boundary int64) bool {
+	for p := range within {
+		if at(within[p].Event).UnixNano() < boundary {
+			continue
+		}
+		for j, w := range want {
+			if !strings.EqualFold(within[p].Rule, w) {
+				continue
+			}
+			if matches(within[:p], want[:j]) &&
+				matches(within[p+1:], want[j+1:]) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// matches is follows over events rather than rule names, and without
+// collapsing a rule that fired twice: the position a choice assigns each
+// wanted rule matters, and a repeated rule is a repeated position.
+func matches(in []Seen, want []string) bool {
+	i := 0
+	for _, s := range in {
+		if i < len(want) && strings.EqualFold(s.Rule, want[i]) {
+			i++
+		}
+	}
+	return i == len(want)
+}
+
+// evaluate decides one window for the counting types, which a single window
+// answers in full; the temporal types go through temporal instead.
 func (e *Engine) evaluate(key string, start int64, b *bucket) (Hit, bool) {
 	if len(b.events) == 0 {
 		return Hit{}, false
@@ -285,28 +468,6 @@ func (e *Engine) evaluate(key string, start int64, b *bucket) (Hit, bool) {
 		if !e.rule.Test.Holds(h.Count) {
 			return Hit{}, false
 		}
-	case Temporal:
-		want := map[string]bool{}
-		for _, r := range e.rule.Rules {
-			want[strings.ToLower(r)] = false
-		}
-		for _, s := range ordered {
-			want[strings.ToLower(s.Rule)] = true
-		}
-		for _, got := range want {
-			if !got {
-				return Hit{}, false
-			}
-		}
-		h.Count = len(want)
-		h.Rules = firedOrder(ordered)
-	case TemporalOrdered:
-		order := firedOrder(ordered)
-		if !follows(order, e.rule.Rules) {
-			return Hit{}, false
-		}
-		h.Count = len(e.rule.Rules)
-		h.Rules = order
 	}
 	return h, true
 }

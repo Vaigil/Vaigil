@@ -167,6 +167,8 @@ func TestASuppressionHasEdges(t *testing.T) {
 		"a whole source":     func(s *Suppression) { s.Field = "source" },
 		"an issuer":          func(s *Suppression) { s.Field = "actor.issuer" },
 		"the message":        func(s *Suppression) { s.Field = "message" },
+		"a raw user agent":   func(s *Suppression) { s.Field = "raw.user_agent" },
+		"a raw command line": func(s *Suppression) { s.Field = "raw.command_line" },
 		"a wildcard":         func(s *Suppression) { s.Value = "okta:svc-*" },
 		"nobody's":           func(s *Suppression) { s.Owner = "" },
 		"for no reason":      func(s *Suppression) { s.Because = " " },
@@ -201,6 +203,63 @@ func TestASuppressionHidesOneThingFromOneRuleUntilItExpires(t *testing.T) {
 	}
 	if s.Hides("auth.privileged-failed", backup, s.Until.Add(time.Minute)) {
 		t.Error("an expired suppression still hides")
+	}
+}
+
+// TestASuppressionHidesItsOwnFieldExactlyNotAWordOfIt.
+//
+// The field is part of the suppression's identity and the value must be
+// the whole of it. Whoever is being detected can append a suppressed value
+// to free text they control, and a suppression that hid on a token would
+// be an off switch they could press once they had learned the value.
+func TestASuppressionHidesItsOwnFieldExactlyNotAWordOfIt(t *testing.T) {
+	s := goodSuppression()
+	s.Field, s.Value = "user_agent", "CorpBackup/1.0"
+	ua := func(v string) telemetry.Observable {
+		return telemetry.Observable{Kind: telemetry.ObservableUserAgent, Value: v}
+	}
+	hides := func(e telemetry.Event) bool {
+		return s.Hides("auth.privileged-failed", e, tnow)
+	}
+	// The honest cases: the whole value as the declared field's one value,
+	// and among several values of its kind.
+	if !hides(telemetry.Event{Source: "okta/system",
+		Observables: []telemetry.Observable{ua("CorpBackup/1.0")}}) {
+		t.Error("the exact value on the declared field no longer hides")
+	}
+	if !hides(telemetry.Event{Source: "okta/system",
+		Observables: []telemetry.Observable{ua("Mozilla/5.0"), ua("CorpBackup/1.0")}}) {
+		t.Error("the exact value among others of its kind no longer hides")
+	}
+	// The value as a word inside a longer one the attacker wrote.
+	if hides(telemetry.Event{Source: "okta/system",
+		Observables: []telemetry.Observable{ua("Evil/9.9 CorpBackup/1.0")}}) {
+		t.Error("the suppressed value as a word of a longer value hid the " +
+			"finding")
+	}
+	// Several values arranged to spell the suppressed one.
+	spaced := goodSuppression()
+	spaced.Field, spaced.Value = "user_agent", "Backup Agent 1.0"
+	if spaced.Hides("auth.privileged-failed", telemetry.Event{Source: "okta/system",
+		Observables: []telemetry.Observable{ua("Backup"), ua("Agent"), ua("1.0")}},
+		tnow) {
+		t.Error("values arranged to spell the suppressed one hid the finding")
+	}
+	// The value in a field the suppression does not name.
+	if hides(telemetry.Event{Source: "okta/system",
+		Actor: telemetry.ID{Issuer: "okta", Value: "attacker"},
+		Observables: []telemetry.Observable{
+			{Kind: telemetry.ObservableFile, Value: "CorpBackup/1.0"}}}) {
+		t.Error("the suppressed value in another field hid the finding")
+	}
+	// And an honest suppression on a structured field still hides, while the
+	// same value sitting in raw text hides nothing.
+	actor := goodSuppression()
+	evade := telemetry.Event{Source: "okta/system",
+		Actor: telemetry.ID{Issuer: "okta", Value: "attacker"},
+		Raw:   map[string]string{"user_agent": "okta:svc-backup"}}
+	if actor.Hides("auth.privileged-failed", evade, tnow) {
+		t.Error("a value in raw text hid a finding about somebody else")
 	}
 }
 

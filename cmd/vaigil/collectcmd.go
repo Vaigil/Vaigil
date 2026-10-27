@@ -325,16 +325,17 @@ func digestOf(doc any) string {
 }
 
 // storeRecords maps raw records and appends what maps, leaving out what was
-// already stored. It fills the counts of st.
+// already stored. It fills the counts of st. The page goes in as one batch:
+// every event is validated before any is written, so a bad record refuses
+// the page rather than storing half of it around the failure.
 func storeRecords(sp *spool.Spool, s source.Source, docs []any,
 	st *collectStatus, aliases map[string]alias, now time.Time) error {
 
-	for _, e := range mapRecords(s, docs, st, aliases, now) {
-		if _, err := sp.Append(e); err != nil {
-			return err
-		}
-		st.Stored++
+	events := mapRecords(s, docs, st, aliases, now)
+	if _, err := sp.AppendBatch(events); err != nil {
+		return err
 	}
+	st.Stored += len(events)
 	return nil
 }
 

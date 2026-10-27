@@ -157,7 +157,7 @@ func TestAnEmptyConditionIsRefusedRatherThanDefaulted(t *testing.T) {
 		t.Error("an empty condition was accepted")
 	}
 	// And if one is reached anyway, it matches nothing rather than everything.
-	if eval(Predicate{}, map[string]string{"a": "b"}) {
+	if eval(Predicate{}, map[string]string{"a": "b"}, compare) {
 		t.Error("an empty condition matched an event")
 	}
 }
@@ -180,11 +180,11 @@ func TestComparisonIsCaseFolded(t *testing.T) {
 	// matches two of them is the silent kind of broken.
 	f := map[string]string{"actor": "OKTA:U-1"}
 	m := Match{Field: "actor", Op: Equals, Values: []string{"okta:u-1"}}
-	if !m.eval(f) {
+	if !m.eval(f, compare) {
 		t.Error("equals did not fold case")
 	}
 	m = Match{Field: "actor", Op: Contains, Values: []string{"u-1"}}
-	if !m.eval(f) {
+	if !m.eval(f, compare) {
 		t.Error("contains did not fold case")
 	}
 }
@@ -201,7 +201,7 @@ func TestANumericComparisonRefusesText(t *testing.T) {
 	// And through the field surface, where severity is a number as a string.
 	f := map[string]string{"severity": "4"}
 	m := Match{Field: "severity", Op: Above, Values: []string{"3"}}
-	if !m.eval(f) {
+	if !m.eval(f, compare) {
 		t.Error("severity 4 is not above 3")
 	}
 }
@@ -209,11 +209,11 @@ func TestANumericComparisonRefusesText(t *testing.T) {
 func TestExistsAsksAboutPresenceAndNotValue(t *testing.T) {
 	f := map[string]string{"raw.factor": ""}
 	m := Match{Field: "raw.factor", Op: Exists}
-	if !m.eval(f) {
+	if !m.eval(f, compare) {
 		t.Error("a field present with an empty value was reported absent")
 	}
 	m = Match{Field: "raw.missing", Op: Exists}
-	if m.eval(f) {
+	if m.eval(f, compare) {
 		t.Error("an absent field was reported present")
 	}
 }
@@ -243,10 +243,10 @@ func TestNotInverts(t *testing.T) {
 	inner := Predicate{Match: &Match{Field: "source", Op: Equals,
 		Values: []string{"okta/system"}}}
 	f := map[string]string{"source": "okta/system"}
-	if !eval(inner, f) {
+	if !eval(inner, f, compare) {
 		t.Fatal("the inner condition does not match")
 	}
-	if eval(Predicate{Not: &inner}, f) {
+	if eval(Predicate{Not: &inner}, f, compare) {
 		t.Error("not did not invert")
 	}
 }
@@ -290,5 +290,98 @@ func TestAFailingFixtureSaysWhichWayItFailed(t *testing.T) {
 	}
 	if (Result{Want: true, Got: true}).Why() != "" {
 		t.Error("a passing result explains itself")
+	}
+}
+
+// -- the compiled program -----------------------------------------------------
+
+// programRule carries every operator a compiled form prepares something for:
+// a regular expression, a CIDR block, a folded comparison, and the plain
+// comparisons beside them, under an any/not/all tree.
+func programRule() Rule {
+	return Rule{
+		ID: "bench.program", Title: "one of everything",
+		Sources: []string{"okta/system"},
+		When: Predicate{Any: []Predicate{
+			{Match: &Match{Field: "message", Op: Matches,
+				Values: []string{"sign-in from 203\\.0\\.113\\.[0-9]+"}}},
+			{Match: &Match{Field: "ip", Op: Inside,
+				Values: []string{"203.0.113.0/24"}}},
+			{Match: &Match{Field: "message", Op: Contains,
+				Values: []string{"IMPOSSIBLE sign-in"}}},
+			{Not: &Predicate{All: []Predicate{
+				{Match: &Match{Field: "severity", Op: Above,
+					Values: []string{"1"}}},
+				{Match: &Match{Field: "raw.client", Op: Exists}},
+			}}},
+		}},
+		Severity: telemetry.SeverityLow,
+	}
+}
+
+// TestAProgramAgreesWithTheRuleItWasCompiledFrom: the compiled forms are a
+// faster answer to the same question or they are wrong. Every operator, over
+// events that match each branch and events that match none, through both
+// spellings of case a source produces in a day.
+func TestAProgramAgreesWithTheRuleItWasCompiledFrom(t *testing.T) {
+	r := programRule()
+	p, err := r.Compile()
+	if err != nil {
+		t.Fatalf("compile: %v", err)
+	}
+	type spot struct {
+		raw map[string]string
+		ip  string // an observable address, when the case carries one
+	}
+	for _, c := range []spot{
+		{raw: map[string]string{"client": "ua-1"}},
+		// The expression and the CIDR fold case and whitespace exactly as
+		// the uncompiled comparison does.
+		{raw: map[string]string{"message": "Sign-In From 203.0.113.7 blocked"},
+			ip: "203.0.113.7"},
+		{raw: map[string]string{"message": "an IMPOSSIBLE sign-in attempt"}},
+		{raw: map[string]string{"message": "nothing here", "client": "ua-2"}},
+		{raw: map[string]string{"message": "from 198.51.100.4"}, ip: " 198.51.100.4 "},
+	} {
+		for _, who := range []string{"admin-dana", "dana", ""} {
+			e := event("okta/system", c.raw)
+			if who != "" {
+				e.Actor = telemetry.ID{Issuer: "okta", Value: who}
+			}
+			if c.ip != "" {
+				e.Observables = []telemetry.Observable{{
+					Kind: telemetry.ObservableIP, Value: c.ip, Name: "dst"}}
+			}
+			want := r.Matches(e)
+			if got := p.Matches(e); got != want {
+				t.Errorf("compiled %v, rule %v, on %+v: the program stopped "+
+					"agreeing with the rule it was compiled from", got, want, e)
+			}
+			// And against a field map the caller built, the pass's shape.
+			if got := p.MatchesFields(e.Source, e.Fields()); got != want {
+				t.Errorf("compiled over shared fields %v, rule %v, on %+v",
+					got, want, e)
+			}
+		}
+	}
+}
+
+// TestCompileRefusesWhatValidateRefuses: a pattern that does not compile is
+// the same refusal at load, for a caller that compiles a rule it did not
+// validate — the alternative is the old silent behaviour, where the broken
+// pattern matched nothing forever and nothing said so.
+func TestCompileRefusesWhatValidateRefuses(t *testing.T) {
+	for _, bad := range []Match{
+		{Field: "message", Op: Matches, Values: []string{"sign-in ["}},
+		{Field: "ip", Op: Inside, Values: []string{"203.0.113.9"}},
+	} {
+		r := programRule()
+		r.When = Predicate{Match: &bad}
+		if err := r.Validate(); err == nil {
+			t.Errorf("accepted a comparison Validate exists to refuse: %v", bad)
+		}
+		if _, err := r.Compile(); err == nil {
+			t.Errorf("compiled %v: the refusal belongs at load too", bad.Op)
+		}
 	}
 }
