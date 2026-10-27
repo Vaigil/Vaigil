@@ -72,6 +72,15 @@ var commandNeeds = map[string]need{
 	// every reader at a different audit log is an operator act, so the parent
 	// takes that answer and the seven reading subcommands step down from it.
 	"auditlog": {action: auth.ActGrant},
+	// The evidence pack is the audit log opened to a third party, so it
+	// carries the auditlog shape: a strict parent, and the three reading
+	// subcommands — the map, the pack, the offline check — stepping down to
+	// the same view `auditlog prove` needs. Generating one signs a head,
+	// which is what `auditlog head` does with the view action.
+	"compliance":          {action: auth.ActGrant},
+	"compliance controls": {action: auth.ActView},
+	"compliance evidence": {action: auth.ActView},
+	"compliance verify":   {action: auth.ActView},
 	// The theme is what every page is rendered against, so changing it changes
 	// what every reader sees — the same authority as changing the template, and
 	// for the same reason.
@@ -238,6 +247,14 @@ var commandNeeds = map[string]need{
 	"spool stats":  {action: auth.ActView},
 	"spool verify": {action: auth.ActView},
 
+	// A data-subject export is one person's whole history in one document:
+	// the same weight as the workforce record, an administrator's, and for
+	// the same reason — it is a file on an employee. The statement is about
+	// the store rather than about anybody, and is a view.
+	"privacy":           {action: auth.ActGrant},
+	"privacy export":    {action: auth.ActGrant},
+	"privacy statement": {action: auth.ActView},
+
 	// Running rules over a file and ranking the result. Reads, writes
 	// nothing, and is the job an analyst does first.
 	"triage": {action: auth.ActView},
@@ -261,6 +278,18 @@ var commandNeeds = map[string]need{
 	"oidc check":  {action: auth.ActView},
 	"logd status": {action: auth.ActView},
 
+	// The signed content plane. Signing and installing a pack changes what
+	// the detections say, so it carries the tune permission — the same
+	// authority as editing a rule by hand, which is what a pack is a batch
+	// of. Keygen is key material, the token weight: whoever could re-run it
+	// could re-anchor trust for every pack this store verifies. Reading a
+	// pack directory and the installed list are views.
+	"content":           {action: auth.ActTune},
+	"content keygen":    {action: auth.ActToken},
+	"content list":      {action: auth.ActView},
+	"content installed": {action: auth.ActView},
+	"content verify":    {action: auth.ActView},
+
 	"auditlog verify":      {action: auth.ActView},
 	"auditlog show":        {action: auth.ActView},
 	"auditlog export":      {action: auth.ActView},
@@ -274,9 +303,26 @@ var commandNeeds = map[string]need{
 	// -- changing who may do anything. Admin.
 	"auth":  {action: auth.ActGrant},
 	"token": {action: auth.ActToken},
-	"oidc":  {action: auth.ActGrant},
-	"saml":  {action: auth.ActGrant},
-	"vault": {action: auth.ActToken},
+	// The agent register decides what may act in this store, so changing it
+	// is an administrator's — with the one deliberate exception: the kill
+	// switch is a responder's, because the person who has to stop an agent
+	// at 3am is the one holding the pager, and "wait for an admin" is how a
+	// misbehaving agent earns its keep (docs/research/02-access-control.md
+	// §8.1: registration is grant, suspension is respond).
+	"agent":         {action: auth.ActGrant},
+	"agent list":    {action: auth.ActView},
+	"agent disable": {action: auth.ActRespond},
+	// The transmitter speaks in this deployment's name — its kill switch,
+	// announced to other platforms. Sending is the responder's weight, the
+	// same rung as the disable that causes it; reading where events go and
+	// what signs them is a view, so somebody locked out can still find out
+	// what this store has been telling its neighbours.
+	"ssf":           {action: auth.ActRespond},
+	"ssf receivers": {action: auth.ActView},
+	"ssf key":       {action: auth.ActView},
+	"oidc":          {action: auth.ActGrant},
+	"saml":          {action: auth.ActGrant},
+	"vault":         {action: auth.ActToken},
 
 	// Configuration decides how every other control behaves, so changing it is
 	// an admin act. Reading it is not: an author who cannot see the settings
@@ -555,7 +601,7 @@ var commandAreas = map[string]string{
 	"workforce": auth.AreaSecurity, "hunt": auth.AreaSecurity, "detect": auth.AreaSecurity,
 	"sigma": auth.AreaSecurity, "correlate": auth.AreaSecurity, "telemetry": auth.AreaSecurity,
 	"siem": auth.AreaLog, "automate": auth.AreaSecurity, "inbound": auth.AreaSecurity,
-	"auditlog": auth.AreaLog,
+	"auditlog": auth.AreaLog, "compliance": auth.AreaLog,
 }
 
 // commandArea is the area a command works in, if it works in one.

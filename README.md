@@ -74,23 +74,27 @@ do is be wrong in a suggestion:
   (`VAIGIL_MODEL_URL`, `VAIGIL_MODEL_KEY`, `VAIGIL_MODEL`), and with none: the
   model is an aid, never a dependency.
 
-AI agents reach Vaigil through its **MCP server**: eight operations behind four
+AI agents reach Vaigil through its **MCP server**: eight operations behind three
 tools, which an agent loads only as it searches for them. They list and read
 findings, cases, detection statistics, the vulnerability plan and the estate in
 numbers, and propose a decision on a finding for a person to make. They cannot
-change who may do what, approve an action, or reach another platform.
+change who may do what, approve an action, or reach another platform. Every
+call is recorded — a proposal names the agent that made it — and what models
+did reaches the same detection engine as every other platform's events.
 
 ## Integrations
 
 **Connectors** (read through each tool's API, credentials kept in Vaigil's
 vault): Okta, Microsoft Entra ID, GitHub, EVM smart contracts through a
 Blockscout explorer, KnowBe4, ManageEngine Endpoint Central, ManageEngine MDM
-Plus and Vanta.
+Plus, Vanta, and the OpenAI and Anthropic organisation audit logs.
 
 **Log sources** mapped to one event shape: AWS CloudTrail, Microsoft Entra ID,
 Microsoft Azure, Google Workspace, Google Cloud, Okta, Duo, CrowdStrike Falcon,
 Jamf Pro, GitHub, Kubernetes, Cloudflare, Salesforce, Slack, Snowflake, Linux
-auditd and EVM chains.
+auditd, EVM chains, the OpenAI and Anthropic audit logs, and GenAI agent
+telemetry over OTLP (OpenTelemetry's HTTP/JSON trace export: agent, tool and
+model calls, with prompts read for size and never stored).
 
 **Standards**: OCSF, Sigma, MITRE ATT&CK, STIX 2.1, SSF/CAEP/RISC, CycloneDX,
 SPDX, OSV, OpenVEX, SSVC, CISA KEV, EPSS, SARIF, MCP, OpenID Connect, SAML 2.0,

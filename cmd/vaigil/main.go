@@ -79,6 +79,8 @@ Detecting and deciding
   vaigil detect ring RULE live|trial|off --because "…"   move a rule in or out of the queue
   vaigil detect suppress RULE FIELD=VALUE --owner W --until DATE --because "…" | unsuppress ID | suppressions
   vaigil detect replay [--strict] | learn FINDING
+  vaigil content keygen | rotate-root | sign DIR | verify DIR | install DIR | list [DIR] | installed | rollback
+                                        signed detection packs, updated without a binary release
   vaigil sigma import ./rules              bring your own detections, in the open standard
   vaigil correlate demo                    detections about several events, and when a window closes
   vaigil triage [FILE] --rules DIR         run the rules, rank what they found
@@ -132,15 +134,23 @@ People, sign-in and changes
   vaigil saml add | list | show | metadata | presets | remove   sign in with a SAML provider
   vaigil scim status | token | map GROUP ROLE|JOB | unmap GROUP   provisioning from your identity provider
   vaigil token issue NAME --principal WHO | exchange | keygen FILE | proof | list | revoke ID | stale
+  vaigil agent list | add NAME --owner WHO --allow TOOL | allow NAME --add|--remove TOOL | disable NAME --why "…" | enable NAME --why "…" | help
+                                        the register of AI agents: who runs, what each may call, one kill switch each
+  vaigil ssf receivers | key | send NAME --why "…" | help
+                                        where the kill switch is announced: receivers hearing session-revoked
   vaigil pending [list] | approve | decline | withdraw | redeem ID   privileged changes, approved by a second administrator
   vaigil approvals                         everything waiting for you to decide
 
 Its own record and settings
+  vaigil privacy export SUBJECT [--out FILE] [--audit] [--pseudonym p_…] | statement
+                                        a data subject's events as a handover document, and the honest privacy posture
   vaigil auditlog dir | verify | show SEQ | export -o FILE | head --save | verify-head FILE | prove SEQ | consistency
   vaigil auditlog anchor [submit|upgrade|status]   the log head, committed to Bitcoin
   vaigil logd [status]                     the log writer, run as its own account
   vaigil siem ocsf|cef|jsonl --envelope F | verify FILE --envelope F   its own audit log, still verifiable
   vaigil siem stream [status] | key | send  its own audit log, pushed to a SIEM as it is written
+  vaigil compliance controls | evidence CONTROL [--out FILE] | verify FILE [--keys KEYS]
+                                        SP 800-53: the map, and evidence packs proved from the signed log
   vaigil vault status | enable | rotate | rewrap   the keyring credentials are sealed under
   vaigil config show | list | explain KEY | set KEY VALUE | unset KEY
   vaigil network                           what this may connect to, and whether
@@ -303,6 +313,8 @@ func main() {
 		err = cmdInbound(root, cmdArgs)
 	case "spool":
 		err = cmdSpool(root, cmdArgs)
+	case "privacy":
+		err = cmdPrivacy(root, cmdArgs)
 	case "notify":
 		err = cmdNotify(root, cmdArgs)
 	case "estate":
@@ -347,6 +359,8 @@ func main() {
 		err = cmdPending(root, cmdArgs)
 	case "feed":
 		err = cmdFeed(cmdArgs)
+	case "content":
+		err = cmdContent(root, cmdArgs)
 	case "source":
 		err = cmdSource(root, cmdArgs)
 	case "mcp":
@@ -357,12 +371,18 @@ func main() {
 		err = cmdAuth(root, cmdArgs)
 	case "token":
 		err = cmdToken(root, cmdArgs)
+	case "agent":
+		err = cmdAgent(root, cmdArgs)
+	case "ssf":
+		err = cmdSSF(root, cmdArgs)
 	case "vault":
 		err = cmdVault(root, cmdArgs)
 	case "config":
 		err = cmdConfig(root, cmdArgs)
 	case "approvals":
 		err = cmdApprovals(root, cmdArgs)
+	case "compliance":
+		err = cmdCompliance(root, cmdArgs)
 	// --version and --help as well as the subcommands.
 	//
 	// The GNU Coding Standards ask for both as options, and the reason is not

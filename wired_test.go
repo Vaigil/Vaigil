@@ -69,11 +69,11 @@ func TestEveryPackageIsReachedBySomething(t *testing.T) {
 // table: a pattern that excuses one package excuses the next one of that
 // shape, including the one that was an oversight.
 var notImported = map[string]string{
-	"internal/selfvuln/gen": "a release tool, run with go run: it writes the Go vulnerability " +
-		"database snapshot and the feature map internal/selfvuln embeds, and a " +
-		"test there fails when the embedded map no longer matches the source",
-	"internal/fedramp/gen": "a release tool, run with go run: it writes the FedRAMP Key Security " +
-		"Indicators internal/fedramp embeds, from FedRAMP's consolidated rules",
+	// The second binary. It is built and shipped beside this one and has
+	// the collector's whole job; nothing imports a main package, and the
+	// package it serves (internal/collector) is wired through this binary's
+	// inbound endpoint.
+	"cmd/vaigil-collector": "a binary, not a library: built beside this one, never imported",
 }
 
 // importGraph returns which packages are imported from outside themselves, and

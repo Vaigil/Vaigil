@@ -267,6 +267,22 @@ var coverage = map[string]surfaces{
 		NoMCP: "rules decide what is done to people's sessions and accounts; " +
 			"changing them, or approving what they wait for, is a person's job",
 	},
+
+	// The data-protection surface: one person's whole history as a document,
+	// and the posture statement that makes the append-only design defensible.
+	// The export is personal data by definition — the complete set of it this
+	// store holds about one person — so it is made by a person at a terminal
+	// and handed over, the same reasoning that keeps the notify contact list
+	// out of the store a web process serves.
+	"privacy": {
+		Why: "the export is a document a data-protection officer hands over, " +
+			"made on request at a terminal; the statement is facts the " +
+			"settings screen already shows, in the words a regulator reads",
+		NoMCP: "one person's entire history across every source is the most " +
+			"sensitive view this store can produce; an agent handed it for " +
+			"anybody's name is a surveillance tool wearing a data-protection " +
+			"badge",
+	},
 	"inbound": {
 		GUI: "/security/feeds",
 		NoMCP: "a feed decides whose word reaches the automations; adding one, " +
@@ -324,6 +340,24 @@ var coverage = map[string]surfaces{
 			"the proposals and changes neither: one that could quieten a " +
 			"detection could quieten the one that would have caught it"},
 
+	// The signed content plane: detection packs as data, on their own
+	// cadence, verified before anything moves. Detections are data files
+	// administered on disk — built and signed at a terminal, arrived by
+	// file — and the screen for them is the update flow the roadmap
+	// schedules next (the Today-screen content line), not this slice.
+	"content": {
+		Why: "packs are data files administered on disk: signed where they " +
+			"are built and installed from a directory somebody delivered, " +
+			"and the audit log is the record of both. The screen arrives " +
+			"with the scheduled update checking and its staleness " +
+			"reporting, which is the next slice rather than this one",
+		NoMCP: "installing content changes what every detection says and " +
+			"signing it spends a key this store holds, so a model with a " +
+			"tool here could ship rules past the review the rules " +
+			"repository exists to be; the one thing an agent may do is " +
+			"read, and `vaigil content verify` at a terminal answers " +
+			"anything it would have asked"},
+
 	"approvals": {GUI: "/approvals",
 		NoMCP: "what waits is decided by a person, and an app reading the queue " +
 			"of approvals is a model reading what it and others are waiting to " +
@@ -335,11 +369,51 @@ var coverage = map[string]surfaces{
 			"reconnaissance this surface should not answer"},
 
 	"auditlog": {GUI: "/logs", NoMCP: "holds who did what across everybody, pseudonymously; an agent is not handed everybody's record"},
-	"config":   {GUI: "/settings", NoMCP: "changes the security floors. An agent that can widen a limit can widen the limit that was stopping it"},
-	"auth":     {GUI: "/people", NoMCP: "grants roles. Nothing that decides who may do what belongs on this surface"},
-	"token":    {GUI: "/people", NoMCP: "mints credentials, for the same reason"},
-	"oidc":     {GUI: "/sso", NoMCP: "points sign-in at an identity provider; changing it changes who can become an administrator"},
-	"saml":     {GUI: "/sso", NoMCP: "trusts an identity provider's key, and whoever holds that key can sign anybody in as anybody; that is a person's decision, made by checking a fingerprint"},
+	// The NIST mapping and the evidence packs generated from the signed log.
+	// A pack is a document an operator hands to an assessor: generated at a
+	// terminal, verified from its file, and never a live surface. The screen
+	// that would earn one is the CSF 2.0 / AI RMF roll-up computed from the
+	// mapping and these same queries (docs/research/16-nist-mapping.md §5.3),
+	// which is the next slice rather than this one.
+	"compliance": {
+		Why: "the pack is a document an assessor takes away, generated from " +
+			"the signed log and checked from its file; the screen arrives " +
+			"with the framework roll-up the mapping feeds, not with the " +
+			"mapping",
+		NoMCP: "an evidence pack is the audit log opened to a third party, " +
+			"pseudonymised but whole for its control; an agent handed this " +
+			"is handed everybody's record, which is the line drawn for " +
+			"auditlog",
+	},
+	"config": {GUI: "/settings", NoMCP: "changes the security floors. An agent that can widen a limit can widen the limit that was stopping it"},
+	"auth":   {GUI: "/people", NoMCP: "grants roles. Nothing that decides who may do what belongs on this surface"},
+	"token":  {GUI: "/people", NoMCP: "mints credentials, for the same reason"},
+	// The agent register is read through the surfaces it feeds: an agent
+	// and its owner sit with the credentials on /people, and every change
+	// to the register is in the log with its reason. A page of its own
+	// arrives with the review campaign the AC-2 story needs, where the
+	// register is the thing being reviewed.
+	"agent": {
+		Why: "the registry is read through the people and audit surfaces it " +
+			"feeds — owners beside the credentials on /people, changes in " +
+			"the log with their reasons; a page of its own arrives with the " +
+			"access review that reviews it",
+		NoMCP: "this surface decides which agents exist and what each may " +
+			"call; a model that could register or disable one would be " +
+			"deciding who may act, and the one call this surface must not " +
+			"answer is a model un-killing itself",
+	},
+	"oidc": {GUI: "/sso", NoMCP: "points sign-in at an identity provider; changing it changes who can become an administrator"},
+	"saml": {GUI: "/sso", NoMCP: "trusts an identity provider's key, and whoever holds that key can sign anybody in as anybody; that is a person's decision, made by checking a fingerprint"},
+	// The kill switch's outward half: receivers are a setting shown on the
+	// Settings screen, and every push (or failure to push) is in the audit
+	// log under ssf.transmitted. A screen of its own arrives with delivery
+	// status and retry, which is the stream half of the same framework.
+	"ssf": {GUI: "/settings",
+		NoMCP: "this tells other platforms this organisation killed an agent, " +
+			"in a form their automations act on; a model deciding when partners " +
+			"are told is a model spending trust in this deployment's name, and " +
+			"a re-announced kill is a claim about this store"},
 	"vault": {Why: "the key is shown once, where a person types the command, and the console never holds it",
 		NoMCP: "handles key material"},
 	"siem": {GUI: "/settings", NoMCP: "exports the audit log and can be asked to reveal identifiers"},
@@ -635,6 +709,19 @@ func TestEveryRemovalFlagIsReachableFromTheInterface(t *testing.T) {
 			NoMCP: "a model emptying the workspace it works in is the destroying a declaration " +
 				"makes wait for a person; it is an operator's step, not an agent's",
 		},
+		// Taking a tool out of an agent's allowlist narrows what that agent
+		// may reach, which is the register's whole lever. Not on a screen
+		// for the register's own reason (the row above): it is read through
+		// the people and audit surfaces until the review that reviews the
+		// register arrives.
+		"allow.remove": {
+			Why: "narrowing an agent's reach is an operator's decision at the " +
+				"register, read back through the people and audit surfaces; " +
+				"the screen arrives with the review the register is for",
+			NoMCP: "an agent narrowing its own allowlist is the one hand on " +
+				"the register this surface must not offer; what an agent may " +
+				"call is decided about it, never by it",
+		},
 		"asset.remove": {
 			GUI: "/security/vulns",
 			NoMCP: "how exposed a machine is and what is lost with it is " +
@@ -909,12 +996,20 @@ func TestSharedStateIsWrittenAtomically(t *testing.T) {
 		"storePath",
 	}
 	// Writes that are not shared state, each with the reason.
+	//
+	// The compliancecmd.go row this table carried was stale from the project
+	// this one grew out of: no such file existed here and nothing in this
+	// program writes an SBOM (`sca` and `vuln import` read one), so the row
+	// described a file nobody could have written. Removed rather than
+	// repurposed — this program's compliance command writes an evidence pack
+	// to an operator-named path and touches none of the shared state above,
+	// which needs no exemption the way privacycmd.go and sarifcmd.go need
+	// none.
 	exempt := map[string]string{
-		"compliancecmd.go": "writes an SBOM to a path the operator named",
-		"democmd.go":       "writes a template and a stylesheet, once, into a new directory",
-		"main.go":          "renders a page to a file the operator named",
-		"auditlog.go":      "the audit key and its directory marker, written once at setup",
-		"timestamp.go":     "writes a token or a root to a path the operator named",
+		"democmd.go":   "writes a template and a stylesheet, once, into a new directory",
+		"main.go":      "renders a page to a file the operator named",
+		"auditlog.go":  "the audit key and its directory marker, written once at setup",
+		"timestamp.go": "writes a token or a root to a path the operator named",
 	}
 
 	entries, err := os.ReadDir(".")
