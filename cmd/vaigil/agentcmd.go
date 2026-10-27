@@ -6,8 +6,10 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"flag"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -17,6 +19,7 @@ import (
 	"github.com/vaigil/vaigil/internal/audit"
 	"github.com/vaigil/vaigil/internal/auth"
 	"github.com/vaigil/vaigil/internal/fetch"
+	"github.com/vaigil/vaigil/internal/macaroon"
 )
 
 // The register of agents this organisation runs — the IA-9 object, and the
@@ -41,7 +44,9 @@ func agentStore(root string) agentreg.Store {
 
 func agentUsage() error {
 	return fmt.Errorf("usage: vaigil agent list | add NAME --owner WHO --allow TOOL[,TOOL] [--note \"…\"] | " +
-		"allow NAME (--add | --remove) TOOL[,TOOL] | disable NAME --why \"…\" | enable NAME --why \"…\" | help")
+		"allow NAME (--add | --remove) TOOL[,TOOL] | token NAME --tools TOOL[,TOOL] --for-run ID " +
+		"[--hours N] [--purpose observe|triage] [--calls N] [--level N] | disable NAME --why \"…\" | " +
+		"enable NAME --why \"…\" | help")
 }
 
 // cmdAgent manages the agent register.
@@ -71,6 +76,8 @@ func cmdAgent(root string, args []string) error {
 		return agentAdd(root, caller, args[1:], note)
 	case "allow":
 		return agentAllow(root, caller, args[1:], note)
+	case "token":
+		return agentMint(root, caller, args[1:], note)
 	case "disable":
 		return agentDisable(root, caller, args[1:], note)
 	case "enable":
@@ -188,6 +195,280 @@ func agentAllow(root string, caller *Caller, args []string,
 		extra["added"] = *add
 	}
 	return note(action, pos[0], extra)
+}
+
+// agentMint mints a run token: a caveat-bound credential for one run of a
+// registered agent — the delegation slice of the agent design
+// (docs/research/02-access-control.md §8.4), where a run is bounded by
+// caveats an HMAC chain signs and the tool gate checks.
+//
+// The register decides who the agent is; this decides what one run of it
+// may do, and it can only narrow. Every tool named must be one the agent's
+// own entry allows; the role minted is the least the tools need; a run
+// that may not write is issued read-only. The privilege is the dispatch
+// table's `agent` row — an administrator's — which is the conservative
+// fallback for a subcommand the table does not name separately: minting a
+// credential is at least the weight of changing the register, and a
+// narrower row (the manage-tokens permission, like `token` itself) is a
+// decision for the table's next edit rather than a guess made here.
+func agentMint(root string, caller *Caller, args []string,
+	note func(string, string, map[string]string) error) error {
+
+	fs := flag.NewFlagSet("token", flag.ContinueOnError)
+	tools := fs.String("tools", "", "the tools this run may call, "+
+		"comma-separated, within what the agent is allowed")
+	run := fs.String("for-run", "", "the id of the run this is minted for")
+	hours := fs.Int("hours", 8, "how long the run lives, 1 to 24")
+	purpose := fs.String("purpose", "", "why the run exists: observe (reads) "+
+		"or triage (reads and proposals)")
+	calls := fs.Int("calls", 0, "at most this many calls under the token, "+
+		"counted by the process that verifies it")
+	level := fs.Int("level", -1, "the run's autonomy bound, 0 to 3")
+	pos, flags := leadingArgs(args, 1)
+	if err := fs.Parse(flags); err != nil {
+		return err
+	}
+	if len(pos) != 1 {
+		return agentUsage()
+	}
+	tok, err := issueRunToken(root, caller, pos[0], *run, splitList(*tools),
+		*hours, *purpose, *calls, *level)
+	if err != nil {
+		return err
+	}
+	// The token is printed the way every minted secret is: bare and bold,
+	// on its own line, because the next thing that happens to it is a copy
+	// into wherever the run's credential lives.
+	fmt.Printf("%s%s%s\n", bold, tok, reset)
+	// Said out loud because it is the honest reach of the thing: the
+	// caveat chain is checked on the command line's agent interface, which
+	// is where a run rides; the HTTP interface refuses the dotted form at
+	// the door, because its credential half is the only half the store
+	// holds a hash of — fail-closed, by shape.
+	w.Human("  %sa run token for %s: present it with --token; its caveats "+
+		"are checked where its tools are called, and its bare credential "+
+		"half is refused by every gate%s\n", dim, pos[0], reset)
+	detail := map[string]string{"run": *run,
+		"tools": strings.Join(splitList(*tools), ",")}
+	if *purpose != "" {
+		detail["purpose"] = *purpose
+	}
+	return note("agent.token", pos[0], detail)
+}
+
+// issueRunToken is the mint's core: validate the bounds against the
+// register, mint a credential with the token store's own machinery, and
+// wrap it in a caveat chain under the store's run key.
+//
+// Two authorities are involved and both are the store's existing ones: the
+// credential half is issued by auth.TokenStore.IssueScoped — so the
+// issuer's role caps it, its expiry is a real expiry, revocation reaches
+// it and the kill switch's sweep kills it — and the caveat half is signed
+// by the run key beside the register (ensureRunKey), which nothing else in
+// the store can re-make. A run token is therefore verified against the
+// same store twice over: as a credential, everywhere, and as a chain of
+// caveats, at the tool gate.
+func issueRunToken(root string, caller *Caller, name, run string,
+	tools []string, hours int, purpose string, calls, level int) (string, error) {
+
+	if !caller.Verified {
+		return "", fmt.Errorf("minting a run token needs a verified " +
+			"identity: the credential carries whoever mints it")
+	}
+	a, found, err := agentStore(root).Get(name)
+	if err != nil {
+		return "", err
+	}
+	if !found {
+		return "", fmt.Errorf("there is no agent %q (vaigil agent list)", name)
+	}
+	if a.Status != agentreg.Active {
+		return "", fmt.Errorf("agent %q is disabled, and a run is not minted "+
+			"for an agent that may not act", name)
+	}
+	if len(tools) == 0 {
+		return "", fmt.Errorf("a run token names the tools it may call; one " +
+			"that names none is the agent's whole bearer and no narrower")
+	}
+	writes := false
+	for _, t := range tools {
+		if !agentreg.ValidTool(t) {
+			return "", fmt.Errorf("%q is not a tool the agent interface "+
+				"serves; the tools are %s", t,
+				strings.Join(agentreg.Tools(), ", "))
+		}
+		if !a.MayUse(t) {
+			return "", fmt.Errorf("%q allows %s nothing it may pass on: the "+
+				"register allows it %s, and a run token cannot start wider "+
+				"than the agent it runs for", name, t,
+				strings.Join(a.Allow, ", "))
+		}
+		if t == "vaigil_write" {
+			writes = true
+		}
+	}
+	if !agentreg.ValidName(run) {
+		return "", fmt.Errorf("%q is not a run id: 2 to 40 lowercase letters, "+
+			"digits and hyphens, because it becomes part of a token name", run)
+	}
+	if hours < 1 || hours > 24 {
+		return "", fmt.Errorf("a run lives 1 to 24 hours, not %d: a run token "+
+			"is the short-lived half of the design, and one with no end is "+
+			"the bearer it was meant not to be", hours)
+	}
+	if purpose != "" && !macaroon.ValidPurpose(purpose) {
+		return "", fmt.Errorf("%q is not a purpose this program has; the "+
+			"words are %s (reads) and %s (reads and proposals)", purpose,
+			macaroon.PurposeObserve, macaroon.PurposeTriage)
+	}
+	if purpose == macaroon.PurposeObserve && writes {
+		return "", fmt.Errorf("a run minted to %s may not carry the write "+
+			"tool: the purpose and the tools would disagree, and the gate "+
+			"would refuse every write anyway", macaroon.PurposeObserve)
+	}
+	if level >= 0 {
+		// The holder's reach is what the credential itself can do, and a
+		// caveat may bound autonomy only within it. This surface tops out
+		// at L1 — proposing is the highest autonomy any tool here needs —
+		// and a read-only run has nothing above L0 to bound.
+		if !writes && level > 0 {
+			return "", fmt.Errorf("a run that may not write has no autonomy "+
+				"to bound above 0; --level %d is a bound on nothing", level)
+		}
+		if writes && level > 1 {
+			return "", fmt.Errorf("the highest autonomy this surface's tools "+
+				"reach is 1 (proposing); --level %d bounds nothing here", level)
+		}
+	}
+
+	var caveats []macaroon.Caveat
+	if tc, err := macaroon.ToolCaveat(tools...); err != nil {
+		return "", err
+	} else {
+		caveats = append(caveats, tc)
+	}
+	if purpose != "" {
+		if pc, err := macaroon.PurposeCaveat(purpose); err != nil {
+			return "", err
+		} else {
+			caveats = append(caveats, pc)
+		}
+	}
+	if level >= 0 {
+		if lc, err := macaroon.LevelCaveat(level); err != nil {
+			return "", err
+		} else {
+			caveats = append(caveats, lc)
+		}
+	}
+	caveats = append(caveats,
+		macaroon.ExpCaveat(time.Now().UTC().Add(time.Duration(hours)*time.Hour)))
+	if calls > 0 {
+		if cc, err := macaroon.CallsCaveat(calls); err != nil {
+			return "", err
+		} else {
+			caveats = append(caveats, cc)
+		}
+	}
+
+	key, err := ensureRunKey(root)
+	if err != nil {
+		return "", err
+	}
+	ts, err := loadTokens(root)
+	if err != nil {
+		return "", err
+	}
+	// The least role the tools need: viewer reads, analyst proposes — and
+	// IssueScoped caps it at the minter's own, so a run token never carries
+	// more authority than whoever minted it holds. A no-write run is issued
+	// read-only besides, so the credential's coarse bounds and the caveats'
+	// fine ones say the same thing on every surface, including the ones
+	// that never read the caveats.
+	role, scope := auth.RoleViewer, auth.Scope{ReadOnly: true}
+	if writes {
+		role, scope = auth.RoleAnalyst, auth.Scope{}
+	}
+	secret, _, err := ts.IssueScoped(agentreg.TokenPrefix+name+"/"+run, name,
+		role, "/", time.Duration(hours)*time.Hour, caller.Role, scope)
+	if err != nil {
+		return "", err
+	}
+	if err := saveTokens(root, ts); err != nil {
+		return "", err
+	}
+	return macaroon.Mint(secret, key, agentreg.TokenPrefix+name+"/"+run,
+		caveats...)
+}
+
+// runKeyPath is the store's caveat-minting key: the HMAC root every run
+// token's chain begins under. It lives beside the registry it serves, with
+// a key file's permissions — 0600, written once — because it is the one
+// secret that can re-make a run token's caveats, which is exactly the
+// thing nobody but the minter and the verifier may hold.
+func runKeyPath(root string) string { return filepath.Join(root, "agents.key") }
+
+// runKeyBytes is the one length a run key is: 256 bits from the CSPRNG,
+// the same size as a token secret, and for the same reason — there is no
+// dictionary to grind, so length is the whole of it.
+const runKeyBytes = 32
+
+// parseRunKey reads a run key file, or explains why what is there cannot
+// be one. A wrong-length key is refused rather than padded or truncated:
+// a key nobody agrees on is a key every token minted under it will be
+// refused by, and the honest time to say so is now.
+func parseRunKey(path string, b []byte) ([]byte, error) {
+	if len(b) != runKeyBytes {
+		return nil, fmt.Errorf("the run key at %s is %d bytes, not %d; it is "+
+			"not the key this store minted with, so nothing minted as a run "+
+			"token would verify. Move it aside and mint again to create a "+
+			"fresh one", path, len(b), runKeyBytes)
+	}
+	return b, nil
+}
+
+// ensureRunKey returns the store's run key, creating it on first mint.
+// Under the lock beside it, so two mints at once cannot each create a key
+// and leave the other's tokens unverifiable.
+func ensureRunKey(root string) ([]byte, error) {
+	path := runKeyPath(root)
+	unlock, err := atomicfile.Lock(path + ".lock")
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	if b, err := os.ReadFile(path); err == nil {
+		return parseRunKey(path, b)
+	} else if !os.IsNotExist(err) {
+		return nil, err
+	}
+	raw := make([]byte, runKeyBytes)
+	if _, err := rand.Read(raw); err != nil {
+		return nil, fmt.Errorf("cannot generate a run key: %w", err)
+	}
+	if err := atomicfile.Write(path, raw, 0o600); err != nil {
+		return nil, err
+	}
+	return raw, nil
+}
+
+// loadRunKey is ensureRunKey's read-only half: the verifier's, which never
+// creates. An absent key is an error rather than an empty one, because
+// "nothing minted as a run token can be verified here" is a decision the
+// gate needs to make loudly — the alternative is a store that quietly
+// accepts run tokens it cannot check.
+func loadRunKey(root string) ([]byte, error) {
+	path := runKeyPath(root)
+	b, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil, fmt.Errorf("there is no run key at %s, so no run token "+
+			"can be verified in this store; refusing rather than acting on "+
+			"a credential whose caveats nobody can check", path)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return parseRunKey(path, b)
 }
 
 // agentDisable is the kill switch: responder-grade on purpose, because the
@@ -365,6 +646,11 @@ func agentEnable(root string, caller *Caller, args []string,
 // (auth.TokenStore.Revoke). Returns how many of the agent's own tokens it
 // killed; the cascade is the tokens' business and is not double-counted.
 //
+// A run token is bound by the same convention with its run after the slash
+// (agent:watcher/run-42), and the sweep matches it to watcher: the kill
+// switch has to reach a run credential in the same act as the bearer it
+// came from, or a run minted just before the switch would outlive it.
+//
 // Changed on the file as it is stored now, under its lock, so a token
 // issued elsewhere since this process read the store is neither missed nor
 // resurrected — the same discipline saveTokens holds.
@@ -375,7 +661,15 @@ func revokeAgentTokens(root, name string) (int, error) {
 			if t.Revoked {
 				continue
 			}
-			if bound, ok := agentreg.Bind(t.Name); !ok || bound != name {
+			bound, ok := agentreg.Bind(t.Name)
+			if ok {
+				// Strip the run, if the name carries one: the agent the
+				// credential belongs to is the half before the slash.
+				if agent, _, split := splitAgentRun(bound); split {
+					bound = agent
+				}
+			}
+			if !ok || bound != name {
 				continue
 			}
 			if _, err := stored.Revoke(t.ID); err != nil {
@@ -411,6 +705,18 @@ func agentHelp() error {
   vaigil agent list                     who is registered, what each may call
   vaigil agent allow watcher --add vaigil_write
   vaigil agent allow watcher --remove vaigil_read
+
+  Bounding one run
+  vaigil agent token watcher --tools vaigil_read --for-run triage-2026-10-27
+  A run token is a credential whose caveats narrow it to one run: the tools
+  it may call (within what the register allows the agent), a deadline, a
+  purpose, a call budget, an autonomy bound. Its credential half is issued
+  by the same machinery as any token, so revoking it, disabling the agent
+  and the kill switch all reach it; its caveat half is signed by a key held
+  by this store, so nobody who holds it can widen it — only narrow it
+  further. It is checked where its tools are called; present it with
+  --token like any credential, and expect the bare half of it to be
+  refused on its own, because the caveats are the credential.
 
   The kill switch
   vaigil agent disable watcher --why "proposing nonsense on closed findings"

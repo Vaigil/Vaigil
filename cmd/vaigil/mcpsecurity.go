@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/vaigil/vaigil/internal/agentreg"
@@ -15,6 +16,7 @@ import (
 	"github.com/vaigil/vaigil/internal/detect"
 	"github.com/vaigil/vaigil/internal/finding"
 	"github.com/vaigil/vaigil/internal/incident"
+	"github.com/vaigil/vaigil/internal/macaroon"
 	"github.com/vaigil/vaigil/internal/mcp"
 	"github.com/vaigil/vaigil/internal/untrusted"
 	"github.com/vaigil/vaigil/internal/vuln"
@@ -75,16 +77,19 @@ func agentGate(root string, c *Caller) error {
 	return nil
 }
 
-// authoriseTool is authorise plus the one gate only this surface adds: a
-// registered agent may call the tools its entry allows and no others.
+// authoriseTool is authorise plus the two gates only this surface adds: a
+// registered agent may call the tools its entry allows and no others, and
+// a run credential may call only what its caveats permit.
 //
 // The policy says what a principal may do; the allowlist says what this
-// agent may do it with. A viewer-grade agent allowed only vaigil_write can
-// propose and never read, which is a shape the role ladder cannot express
-// and least privilege asks for. Checked here, where the operation's tool is
-// known — every operation in this file states it — and not in authorise
-// itself, which serves surfaces (the command line among them) that have no
-// tools at all.
+// agent may do it with; the caveats say what this one run of it may do it
+// with. A viewer-grade agent allowed only vaigil_write can propose and
+// never read, which is a shape the role ladder cannot express and least
+// privilege asks for; a run token narrowed to vaigil_read inside that is a
+// run that cannot propose even though its agent can. Checked here, where
+// the operation's tool is known — every operation in this file states it —
+// and not in authorise itself, which serves surfaces (the command line
+// among them) that have no tools at all.
 //
 // Three edges of the agent surface carry the kill switch (authorise's
 // registry gate) but not this allowlist, and each is a fact rather than a
@@ -95,12 +100,19 @@ func agentGate(root string, c *Caller) error {
 // an agent reaches only with a role wider than an allowlist governs, and
 // the menu is the same static list for everybody. An agent refused its
 // tools can still see what it is refused, which is disclosure nobody has
-// ever needed to hide and beats an agent guessing.
+// ever needed to hide and beats an agent guessing. The caveat gate follows
+// the allowlist's edge exactly: where the allowlist is not checked, no run
+// token can name the tool either, so a run cannot reach past this gate by
+// naming an ungated tool.
 //
 // The registry is read a second time rather than trusting authorise's read:
 // a disable between the two is closed by the re-read refusing here, so an
 // agent whose switch was pulled mid-call does not finish the call on the
 // strength of a decision made before it was pulled.
+//
+// The caveat check runs last, after the registry: revocation outranks
+// narrowing, and a disabled agent's run token is refused as its agent's
+// before anybody spends a word on which caveat it broke.
 func authoriseTool(root string, c *Caller, action auth.Action, resource, tool string) error {
 	if err := authorise(root, c, action, resource); err != nil {
 		return err
@@ -122,7 +134,198 @@ func authoriseTool(root string, c *Caller, action auth.Action, resource, tool st
 			"allowed are %s\n  vaigil agent allow %s --add %s", c.Agent, tool,
 			allowed, c.Agent, tool)
 	}
+	if c.Run != "" || c.RunToken != "" {
+		if err := checkRunCaveats(root, c, tool); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+// toolLevels is the autonomy each tool's operations need — the L0–L4 of
+// the design (research §6.9) mapped onto the rungs this surface serves
+// today: reading is L0, proposing is L1. Nothing here needs more, and the
+// levels above arrive with the operations that need them, not before.
+var toolLevels = map[string]int64{
+	"vaigil_find":  0,
+	"vaigil_read":  0,
+	"vaigil_write": 1,
+}
+
+// toolNeedsLevel is the level a tool needs, refusing the unknown rather
+// than guessing low: a tool this table does not name is a tool no run token
+// was minted the right to call, and the answer to it is no.
+func toolNeedsLevel(tool string) (int64, bool) {
+	n, ok := toolLevels[tool]
+	return n, ok
+}
+
+// runCalls counts the calls made under each run token, per process.
+//
+// The honest shape of the thing, said plainly: Verify is stateless, so the
+// budget has to be counted somewhere, and this process is the somewhere.
+// A restart of the process that answers the agent resets every budget;
+// two processes each honour the full budget. What bounds that is the
+// deadline — the exp caveat and the credential's own expiry, both of which
+// the store enforces without any state — and the design's answer beyond
+// that is the step ledger (§6.12), which is a later phase and not
+// something to half-build inside a verifier.
+//
+// Keyed by run id and tag: the tag is the chain's last link, so it names
+// the exact caveat set, and two tokens minted for one run with different
+// bounds count separately — which they should, because they are different
+// grants.
+var runCalls = struct {
+	sync.Mutex
+	used map[string]int
+}{used: map[string]int{}}
+
+// checkRunCaveats is the caveat gate: one run credential, one tool call,
+// every caveat answered.
+//
+// The chain is verified against the store's run key before any caveat is
+// read, so a payload that was tampered with, minted under another store's
+// key, or hand-built around this credential's secret is refused as a
+// string rather than discussed as a decision. Then each caveat is
+// discharged against what this call is: the tool, the clock, the budget
+// spent. Every refusal is a decision, not a malfunction — the handlers
+// return it as mcp.Refusal, non-retryable, so an agent does not grind on
+// it — and each one is audited under the caller's own name with the caveat
+// that made it, because "which bound refused which run" is the question
+// whoever reads the log has.
+func checkRunCaveats(root string, c *Caller, tool string) error {
+	refused := ""
+	fail := func(kind, reason string) error {
+		refused = kind
+		return fmt.Errorf("%s", reason)
+	}
+	if c.RunToken == "" {
+		// A run-bound credential presented without its caveat half: the
+		// bearer alone, which authenticates, which is exactly the shape
+		// this refusal exists for. The caveats are the credential; a run
+		// does not get to outlive them by dropping its own half.
+		return recordCaveatRefusal(root, c, tool, "run",
+			fmt.Sprintf("this credential is bound to run %s of agent %q and "+
+				"is refused without the caveats it was minted with: the "+
+				"caveats are the credential, not a decoration on it", c.Run, c.Agent))
+	}
+	key, err := loadRunKey(root)
+	if err != nil {
+		return recordCaveatRefusal(root, c, tool, "chain", err.Error())
+	}
+	// The chain's id must name this credential's own agent and run: a
+	// chain minted for another run — however it came to ride this
+	// credential's secret half — is a grant this credential was never
+	// issued, and the binding is refused before a single caveat is read.
+	parsed, ok := macaroon.Parse(c.RunToken)
+	if !ok {
+		return recordCaveatRefusal(root, c, tool, "chain",
+			"the token is not shaped like something this program minted: "+
+				"the halves, a kind or a value is wrong")
+	}
+	if want := agentreg.TokenPrefix + c.Agent + "/" + c.Run; parsed.ID() != want {
+		return recordCaveatRefusal(root, c, tool, "run",
+			fmt.Sprintf("the caveat chain names run %s, and this credential "+
+				"is run %s of agent %q", parsed.ID(), c.Run, c.Agent))
+	}
+	if err := macaroon.Verify(c.RunToken, key, func(cv macaroon.Caveat) error {
+		switch cv.Kind {
+		case macaroon.KindTool:
+			for _, t := range cv.Tools() {
+				if t == tool {
+					return nil
+				}
+			}
+			return fail(string(macaroon.KindTool), fmt.Sprintf(
+				"%s is not in this run's tool set (%s)", tool, cv.Value))
+		case macaroon.KindPurpose:
+			need, known := toolNeedsLevel(tool)
+			if known && need > 0 && cv.Value != macaroon.PurposeTriage {
+				return fail(string(macaroon.KindPurpose), fmt.Sprintf(
+					"this run's purpose is %s, and %s reaches further than "+
+						"that; a run minted to watch does not propose",
+					cv.Value, tool))
+			}
+			return nil
+		case macaroon.KindLevel:
+			bound, err := cv.Int()
+			if err != nil {
+				return fail(string(macaroon.KindLevel), err.Error())
+			}
+			need, known := toolNeedsLevel(tool)
+			if !known {
+				return fail(string(macaroon.KindLevel), fmt.Sprintf(
+					"%s is not a tool any run is minted the autonomy to call",
+					tool))
+			}
+			if need > bound {
+				return fail(string(macaroon.KindLevel), fmt.Sprintf(
+					"%s needs autonomy level %d and this run is bounded at %d",
+					tool, need, bound))
+			}
+			return nil
+		case macaroon.KindExp:
+			n, err := cv.Int()
+			if err != nil {
+				return fail(string(macaroon.KindExp), err.Error())
+			}
+			if time.Now().Unix() >= n {
+				return fail(string(macaroon.KindExp), fmt.Sprintf(
+					"this run ended at %s", time.Unix(n, 0).UTC().
+						Format(time.RFC3339)))
+			}
+			return nil
+		case macaroon.KindCalls:
+			n, err := cv.Int()
+			if err != nil {
+				return fail(string(macaroon.KindCalls), err.Error())
+			}
+			runCalls.Lock()
+			runCalls.used[caveatCallsKey(parsed, cv)]++
+			used := runCalls.used[caveatCallsKey(parsed, cv)]
+			runCalls.Unlock()
+			if int64(used) > n {
+				return fail(string(macaroon.KindCalls), fmt.Sprintf(
+					"this run's budget was %s calls and they are spent", cv.Value))
+			}
+			return nil
+		}
+		return fail(string(cv.Kind), fmt.Sprintf(
+			"caveat %s is not one this gate knows how to answer", cv.Kind))
+	}); err != nil {
+		if refused == "" {
+			// The chain, not a caveat: a token that does not verify is a
+			// string, and the record says so without lending it a decision.
+			return recordCaveatRefusal(root, c, tool, "chain", err.Error())
+		}
+		return recordCaveatRefusal(root, c, tool, refused, err.Error())
+	}
+	return nil
+}
+
+// caveatCallsKey names one calls caveat of one token: the tag identifies
+// the exact grant (the chain's last link covers id and caveats alike), and
+// the caveat's own value separates two calls caveats in one token — an
+// attenuated run carries both budgets, and the narrower one runs out first.
+func caveatCallsKey(t macaroon.Token, cv macaroon.Caveat) string {
+	return t.ID() + "|" + cv.Value
+}
+
+// recordCaveatRefusal writes the audit record for a run token refused at
+// this gate, under the caller's own name, with the caveat that refused it.
+//
+// Reported rather than returned: the refusal stands either way, and a log
+// that could not take the record is a thing the next call will say loudly
+// (auditReady, before any write) — this record is the trail for a call
+// that never happened, and it must not be the thing that changes the
+// answer.
+func recordCaveatRefusal(root string, c *Caller, tool, caveat, reason string) error {
+	record(root, c.auditRecord("agent.caveat", "/mcp", audit.Denied,
+		map[string]string{
+			"agent": c.Agent, "run": c.Run, "tool": tool,
+			"caveat": caveat, "reason": reason,
+		}))
+	return fmt.Errorf("agent %q, run %s: %s", c.Agent, c.Run, reason)
 }
 
 func registerSecurityOps(srv *mcp.Server, root string, caller *Caller) {

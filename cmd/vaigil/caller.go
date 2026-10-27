@@ -13,6 +13,7 @@ import (
 	"github.com/vaigil/vaigil/internal/agentreg"
 	"github.com/vaigil/vaigil/internal/audit"
 	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/macaroon"
 )
 
 // Who is running this, and did anyone check?
@@ -71,6 +72,23 @@ type Caller struct {
 	// until a registry entry says it is somebody (authorise, below), so
 	// minting an agent:-prefixed token grants nothing by itself.
 	Agent string
+	// Run is the run a credential was minted for, when its name carries
+	// one: "agent:watcher/run-42" is agent watcher, run run-42. The run
+	// rides the name because the name is the one part of a credential
+	// every surface already reads — the token store, the kill switch's
+	// revocation sweep, `token list` — so a run-bound credential is
+	// recognisable as one everywhere, including where its caveat payload
+	// is not checked (those surfaces refuse it; the tool gate checks it).
+	Run string
+	// RunToken is the caveat-bound form of the token this caller
+	// presented, when it was one (internal/macaroon): the whole string,
+	// carried unchanged so the one gate that verifies caveats — the agent
+	// interface's tool gate — can check the chain against the store's run
+	// key. Every other surface ignores it: there, a run token is an
+	// ordinary scoped credential, bounded by its role, its resource, its
+	// scope and its expiry like any other, and the mint narrows those
+	// coarse bounds to match the caveats so the two never disagree.
+	RunToken string
 }
 
 // tokenFile is preferred over the environment.
@@ -120,6 +138,19 @@ func resolveCaller(root, explicitToken string) *Caller {
 	if secret == "" {
 		return unverified("no token was presented")
 	}
+	// A run token arrives as one string in two halves — credential, then a
+	// caveat payload (internal/macaroon) — and the store authenticates the
+	// credential half alone, because that is what it holds the hash of.
+	// Splitting here, before authentication, is what lets the two halves
+	// keep their separate jobs: the store decides the bearer without
+	// knowing caveats exist, and the caveat gate — not the store — refuses
+	// a payload that does not verify. The whole string is kept for the
+	// carry, so what the gate checks is what was presented.
+	presented := secret
+	isRun := false
+	if s, ok := macaroon.Split(secret); ok {
+		secret, isRun = s, true
+	}
 	toks, err := loadTokens(root)
 	if err != nil {
 		return unverified(fmt.Sprintf("the token store could not be read: %v", err))
@@ -143,7 +174,11 @@ func resolveCaller(root, explicitToken string) *Caller {
 	// Using a token records that it was used, which is what makes `token stale`
 	// able to find credentials nobody needs any more.
 	_ = saveTokens(root, toks)
-	return callerFromToken(tok)
+	c := callerFromToken(tok)
+	if isRun {
+		c.RunToken = presented
+	}
+	return c
 }
 
 // callerFromToken is the caller a resolved token acts as, shared by the
@@ -170,11 +205,38 @@ func callerFromToken(tok *auth.Token) *Caller {
 		// are recorded as its own. The model it runs is not in the registry
 		// yet, so the agent's name stands in — an honest placeholder where
 		// the audit log insists on not leaving the field empty.
-		c.Agent = name
+		//
+		// A name that carries a run (splitAgentRun) is a run token: the
+		// agent is the half before the slash, and the run half is carried
+		// beside it. A name with a slash that does not split cleanly claims
+		// nothing here — the whole string stands as the claimed agent name,
+		// and the registry gate refuses it as somebody it never registered,
+		// which is the fail-closed reading of a malformed claim.
 		c.Kind = audit.KindAI
-		c.Model = name
+		if agent, run, split := splitAgentRun(name); split {
+			c.Agent, c.Run, c.Model = agent, run, agent
+		} else {
+			c.Agent, c.Model = name, name
+		}
 	}
 	return c
+}
+
+// splitAgentRun is the agent and the run a token name claims, when it
+// claims a run at all: "watcher/run-42" is agent watcher, run run-42.
+//
+// The run is part of the token's name rather than a field on the stored
+// credential because the name is what every surface already reads: the kill
+// switch's revocation sweep matches it, `token list` shows it, and the
+// store needs no new shape to hold it. Both halves must be shaped like
+// registry keys before the claim is honoured — anything else is returned
+// unsplit and refused by the registry gate as an agent nobody registered.
+func splitAgentRun(bound string) (agent, run string, ok bool) {
+	agent, run, found := strings.Cut(bound, "/")
+	if !found || !agentreg.ValidName(agent) || !agentreg.ValidName(run) {
+		return "", "", false
+	}
+	return agent, run, true
 }
 
 func osUser() string {
