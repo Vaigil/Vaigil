@@ -6,6 +6,8 @@ package pii
 import (
 	"strings"
 	"testing"
+
+	"github.com/vaigil/vaigil/internal/secret"
 )
 
 func secretsAt(text string) [][2]int {
@@ -69,5 +71,42 @@ func TestOverlappingFindsAreMaskedOnce(t *testing.T) {
 	}
 	if m.Restore(out) != text {
 		t.Fatal("not restored")
+	}
+}
+
+// The shape a whole prompt reaches the mask in: a state, marshalled, on
+// one line between its fences. A bare PEM header planted in one value
+// must cost that value the header — not cost the model the entity, the
+// other evidence and the fence around the lot.
+func TestABarePemHeaderCannotEraseTheRestOfAPrompt(t *testing.T) {
+	m := &Masker{Secrets: secret.Spans}
+	blob := `<<<state>>>{"title":"Brute force against admin",` +
+		`"entity":"dana","evidence":["user-agent=-----BEGIN PRIVATE KEY-----",` +
+		`"the mfa was reset","a token minted"]}<<<state>>>`
+	out := m.Mask(blob, true)
+	for _, keep := range []string{`"entity":"dana"`, "the mfa was reset",
+		"a token minted", "<<<state>>>"} {
+		if !strings.Contains(out, keep) {
+			t.Errorf("%q did not survive the mask: %s", keep, out)
+		}
+	}
+	if n := strings.Count(out, "<vaigil:secret:"); n != 1 {
+		t.Errorf("%d placeholders for one header: %s", n, out)
+	}
+}
+
+// A block that an END closes is masked whole, and only it: the credential
+// leaves, what was said around it stays.
+func TestAClosedPemBlockIsMaskedWholeAndNothingElse(t *testing.T) {
+	m := &Masker{Secrets: secret.Spans}
+	block := "-----BEGIN OPENSSH PRIVATE KEY----- b3BlbnNzaC1rZXktdjEAAAAA" +
+		" -----END OPENSSH PRIVATE KEY-----"
+	out := m.Mask("evidence: "+block+" and then the mfa was reset", true)
+	if !strings.Contains(out, "<vaigil:secret:1>") ||
+		strings.Contains(out, "b3BlbnNza") {
+		t.Errorf("the key did not leave as one placeholder: %s", out)
+	}
+	if !strings.Contains(out, "and then the mfa was reset") {
+		t.Errorf("what followed the block was taken with it: %s", out)
 	}
 }

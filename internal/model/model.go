@@ -14,6 +14,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -26,6 +27,14 @@ import (
 
 // RequestTimeout bounds one completion.
 const RequestTimeout = 120 * time.Second
+
+// maxResponse bounds what is read of a reply, on the way in that worked
+// and the way in that did not. A reply is one JSON object whose content
+// is a few words, and 256 KiB is an order of magnitude above anything a
+// completion needs; an endpoint that answers with more — broken, or
+// hosted by somebody who would rather this read until it could not — is
+// cut off there rather than read to the end.
+const maxResponse = 256 << 10
 
 // Model is anything that can answer a prompt. An interface so the tests can
 // drive hostile responses through the same path a real model uses.
@@ -42,6 +51,12 @@ type HTTPModel struct {
 	APIKey  string
 	Model   string
 	Client  *http.Client
+
+	// OnUsage, when set, is told what each completion used: the tokens the
+	// provider reported, or an estimate from the length of the text when
+	// the provider said nothing. Usage is otherwise computed and thrown
+	// away — a cost nobody can see is a cost nobody can question.
+	OnUsage func(Usage)
 }
 
 // StatusError is what a provider answered when it did not answer 200,
@@ -152,6 +167,35 @@ func NewHTTPModelAt(base, key, model string) (*HTTPModel, error) {
 	}, nil
 }
 
+// Params is what one completion may ask the endpoint beyond the prompt: a
+// temperature, a seed, a cap on the reply. Every field is nil when the
+// caller has no opinion, and a field with no opinion is not sent — a
+// request that sets nothing is the request this always built.
+//
+// Nil and an explicit zero stay different on purpose. temperature 0 is a
+// promise of determinism the caller is making to itself, and a sampling
+// caller that sent 0 by accident would get three identical replies and
+// read them as agreement; that promise is not made on anybody's behalf.
+//
+// Seed is whatever the provider means by it — for OpenAI-compatible
+// endpoints, a number that makes a given temperature draw reproducible.
+// MaxTokens bounds the reply before the wire does; it is the caller's to
+// set, because a reasoning model spends tokens before its answer and only
+// a caller that knows its model knows how many.
+type Params struct {
+	Temperature *float64
+	Seed        *int64
+	MaxTokens   *int
+}
+
+// Tuned is a model that takes Params for one call. Satisfied by HTTPModel;
+// a wrapper that cannot carry parameters (the privacy guard forwards
+// prompts, not sampling knobs) simply does not implement it, and its
+// callers fall back to Complete.
+type Tuned interface {
+	CompleteTuned(ctx context.Context, system, user string, p Params) (string, error)
+}
+
 // Usage is what one completion used, as the provider reported it.
 type Usage struct {
 	In, Out int
@@ -181,6 +225,21 @@ func (h *HTTPModel) Complete(ctx context.Context, system, user string) (string, 
 // usage block every OpenAI-compatible server returns, or an estimate when
 // it returns none.
 func (h *HTTPModel) CompleteMetered(ctx context.Context, system, user string) (string, Usage, error) {
+	return h.complete(ctx, system, user, Params{})
+}
+
+// CompleteTuned is Complete with Params the endpoint may honour: a
+// temperature and a seed that make the call a draw the caller chose rather
+// than the server's default, and a cap on the reply. Params left nil are
+// not sent, so a caller that sets none sends exactly what Complete sends.
+func (h *HTTPModel) CompleteTuned(ctx context.Context, system, user string, p Params) (string, error) {
+	out, _, err := h.complete(ctx, system, user, p)
+	return out, err
+}
+
+func (h *HTTPModel) complete(ctx context.Context, system, user string,
+	p Params) (string, Usage, error) {
+
 	payload := map[string]any{
 		"model": h.Model,
 		"messages": []map[string]string{
@@ -188,6 +247,15 @@ func (h *HTTPModel) CompleteMetered(ctx context.Context, system, user string) (s
 			{"role": "user", "content": user},
 		},
 		"stream": false,
+	}
+	if p.Temperature != nil {
+		payload["temperature"] = *p.Temperature
+	}
+	if p.Seed != nil {
+		payload["seed"] = *p.Seed
+	}
+	if p.MaxTokens != nil && *p.MaxTokens > 0 {
+		payload["max_tokens"] = *p.MaxTokens
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -216,7 +284,7 @@ func (h *HTTPModel) CompleteMetered(ctx context.Context, system, user string) (s
 
 	if resp.StatusCode != http.StatusOK {
 		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(resp.Body)
+		_, _ = buf.ReadFrom(io.LimitReader(resp.Body, maxResponse))
 		snippet := strings.TrimSpace(buf.String())
 		if len(snippet) > 300 {
 			snippet = snippet[:300]
@@ -235,7 +303,7 @@ func (h *HTTPModel) CompleteMetered(ctx context.Context, system, user string) (s
 			Completion int `json:"completion_tokens"`
 		} `json:"usage"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxResponse)).Decode(&out); err != nil {
 		return "", Usage{}, fmt.Errorf("cannot read the model's reply: %w", err)
 	}
 	if len(out.Choices) == 0 {
@@ -246,6 +314,9 @@ func (h *HTTPModel) CompleteMetered(ctx context.Context, system, user string) (s
 	if out.Usage != nil && out.Usage.Prompt >= 0 && out.Usage.Completion >= 0 &&
 		(out.Usage.Prompt > 0 || out.Usage.Completion > 0) {
 		u = Usage{In: out.Usage.Prompt, Out: out.Usage.Completion, Reported: true}
+	}
+	if h.OnUsage != nil {
+		h.OnUsage(u)
 	}
 	return text, u, nil
 }

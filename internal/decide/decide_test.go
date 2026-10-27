@@ -5,10 +5,13 @@ package decide
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/vaigil/vaigil/internal/model"
 )
 
 // seq answers with each reply in turn, cycling, and records prompts.
@@ -28,6 +31,22 @@ func (s *seq) Complete(_ context.Context, _, user string) (string, error) {
 	r := s.replies[s.n%len(s.replies)]
 	s.n++
 	return r, nil
+}
+
+// echo is a caching gateway: whatever it is asked, it answers with the one
+// reply it has. It keeps every prompt, because what the test needs to know
+// is what the samples were actually asked.
+type echo struct {
+	reply   string
+	systems []string
+	users   []string
+}
+
+func (e *echo) Name() string { return "echo" }
+func (e *echo) Complete(_ context.Context, system, user string) (string, error) {
+	e.systems = append(e.systems, system)
+	e.users = append(e.users, user)
+	return e.reply, nil
 }
 
 var triage = Decider{Name: "ticket", Title: "Ticket triage", Questions: []Question{
@@ -182,5 +201,170 @@ func TestEvaluationSeparatesCoverageFromAccuracy(t *testing.T) {
 	}
 	if rep.AutoAccuracy != 1 || rep.Coverage != 0.7 {
 		t.Fatalf("coverage %.2f accuracy %.2f", rep.Coverage, rep.AutoAccuracy)
+	}
+}
+
+// optionOrder is how one system prompt listed the choice's options.
+func optionOrder(system string) string {
+	if _, rest, ok := strings.Cut(system, "Options: "); ok {
+		if order, _, ok := strings.Cut(rest, "."); ok {
+			return order
+		}
+	}
+	return ""
+}
+
+// listDeal is the order one user prompt dealt the state's list in.
+func listDeal(user string) string {
+	_, rest, _ := strings.Cut(user, "\n")
+	body, _, _ := strings.Cut(rest, "\n")
+	var st struct {
+		Notes []string `json:"notes"`
+	}
+	if json.Unmarshal([]byte(body), &st) != nil {
+		return ""
+	}
+	return strings.Join(st.Notes, ",")
+}
+
+// TestEachSampleIsADifferentAttempt — the reason sampling says anything at
+// all. Behind a deterministic server or a caching gateway, three identical
+// prompts come back as one reply read three times: agreement 1.0 that
+// nobody but the cache made, and the gate quietly the model's own stated
+// number. So every sample must be asked differently — the closed options
+// dealt in a different order, the state's list re-dealt, the request
+// marked per attempt — and a model that answers identically anyway is
+// agreeing to genuinely different questions, which is the only agreement
+// worth gating on.
+func TestEachSampleIsADifferentAttemptSoACacheCannotForgeAgreement(t *testing.T) {
+	state := map[string]any{"subject": "Refund for a broken pen",
+		"notes": []any{"one", "two", "three", "four", "five"}}
+	cache := &echo{reply: reply("returns", 0.99, "yes", 0.8)}
+	if _, err := Decide(context.Background(), triage, cache, state); err != nil {
+		t.Fatal(err)
+	}
+	if len(cache.systems) != 3 {
+		t.Fatalf("asked %d times, want 3 samples", len(cache.systems))
+	}
+	orders := map[string]bool{}
+	for _, s := range cache.systems {
+		orders[optionOrder(s)] = true
+	}
+	if len(orders) < 2 {
+		t.Fatalf("every sample was offered the options in the same order "+
+			"(%q): one cached answer could have served all three",
+			optionOrder(cache.systems[0]))
+	}
+	deals, marked := map[string]bool{}, 0
+	for i, u := range cache.users {
+		deals[listDeal(u)] = true
+		if strings.Contains(u, fmt.Sprintf("(sample %d of 3)", i+1)) {
+			marked++
+		}
+	}
+	if len(deals) < 2 {
+		t.Fatalf("every sample was shown the list in the same order (%q)",
+			listDeal(cache.users[0]))
+	}
+	if marked != 3 || len(cache.users) != 3 {
+		t.Fatalf("the requests are not marked per attempt:\n%s",
+			strings.Join(cache.users, "\n---\n"))
+	}
+	// Reproducible, as documented: the same state runs the same attempts,
+	// so a run can be gone over again after the fact.
+	again := &echo{reply: cache.reply}
+	if _, err := Decide(context.Background(), triage, again, state); err != nil {
+		t.Fatal(err)
+	}
+	for i := range again.systems {
+		if again.systems[i] != cache.systems[i] || again.users[i] != cache.users[i] {
+			t.Errorf("sample %d of the same state ran differently", i+1)
+		}
+	}
+}
+
+// TestATieEscalates — a tie is two answers with an equal claim, and
+// nothing here is entitled to choose between them. Five samples with two
+// votes each and a gate below the tie's agreement would have let the old
+// alphabetical break decide "billing" — a break that leant towards the
+// quiet answer whatever the question.
+func TestATieEscalatesRatherThanDeciding(t *testing.T) {
+	d := Decider{Name: "q", Title: "Q", MinConfidence: 0.3, Samples: 5,
+		Questions: []Question{{Name: "queue", Ask: "which", Kind: Choice,
+			Options: []string{"billing", "returns"}}}}
+	m := &seq{replies: []string{
+		`{"answers": {"queue": {"value": "billing", "confidence": 0.99}}}`,
+		`{"answers": {"queue": {"value": "returns", "confidence": 0.99}}}`,
+		`{"answers": {"queue": {"value": "billing", "confidence": 0.99}}}`,
+		`{"answers": {"queue": {"value": "returns", "confidence": 0.99}}}`,
+		// Names no option, so it counts for neither side.
+		`{"answers": {"queue": {"value": "refund-now", "confidence": 0.99}}}`,
+	}}
+	res, err := Decide(context.Background(), d, m, ticket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, _ := res.Get("queue")
+	if !a.Escalate || a.Value != "" || !strings.Contains(a.Why, "tied") {
+		t.Fatalf("a tie was decided: %+v", a)
+	}
+}
+
+// tunedModel records the draw each sample asked for, and counts any fall
+// back to Complete.
+type tunedModel struct {
+	params []model.Params
+	plains int
+}
+
+func (m *tunedModel) Name() string { return "tuned" }
+func (m *tunedModel) Complete(context.Context, string, string) (string, error) {
+	m.plains++
+	return "", nil
+}
+func (m *tunedModel) CompleteTuned(_ context.Context, _, _ string,
+	p model.Params) (string, error) {
+	m.params = append(m.params, p)
+	return reply("returns", 0.95, "yes", 0.8), nil
+}
+
+// TestATunedModelDrawsEachSampleSeparately — the temperature and the seed
+// are sent, not left to a gateway whose default is temperature 0, which
+// would make the samples one deterministic reply read three times. Each
+// sample carries its own seed, and none falls back to an unparameterised
+// call.
+func TestATunedModelDrawsEachSampleSeparately(t *testing.T) {
+	m := &tunedModel{}
+	res, err := Decide(context.Background(), triage, m, ticket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.plains != 0 {
+		t.Errorf("%d samples fell back to Complete", m.plains)
+	}
+	if len(m.params) != 3 {
+		t.Fatalf("%d samples drawn", len(m.params))
+	}
+	seeds := map[int64]bool{}
+	for i, p := range m.params {
+		if p.Temperature == nil || *p.Temperature != sampleTemperature {
+			t.Errorf("sample %d drawn at %+v", i+1, p.Temperature)
+		}
+		if p.Seed == nil {
+			t.Errorf("sample %d was sent no seed", i+1)
+			continue
+		}
+		if *p.Seed < 0 {
+			t.Errorf("sample %d was sent a seed an endpoint may refuse: %d",
+				i+1, *p.Seed)
+		}
+		seeds[*p.Seed] = true
+	}
+	if len(seeds) != len(m.params) {
+		t.Errorf("%d seeds for %d samples: one request could serve them all",
+			len(seeds), len(m.params))
+	}
+	if res.Escalate {
+		t.Fatalf("%+v", res)
 	}
 }

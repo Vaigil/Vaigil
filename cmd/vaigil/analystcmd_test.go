@@ -5,13 +5,19 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/vaigil/vaigil/internal/analyst"
 	"github.com/vaigil/vaigil/internal/audit"
 	"github.com/vaigil/vaigil/internal/decide"
 	"github.com/vaigil/vaigil/internal/finding"
@@ -250,16 +256,42 @@ func TestTheAnalystIsMeasuredOnThisOrganisationsOwnVerdicts(t *testing.T) {
 	if err := cmdAnalyst(root, []string{"eval", "--k", "2"}); err != nil {
 		t.Fatal(err)
 	}
-	now := time.Now().UTC()
-	cases := verdictCases(queue(t, root), nil, now, 50)
+	// The cases are the register folded as of each verdict, which needs the
+	// pieces rather than loadQueue's already-folded result.
+	reg, _, err := finding.Load(findingsPath(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cases := verdictCases(reg, events(t, root), nil, 50)
 	if len(cases) != 2 {
 		t.Fatalf("%d cases from two verdicts", len(cases))
 	}
-	for _, c := range cases {
-		// Its own verdict is the answer, and is not among the counts.
-		if c.State.Facts.Rule.Decided() != 1 {
-			t.Errorf("%s was shown %d verdicts; one of the two is its own",
-				c.Name, c.State.Facts.Rule.Decided())
+	the := func(id string) analyst.Case {
+		t.Helper()
+		for _, c := range cases {
+			if c.Name == id {
+				return c
+			}
+		}
+		t.Fatalf("no case for %s", id)
+		return analyst.Case{}
+	}
+	first, second := q[0].ID, q[1].ID
+	// The first verdict was recorded while the second finding was still
+	// open, and its case is gathered at that moment: the later verdict —
+	// which may exist because the analyst suggested it — is not among the
+	// counts, and neither is its own.
+	if n := the(first).State.Facts.Records.Rule.Decided(); n != 0 {
+		t.Errorf("the case for %s was shown %d verdict(s) recorded after "+
+			"it was decided", first, n)
+	}
+	// The second was ruled once the first was already on the record.
+	fold := finding.FromAudit(events(t, root))
+	one, two := finding.History(first, fold), finding.History(second, fold)
+	if len(one) == 1 && len(two) == 1 && one[0].At.Before(two[0].At) {
+		if n := the(second).State.Facts.Records.Rule.Decided(); n != 1 {
+			t.Errorf("the case for %s was shown %d verdict(s) from before "+
+				"its own, want the one", second, n)
 		}
 	}
 	events, _ := audit.Read(auditPath(root))
@@ -279,4 +311,317 @@ func TestTheAnalystIsMeasuredOnThisOrganisationsOwnVerdicts(t *testing.T) {
 	if !found {
 		t.Error("the measurement left no record")
 	}
+}
+
+// decisionEvent is one recorded verdict as the audit log holds it.
+func decisionEvent(id string, to finding.State, at time.Time) audit.Event {
+	return audit.Event{At: at.Format(time.RFC3339Nano),
+		Action: "finding." + string(to), Principal: "dana",
+		Kind: audit.KindHuman, Outcome: audit.Success,
+		Detail: map[string]string{"finding": id, "because": "checked"}}
+}
+
+// ruledRegister is a register with one finding per named entity from one
+// rule, each carrying its entity as its id, first reported at t0.
+func ruledRegister(t0 time.Time, entities ...string) *finding.Register {
+	reg := finding.NewRegister()
+	for _, who := range entities {
+		reg.Record(finding.Finding{ID: who, Kind: finding.FromDetection,
+			Source: "auth.privileged-failed", State: finding.Open,
+			Entity:   telemetry.ID{Issuer: "okta", Value: who},
+			Severity: telemetry.SeverityHigh, Title: "Failed sign-in",
+			Evidence: []finding.Evidence{{At: t0, What: "sign-in failed",
+				Tainted: true}}}, t0)
+	}
+	return reg
+}
+
+// The eval measures the past. A finding ruled on day three must be put to
+// the model over the register as it stood on day three: verdicts recorded
+// later — possibly recorded because of the analyst's own suggestion — and
+// findings first reported later are the future, and showing them inflates
+// pass^k with agreement the analyst never had the chance to earn.
+func TestEvalIsMeasuredOnTheRegisterAsOfEachVerdict(t *testing.T) {
+	day1 := time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)
+	day3 := day1.Add(48 * time.Hour)
+	day4 := day1.Add(72 * time.Hour)
+	reg := ruledRegister(day1, "dana", "sam")
+	// First reported after dana's verdict: no part of the register dana's
+	// case may be gathered over, whatever its state is today.
+	reg.Record(finding.Finding{ID: "li", Kind: finding.FromDetection,
+		Source: "auth.privileged-failed", State: finding.Open,
+		Entity:   telemetry.ID{Issuer: "okta", Value: "li"},
+		Severity: telemetry.SeverityHigh, Title: "Failed sign-in",
+		Evidence: []finding.Evidence{{At: day3.Add(time.Hour),
+			What: "sign-in failed", Tainted: true}}}, day3.Add(time.Hour))
+	evs := []audit.Event{decisionEvent("dana", finding.FalsePositive, day3),
+		decisionEvent("sam", finding.Benign, day4)}
+	cases := verdictCases(reg, evs, nil, 50)
+	if len(cases) != 2 {
+		t.Fatalf("%d cases from two verdicts", len(cases))
+	}
+	the := func(id string) analyst.Case {
+		t.Helper()
+		for _, c := range cases {
+			if c.Name == id {
+				return c
+			}
+		}
+		t.Fatalf("no case for %s among %v", id, cases)
+		return analyst.Case{}
+	}
+	// Dana's case: sam is still open, li does not exist yet, and dana's
+	// own verdict is the answer rather than a fact. Gathered over today's
+	// register it would carry sam's benign verdict and li as well.
+	if rule := the("dana").State.Facts.Records.Rule; rule.Decided() != 0 || rule.Open != 1 {
+		t.Errorf("dana's case was gathered with the future in it: %+v", rule)
+	}
+	// Sam's case: dana's verdict was on the record a day before sam's own.
+	if rule := the("sam").State.Facts.Records.Rule; rule.Decided() != 1 ||
+		rule.False != 1 || rule.Open != 1 {
+		t.Errorf("sam's case does not carry the past it should: %+v", rule)
+	}
+	// Gathered at the verdict's own moment, not the eval's: dana's finding
+	// was two days old when it was ruled.
+	if age := the("dana").State.Facts.Volume.AgeHours; age != 48 {
+		t.Errorf("dana's finding read as %d hours old at its verdict", age)
+	}
+}
+
+// A capped sample covers the verdicts, not the head of the queue. Taking
+// the first N of the ranked register measures the model on whichever
+// findings sort first — here every real one ahead of the only false
+// positive, and the eval never once asking the question the FP cases
+// exist to answer.
+func TestACappedSampleCoversTheVerdictsNotTheHeadOfTheQueue(t *testing.T) {
+	day1 := time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)
+	entities := []string{"a", "b", "c", "d", "e", "f"}
+	reg := ruledRegister(day1, entities...)
+	var evs []audit.Event
+	for i, who := range entities {
+		to := finding.Triaged
+		if who == "f" {
+			// The only false positive, and the last of the ruled findings.
+			to = finding.FalsePositive
+		}
+		evs = append(evs, decisionEvent(who, to, day1.Add(time.Duration(i)*time.Hour)))
+	}
+	cases := verdictCases(reg, evs, nil, 3)
+	if len(cases) != 3 {
+		t.Fatalf("%d cases under a limit of 3", len(cases))
+	}
+	saw := map[string]int{}
+	for _, c := range cases {
+		saw[c.Expect]++
+	}
+	if saw[analyst.FalsePositive] != 1 {
+		t.Errorf("a capped sample of %v left out the only false positive", saw)
+	}
+}
+
+// The eval's cases are gathered over the register as it stood, sprays
+// and all. A count-shaped register — one ruled finding among dozens of
+// sprayed open ones — must reach the cases with the spray in the log's
+// volume group and the verdict in people's records, so what is measured
+// is a model reading numbers by their class, not numbers all vouched
+// for alike.
+func TestEvalCasesKeepShapedVolumeApartFromRecords(t *testing.T) {
+	day1 := time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)
+	entities := []string{"dana"}
+	for i := 0; i < 40; i++ {
+		entities = append(entities, fmt.Sprintf("spray-%d", i))
+	}
+	reg := ruledRegister(day1, entities...)
+	evs := []audit.Event{decisionEvent("dana", finding.FalsePositive,
+		day1.Add(time.Hour))}
+	cases := verdictCases(reg, evs, nil, 50)
+	if len(cases) != 1 {
+		t.Fatalf("%d cases from one verdict", len(cases))
+	}
+	st := cases[0].State
+	// Dana's own verdict is the answer, not a fact; the forty sprayed
+	// findings are open — nobody's verdict — so they are spread.
+	if rule := st.Facts.Records.Rule; rule.Decided() != 0 || rule.Open != 40 {
+		t.Errorf("the rule's record: %+v", rule)
+	}
+	if st.Facts.Volume.Spread != 40 {
+		t.Errorf("the spray did not reach the case: %+v", st.Facts.Volume)
+	}
+	b, _ := json.Marshal(st)
+	for _, group := range []string{"from_peoples_records",
+		"from_the_logs_volume"} {
+		if !strings.Contains(string(b), group) {
+			t.Errorf("the gathered state does not carry %s", group)
+		}
+	}
+	if strings.Contains(string(b), `"rule_record"`) ||
+		strings.Contains(string(b), `"entity_record"`) {
+		t.Error("the old flat facts shape is still in the eval's cases")
+	}
+}
+
+// How many feeds list an indicator is read from the indicators, not
+// counted out of the finding's title, where a feed called "spam and eggs"
+// counts for two and whoever names feeds can move a fact the model is
+// told it can rely on.
+func TestTriageIndicatorSourcesAreTheIndicatorsOwnCount(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	root, _ := siemSite(t, []labelled{
+		went("dana", "203.0.113.9", 60, "connect")})
+	if err := cmdIntel(root, []string{"add", "203.0.113.9", "--source",
+		"spam and eggs"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := cmdIntel(root, []string{"add", "203.0.113.9", "--source",
+		"isac"}); err != nil {
+		t.Fatal(err)
+	}
+	m := &stubModel{answer: func(string) string { return suggests("real", 0.95) }}
+	analystSeam = func(string) (decide.Model, string) { return m, "" }
+	t.Cleanup(func() { analystSeam = nil })
+	out, _, err := runTriage(context.Background(), root, human("dana"),
+		20, false, time.Now().UTC())
+	if err != nil || len(out) != 1 {
+		t.Fatalf("%d looked at, %v", len(out), err)
+	}
+	if out[0].To != finding.Triaged {
+		t.Fatalf("the model's answer did not become a suggestion: %+v", out[0])
+	}
+	// Two feeds: one of them named "spam and eggs", which a title counts
+	// as two.
+	if !strings.Contains(out[0].Reason, "listed by 2 source(s)") {
+		t.Errorf("the reason counts something other than the feeds: %s",
+			out[0].Reason)
+	}
+}
+
+// downModel is an endpoint that never answers.
+type downModel struct{ calls int }
+
+func (m *downModel) Name() string { return "down" }
+func (m *downModel) Complete(context.Context, string, string) (string, error) {
+	m.calls++
+	return "", errors.New("connection refused")
+}
+
+// A model that cannot be asked has not looked. An outage, a timeout, a
+// reply that never parsed is a fact about the model, not a judgement
+// about the finding: recorded as such and never as an abstention with a
+// seen count, so alreadyLooked does not hide the finding until its Seen
+// changes — one broken endpoint would otherwise take the finding out of
+// every later pass, forever.
+func TestTriageAnOutageIsNotAVerdictAndHidesNothing(t *testing.T) {
+	down := &downModel{}
+	root, _ := analystSite(t, down)
+	ctx, now := context.Background(), time.Now().UTC()
+	out, _, err := runTriage(ctx, root, human("dana"), 20, false, now)
+	if err != nil || len(out) != 3 {
+		t.Fatalf("%d looked at, %v", len(out), err)
+	}
+	for _, o := range out {
+		if o.To != "" || abstainWord(o.Abstained) != "the model could not be used" {
+			t.Errorf("a dead model produced %+v", o)
+		}
+	}
+	for _, e := range events(t, root) {
+		if e.Action == "analyst.abstained" || e.Action == finding.ProposalAction {
+			t.Fatalf("%s was recorded for a model that could not be asked",
+				e.Action)
+		}
+		if e.Action == "analyst.model-unusable" && e.Detail["seen"] != "" {
+			t.Error("the unusable record carries a seen count")
+		}
+	}
+	// The model comes back: every finding is asked again, and answered.
+	up := &stubModel{answer: func(string) string { return suggests("real", 0.95) }}
+	analystSeam = func(string) (decide.Model, string) { return up, "" }
+	out, _, err = runTriage(ctx, root, human("dana"), 20, false, now)
+	if err != nil || len(out) != 3 {
+		t.Fatalf("after the outage %d were asked again, %v", len(out), err)
+	}
+	proposals := 0
+	for _, o := range out {
+		if o.To == finding.Triaged {
+			proposals++
+		}
+	}
+	if proposals != 3 {
+		t.Errorf("%d of 3 proposals after the model came back", proposals)
+	}
+}
+
+// events is the store's audit log, read for one assertion per line.
+func events(t *testing.T, root string) []audit.Event {
+	t.Helper()
+	e, err := audit.Read(auditPath(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return e
+}
+
+// What the model used reaches the record and the outcome when the
+// provider reports it: a proposal says what it cost in tokens, and the
+// run's numbers are the provider's own accounting, not a stub's absence
+// of one.
+func TestTriageRecordsWhatTheModelUsed(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"choices":[{"message":{"content":`+
+			`"{\"answers\":{\"verdict\":{\"value\":\"real\",\"confidence\":0.95}}}"}}],`+
+			`"usage":{"prompt_tokens":120,"completion_tokens":8}}`)
+	}))
+	t.Cleanup(srv.Close)
+	t.Setenv("VAIGIL_MODEL_URL", srv.URL)
+	t.Setenv("VAIGIL_MODEL", "usage-model")
+	root, rules := analystSite(t, &stubModel{answer: func(string) string {
+		return suggests("real", 0.95)
+	}})
+	// The site stands a stub in; this test asks the real, env-pointed
+	// model, because usage is a fact of the endpoint, not of the seam.
+	analystSeam = nil
+	now := time.Now().UTC()
+	out, _, err := runTriage(context.Background(), root, human("dana"), 20, false, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out) == 0 {
+		t.Fatal("nothing was looked at")
+	}
+	var withCost int
+	for _, o := range out {
+		if o.Cost == nil || !o.Cost.Measured || o.Cost.In <= 0 {
+			t.Errorf("%s carries no measured cost: %+v", o.Finding, o.Cost)
+			continue
+		}
+		// Three samples of 120 tokens in, 8 out: the finding's questions,
+		// added, not the last one's.
+		if o.Cost.In != 360 || o.Cost.Out != 24 {
+			t.Errorf("%s cost %d/%d, want the three samples summed 360/24",
+				o.Finding, o.Cost.In, o.Cost.Out)
+		}
+		withCost++
+	}
+	if withCost == 0 {
+		t.Fatal("no outcome carried a cost")
+	}
+	events, err := audit.Read(auditPath(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	proposals := 0
+	for _, e := range events {
+		if e.Action != finding.ProposalAction {
+			continue
+		}
+		if e.Detail["used_in"] != "360" || e.Detail["used_out"] != "24" {
+			t.Errorf("the proposal's record carries %q/%q, want 360/24",
+				e.Detail["used_in"], e.Detail["used_out"])
+		}
+		proposals++
+	}
+	if proposals == 0 {
+		t.Fatal("no proposal recorded")
+	}
+	_ = rules
 }

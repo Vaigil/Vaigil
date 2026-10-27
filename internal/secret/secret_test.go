@@ -3,7 +3,10 @@
 
 package secret
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestItFindsCredentials(t *testing.T) {
 	for _, body := range []string{
@@ -48,5 +51,54 @@ func TestSpansCoverTheWholeCredential(t *testing.T) {
 	}
 	if !found[key] || !found["AKIAIOSFODNN7EXAMPLE"] {
 		t.Fatalf("%v", found)
+	}
+}
+
+// A BEGIN that nothing closes is a header, not the start of everything
+// after it. Whoever can write a log field could plant one and let the
+// mask erase what the model was to read from there on: the entity, the
+// other evidence, the fence around the lot.
+func TestABeginWithNoEndMasksOnlyTheHeader(t *testing.T) {
+	text := "sign-in failed for admin from -----BEGIN PRIVATE KEY-----" +
+		" then the mfa was reset and a token minted"
+	spans := Spans(text)
+	if len(spans) != 1 ||
+		text[spans[0][0]:spans[0][1]] != "-----BEGIN PRIVATE KEY-----" {
+		t.Fatalf("spans %v of %q", spans, text)
+	}
+}
+
+// An END only closes the BEGIN before it, and only within reach of a real
+// key. One planted far away — or with none before it at all — masks
+// nothing beyond what is already a credential.
+func TestAnEndCannotBePlantedToEraseAMiddle(t *testing.T) {
+	far := "-----BEGIN PRIVATE KEY-----" +
+		strings.Repeat("filler ", 4<<10) + "-----END PRIVATE KEY-----"
+	for name, text := range map[string]string{
+		"an END beyond any real key": far,
+		"an END with no BEGIN":       "a -----END PRIVATE KEY----- b",
+		"an END label that never closes": "-----BEGIN PRIVATE KEY-----" +
+			" filler -----END " + strings.Repeat("x", 65) + " end",
+	} {
+		for _, s := range Spans(text) {
+			if got := text[s[0]:s[1]]; got != "-----BEGIN PRIVATE KEY-----" {
+				t.Errorf("%s: the span took %q", name, got)
+			}
+		}
+	}
+}
+
+// Two headers before one END are one masked stretch, and nothing after
+// the END is taken with them.
+func TestEachEndClosesTheBeginBeforeIt(t *testing.T) {
+	end := "-----END PRIVATE KEY-----"
+	text := "a -----BEGIN PRIVATE KEY----- b -----BEGIN RSA PRIVATE KEY----- c " +
+		end + " and the mfa was reset"
+	closes := strings.Index(text, end) + len(end)
+	for _, s := range Spans(text) {
+		if s[1] > closes {
+			t.Fatalf("a span ran past the END into what follows: %q",
+				text[s[0]:s[1]])
+		}
 	}
 }

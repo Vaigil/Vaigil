@@ -33,8 +33,9 @@ var kinds = []kind{
 	{name: "assignment", pattern: regexp.MustCompile(`(?i)\b(api[_-]?key|secret|token|passwd|password|credential|auth[_-]?token|private[_-]?key)\b\s*[:=]\s*["'` + "`" + `]?[A-Za-z0-9+/_=-]{16,}`), confirm: looksSecret},
 }
 
-// Spans are where credentials are in text, as byte offsets. A private key is
-// the whole block, through its END line, not only the line that names it.
+// Spans are where credentials are in text, as byte offsets. A private key
+// is the whole block, through its END line, when that END is there to
+// close it; without one, the header alone (pemEnd says where each ends).
 func Spans(text string) [][2]int {
 	var out [][2]int
 	for _, k := range kinds {
@@ -44,19 +45,54 @@ func Spans(text string) [][2]int {
 				continue
 			}
 			if k.name == "private-key" {
-				if i := strings.Index(text[end:], "-----END "); i >= 0 {
-					end += i + len("-----END ")
-					if j := strings.Index(text[end:], "-----"); j >= 0 {
-						end += j + len("-----")
-					}
-				} else {
-					end = len(text) // no end in sight: everything after it is the key
-				}
+				end = pemEnd(text, end)
 			}
 			out = append(out, [2]int{start, end})
 		}
 	}
 	return out
+}
+
+// A PEM block is bounded. The largest private key in common use, RSA-4096,
+// is about 3,400 bytes wrapped; 8 KiB covers every format with room to
+// spare. Past that, what follows a BEGIN is not a key waiting for its END
+// but whatever somebody put there, and a mask that ran on would hand them
+// everything said after it.
+const maxPEM = 8 << 10
+
+// maxPEMLabel bounds the label between "-----END " and the dashes that
+// close it: "CERTIFICATE REQUEST" and its kin are under thirty bytes, and
+// a label that runs longer is content wearing the token as a hat.
+const maxPEMLabel = 64
+
+// pemEnd is where a private-key header's span ends: through the END token
+// of the block it opens when that END is present and within reach of a
+// real key, and otherwise the header itself, never past it.
+//
+// Whoever can write a log field can write a BEGIN there, and a mask that
+// took everything to the end of the text would let them erase what the
+// model was to read after it — the entity, the other evidence, the fence
+// around the lot. An END closes only the BEGIN before it, so a planted
+// one cannot reach back over an arbitrary stretch either.
+func pemEnd(text string, headerEnd int) int {
+	room := headerEnd + maxPEM
+	if room > len(text) {
+		room = len(text)
+	}
+	i := strings.Index(text[headerEnd:room], "-----END ")
+	if i < 0 {
+		return headerEnd
+	}
+	e := headerEnd + i + len("-----END ")
+	till := e + maxPEMLabel
+	if till > len(text) {
+		till = len(text)
+	}
+	j := strings.Index(text[e:till], "-----")
+	if j < 0 {
+		return headerEnd
+	}
+	return e + j + len("-----")
 }
 
 // entropy is Shannon entropy in bits per byte.

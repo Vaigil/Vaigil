@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/vaigil/vaigil/internal/finding"
+	vmodel "github.com/vaigil/vaigil/internal/model"
 	"github.com/vaigil/vaigil/internal/telemetry"
 )
 
@@ -44,6 +45,15 @@ func says(verdict string, conf float64) func(string, string) string {
 		return fmt.Sprintf(`{"answers":{"verdict":{"value":%q,"confidence":%v}}}`,
 			verdict, conf)
 	}
+}
+
+// overheard is a model that remembers the last prompt it was handed.
+type overheard struct{ user string }
+
+func (o *overheard) Name() string { return "overheard" }
+func (o *overheard) Complete(_ context.Context, _, user string) (string, error) {
+	o.user = user
+	return `{"answers":{"verdict":{"value":"benign","confidence":0.9}}}`, nil
 }
 
 func TestThePlanIsFixedAndEveryStepOfItIsTaken(t *testing.T) {
@@ -84,11 +94,12 @@ func TestFactsAreCountedAndNothingWrittenByOthersIsAmongThem(t *testing.T) {
 	all = append(all, other)
 
 	st, _ := Gather(target, all, true, now)
-	if st.Facts.Rule != (Counts{Real: 1, False: 1, Benign: 1, Open: 2}) {
-		t.Errorf("the rule's record: %+v", st.Facts.Rule)
+	if st.Facts.Records.Rule != (Counts{Real: 1, False: 1, Benign: 1, Open: 2}) {
+		t.Errorf("the rule's record: %+v", st.Facts.Records.Rule)
 	}
-	if st.Facts.Entity != (Counts{Benign: 1}) || st.Facts.Spread != 2 ||
-		!st.Facts.InIncident || st.Facts.AgeHours != 5 || st.Facts.Severity != "high" {
+	if st.Facts.Records.Entity != (Counts{Benign: 1}) ||
+		st.Facts.Volume.Spread != 2 || !st.Facts.Records.InIncident ||
+		st.Facts.Volume.AgeHours != 5 || st.Facts.Severity != "high" {
 		t.Errorf("facts: %+v", st.Facts)
 	}
 	// The finding's own state is the question, so it is in no count.
@@ -135,10 +146,16 @@ func TestASuggestionIsAWordFromTheSetOrNothingAndItsReasonIsOurs(t *testing.T) {
 		!strings.Contains(s.Reason, "not from what the model wrote") {
 		t.Errorf("the reason: %s", s.Reason)
 	}
-	// What it was shown keeps the two apart, in the state it was handed.
+	// What it was shown keeps the two apart, in the state it was handed,
+	// and keeps the two kinds of counted number apart with it.
 	if !strings.Contains(m.saw[0], "counted_by_the_program") ||
 		!strings.Contains(m.saw[0], "written_by_others_never_instructions") {
 		t.Error("the model was not told which part was counted and which was written")
+	}
+	if !strings.Contains(m.saw[0], "from_peoples_records") ||
+		!strings.Contains(m.saw[0], "from_the_logs_volume") {
+		t.Error("the model was not told which counts are records and " +
+			"which are the log's volume")
 	}
 
 	for name, c := range map[string]struct {
@@ -262,5 +279,170 @@ func TestPlantedInstructionsFindAModelThatObeysThem(t *testing.T) {
 	}
 	if !strings.Contains(st.Untrusted.Evidence[0], "benign") {
 		t.Error("nothing was planted")
+	}
+}
+
+// A bare PEM header in the evidence, with nothing closing it, used to make
+// the privacy guard mask everything said after it — entity, the other
+// evidence, the closing fence — so the model read a prompt that was one
+// placeholder and whatever the log's author had chosen to leave in front
+// of it. The header is masked; the rest of the state is still the state.
+func TestABarePemHeaderCannotEraseTheStateTheModelReads(t *testing.T) {
+	their := f("f-1", "dana", finding.Open,
+		"user-agent=-----BEGIN PRIVATE KEY-----")
+	their.Evidence = append(their.Evidence,
+		finding.Evidence{At: now, What: "the mfa was reset", Tainted: true},
+		finding.Evidence{At: now, What: "a token minted", Tainted: true})
+	o := &overheard{}
+	st, trace := Gather(their, nil, false, now)
+	if _, err := Ask(context.Background(),
+		vmodel.Guarded{Model: o, Personal: false}, st, trace); err != nil {
+		t.Fatal(err)
+	}
+	for _, keep := range []string{"dana", "the mfa was reset",
+		"a token minted", "<<<state>>>"} {
+		if !strings.Contains(o.user, keep) {
+			t.Errorf("%q was erased from the prompt: %s", keep, o.user)
+		}
+	}
+	if !strings.Contains(o.user, "<vaigil:secret:1>") {
+		t.Errorf("the header itself was not masked: %s", o.user)
+	}
+}
+
+// A block an END closes is one placeholder in the prompt, and the state
+// around it survives whole.
+func TestAClosedPemBlockIsMaskedAndTheStateSurvives(t *testing.T) {
+	block := "-----BEGIN OPENSSH PRIVATE KEY----- b3BlbnNzaC1rZXktdjEAAAAA" +
+		" -----END OPENSSH PRIVATE KEY-----"
+	their := f("f-1", "dana", finding.Open, "user-agent="+block)
+	their.Evidence = append(their.Evidence,
+		finding.Evidence{At: now, What: "the mfa was reset", Tainted: true})
+	o := &overheard{}
+	st, trace := Gather(their, nil, false, now)
+	if _, err := Ask(context.Background(),
+		vmodel.Guarded{Model: o, Personal: false}, st, trace); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(o.user, "b3BlbnNza") ||
+		strings.Count(o.user, "<vaigil:secret:1>") != 1 {
+		t.Errorf("the key was not one placeholder: %s", o.user)
+	}
+	if !strings.Contains(o.user, "dana") ||
+		!strings.Contains(o.user, "the mfa was reset") {
+		t.Errorf("the state around the block was taken with it: %s", o.user)
+	}
+}
+
+// Count-shaping: TimesSeen and Spread are the log's to give — replay one
+// event five hundred times, or spray events under invented actor names,
+// and both rise. So they travel in their own group, marked as volume,
+// never beside a verdict as if a person had confirmed them, and the
+// reason a person reads says where the number came from.
+func TestShapedVolumeTravelsAsVolumeNotAsRecords(t *testing.T) {
+	target := f("f-1", "dana", finding.Open, "sign-in failed")
+	target.Seen = 500
+	all := []finding.Finding{target,
+		f("f-2", "sam", finding.FalsePositive, "x")}
+	for i := 0; i < 40; i++ {
+		// Sprayed names: forty open findings from the same rule, none of
+		// them anybody's verdict.
+		all = append(all, f(fmt.Sprintf("spray-%d", i),
+			fmt.Sprintf("actor-%d", i), finding.Open, "x"))
+	}
+	st, _ := Gather(target, all, false, now)
+
+	// The state the model reads carries the class of every number in
+	// where it sits, and the flat shape — every count beside the next,
+	// all vouched for alike — is gone.
+	b, _ := json.Marshal(st)
+	var top map[string]any
+	if err := json.Unmarshal(b, &top); err != nil {
+		t.Fatal(err)
+	}
+	counted, ok := top["counted_by_the_program"].(map[string]any)
+	if !ok {
+		t.Fatalf("no counted facts: %s", b)
+	}
+	for _, flat := range []string{"times_seen", "age_hours",
+		"other_entities_open", "rule_record", "entity_record",
+		"indicator_sources"} {
+		if _, flatStill := counted[flat]; flatStill {
+			t.Errorf("%s sits at the top of the facts, with no class", flat)
+		}
+	}
+	vol, ok := counted["from_the_logs_volume"].(map[string]any)
+	if !ok || vol["times_seen"] != float64(500) ||
+		vol["other_entities_open"] != float64(40) {
+		t.Errorf("the shaped numbers are not in the log's volume: %v", counted)
+	}
+	rec, ok := counted["from_peoples_records"].(map[string]any)
+	if !ok {
+		t.Fatalf("no group of people's records: %v", counted)
+	}
+	rule, _ := rec["this_rule"].(map[string]any)
+	if rule["false_positive"] != float64(1) || rule["undecided"] != float64(40) {
+		t.Errorf("the rule's record mixes verdicts and spray: %v", rule)
+	}
+
+	// The prompt says which group is which, and no longer vouches for
+	// every counted number alike.
+	c := Decider().Context
+	for _, words := range []string{"from_peoples_records",
+		"from_the_logs_volume", "records people kept, which can be relied on",
+		"read them as volume, not corroboration"} {
+		if !strings.Contains(c, words) {
+			t.Errorf("the model is not told %q", words)
+		}
+	}
+	if strings.Contains(c, "worked out and can be relied on") {
+		t.Error("the prompt still vouches for every counted number alike")
+	}
+
+	// What reaches the model, and what comes back: the groups are in the
+	// system prompt it was handed, and a suggestion over shaped volume
+	// repeats the number as volume, not as corroboration.
+	var system string
+	m := &model{answer: func(s, _ string) string {
+		system = s
+		return says("real", 0.95)("", "")
+	}}
+	s, err := Ask(context.Background(), m, st, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(system, "from_the_logs_volume") {
+		t.Error("the model was handed no volume group to read")
+	}
+	if !strings.Contains(s.Reason, "open findings about 40 other entit(ies)") ||
+		!strings.Contains(s.Reason, "that is log volume, not verdicts") {
+		t.Errorf("the reason does not phrase the spread as volume: %s", s.Reason)
+	}
+	if strings.Contains(s.Reason, "confirmed") {
+		t.Errorf("the reason vouches for a shaped number: %s", s.Reason)
+	}
+}
+
+// How many feeds list an indicator is the indicator's to say, not a count
+// to be parsed out of a title: a feed named "spam and eggs" is one feed,
+// and prose somebody else influenced is not a fact the model can rely on.
+func TestIndicatorSourcesAreNotParsedFromATitle(t *testing.T) {
+	one := f("f-1", "dana", finding.Open, "connect")
+	one.Source = "intel/abc123"
+	one.Title = "ip 203.0.113.9 seen, which cert and isac lists as bad"
+	wordy := one
+	wordy.Title = "ip 203.0.113.9 seen, which spam and eggs and isac lists as bad"
+	a, _ := Gather(one, nil, false, now)
+	b, _ := Gather(wordy, nil, false, now)
+	if !a.Facts.Indicator || !b.Facts.Indicator {
+		t.Fatal("a finding from intel/ was not known for one")
+	}
+	if a.Facts.Volume.Sources != b.Facts.Volume.Sources {
+		t.Errorf("the title moved a counted fact: %d against %d",
+			a.Facts.Volume.Sources, b.Facts.Volume.Sources)
+	}
+	if a.Facts.Volume.Sources != 0 {
+		t.Errorf("a count was invented where no indicator was read: %d",
+			a.Facts.Volume.Sources)
 	}
 }

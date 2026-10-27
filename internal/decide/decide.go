@@ -25,6 +25,17 @@
 // A model that says 0.95 and changes its answer between samples is not 95%
 // sure.
 //
+// And the samples have to be genuinely different attempts for that to mean
+// anything. Each one deals the closed options and the state's lists in a
+// different order and carries its own seed, so three requests can never be
+// one request answered three times — behind a deterministic server or a
+// caching gateway, identical prompts come back identical, agreement reads
+// 1.0, and the gate quietly becomes the model's own stated number. Agreement
+// between attempts that could not have been the same attempt is the only
+// agreement worth gating on. A tie between answers is never broken by this
+// code; it escalates, because the choice would otherwise be made by an
+// accident of ordering.
+//
 // Then the gate. A declaration names a threshold; an answer under it is not
 // an answer, it is an escalation, and the code calling this sends it to a
 // person. With no model configured everything escalates, which is the right
@@ -46,6 +57,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"math"
 	"os"
 	"regexp"
@@ -54,6 +66,7 @@ import (
 	"strings"
 
 	"github.com/vaigil/vaigil/internal/atomicfile"
+	"github.com/vaigil/vaigil/internal/model"
 )
 
 // Kind is what shape of answer a question takes.
@@ -177,6 +190,23 @@ type Model interface {
 	Name() string
 }
 
+// Tuned is a Model that can be asked for each sample's draw: a temperature
+// and a seed, in model.Params. Sent when the model can carry them, so the
+// endpoint's default — which may be temperature 0, a promise of determinism
+// nobody here asked for — is never what a sample is drawn at. A model that
+// cannot (the privacy guard forwards prompts, not sampling knobs) is asked
+// through Complete; the permuted prompts reach it the same either way.
+type Tuned interface {
+	CompleteTuned(ctx context.Context, system, user string, p model.Params) (string, error)
+}
+
+// sampleTemperature is what a self-consistency sample is drawn at: high
+// enough that three samples are three draws, low enough not to scramble an
+// answer the state already determines. Sent rather than left to the
+// endpoint, because a gateway's default of temperature 0 turns sampling
+// into one reply read three times.
+const sampleTemperature = 0.7
+
 // Answer is one question's outcome.
 type Answer struct {
 	Question string `json:"question"`
@@ -242,6 +272,101 @@ func systemPrompt(d Decider) string {
 
 func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
 
+// -- attempts that are not the same attempt ------------------------------------
+//
+// A cache cannot be trusted to make sampling real. A gateway that answers
+// from a cache, or a server configured for determinism, returns one reply
+// for one request however many times it is asked — and three identical
+// requests would read as three confirmations nobody but the cache made. So
+// every attempt differs where a cache keys: the request body itself.
+
+// sampleSeed is the one number each attempt is dealt from: the state hashed
+// with the attempt number. The same state asked again runs the same
+// attempts — a run is reproducible from its input — and a different state
+// never shares another's schedule.
+func sampleSeed(raw []byte, attempt int) uint64 {
+	h := fnv.New64a()
+	h.Write(raw)
+	fmt.Fprintf(h, "\x00%d", attempt)
+	return h.Sum64()
+}
+
+// splitmix64 is the arithmetic the shuffle rests on. Fixed and stated here
+// rather than taken from a standard library generator, because a
+// permutation promised reproducible should not rest on a sequence a future
+// Go is free to change.
+func splitmix64(x uint64) uint64 {
+	x += 0x9e3779b97f4a7c15
+	x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9
+	x = (x ^ (x >> 27)) * 0x94d049bb133111eb
+	return x ^ (x >> 31)
+}
+
+// shuffled is a copy of in with its order permuted, Fisher-Yates over
+// splitmix64. Uniformity to the last bit is not claimed and not needed:
+// the order has to differ between attempts, not be fair.
+func shuffled[T any](in []T, seed uint64) []T {
+	out := append([]T(nil), in...)
+	s := seed
+	for i := len(out) - 1; i > 0; i-- {
+		s = splitmix64(s)
+		j := int(s % uint64(i+1))
+		out[i], out[j] = out[j], out[i]
+	}
+	return out
+}
+
+// perAttempt is the decider as one attempt asks it: every choice question's
+// options in the order this attempt's seed deals them. The closed set is
+// unchanged — only its listing moves — so a model that reads position
+// rather than the word is measured rather than indulged.
+func perAttempt(d Decider, seed uint64) Decider {
+	out := d
+	out.Questions = append([]Question(nil), d.Questions...)
+	for i := range out.Questions {
+		if len(out.Questions[i].Options) > 1 {
+			out.Questions[i].Options = shuffled(out.Questions[i].Options,
+				splitmix64(seed+uint64(i)))
+		}
+	}
+	return out
+}
+
+// vary re-orders the lists in the state for one attempt: the same values,
+// dealt in a different order. Evidence lines and any other list a caller
+// put in the state are presentation — the answer should not depend on
+// their order, and a model whose answer does is not consistent with
+// itself, which is exactly what agreement is here to catch. Objects are
+// walked in sorted key order and each list's order comes from its place in
+// the state as well as the seed, so the result depends on the state and
+// the attempt alone, never on Go's map iteration order or on two lists
+// moving in lockstep.
+func vary(v any, seed uint64) any {
+	switch t := v.(type) {
+	case map[string]any:
+		keys := make([]string, 0, len(t))
+		for k := range t {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		out := make(map[string]any, len(t))
+		s := seed
+		for _, k := range keys {
+			s = splitmix64(s)
+			out[k] = vary(t[k], s)
+		}
+		return out
+	case []any:
+		out := make([]any, len(t))
+		for i, e := range t {
+			out[i] = vary(e, splitmix64(seed+uint64(i)))
+		}
+		return any(shuffled(out, seed))
+	default:
+		return v
+	}
+}
+
 // Decide answers a decider's questions about state.
 //
 // state is any JSON value. m may be nil, in which case everything escalates.
@@ -266,7 +391,11 @@ func Decide(ctx context.Context, d Decider, m Model, state any) (Result, error) 
 		return escalateAll("no model is configured, so a person decides"), nil
 	}
 
-	user := fence + "\n" + strings.ReplaceAll(string(raw), fence, "<<state>>") + "\n" + fence
+	// raw came from Marshal, so unmarshalling it back cannot fail; it is
+	// done once so each attempt can re-deal the state's lists from the
+	// parsed value rather than the bytes.
+	var parsed any
+	_ = json.Unmarshal(raw, &parsed)
 	type vote struct {
 		value string
 		score float64
@@ -275,8 +404,33 @@ func Decide(ctx context.Context, d Decider, m Model, state any) (Result, error) 
 	votes := map[string][]vote{}
 	var failures []string
 	n := d.samples()
+	tuned, canTune := m.(Tuned)
 	for i := 0; i < n; i++ {
-		out, cerr := m.Complete(ctx, systemPrompt(d), user)
+		seed := sampleSeed(raw, i)
+		body, err := json.Marshal(vary(parsed, seed))
+		if err != nil {
+			return res, fmt.Errorf("the state is not JSON: %w", err)
+		}
+		// The attempt marker changes the request body once more, so no two
+		// attempts are the same request even where a list has one item and
+		// a shuffle cannot move anything. It is a label, not an
+		// instruction: it asks the model for nothing.
+		user := fence + "\n" +
+			strings.ReplaceAll(string(body), fence, "<<state>>") + "\n" + fence +
+			fmt.Sprintf("\n(sample %d of %d)", i+1, n)
+		sys := systemPrompt(perAttempt(d, seed))
+		var out string
+		var cerr error
+		if canTune {
+			t := sampleTemperature
+			// Shifted, because a seed is any integer here but some
+			// endpoints refuse a negative one.
+			s := int64(seed >> 1)
+			out, cerr = tuned.CompleteTuned(ctx, sys, user,
+				model.Params{Temperature: &t, Seed: &s})
+		} else {
+			out, cerr = m.Complete(ctx, sys, user)
+		}
 		if cerr != nil {
 			failures = append(failures, cerr.Error())
 			if ctx.Err() != nil {
@@ -342,16 +496,44 @@ func Decide(ctx context.Context, d Decider, m Model, state any) (Result, error) 
 				count[v.value]++
 				conf[v.value] += v.conf
 			}
-			best := ""
-			for val := range count {
-				if best == "" || count[val] > count[best] ||
-					count[val] == count[best] && val < best {
-					best = val
+			// Scanned in sorted order so that which values a tie is
+			// reported between never depends on map iteration — the why
+			// reaches records, and a record should read the same twice.
+			vals := make([]string, 0, len(count))
+			for v := range count {
+				vals = append(vals, v)
+			}
+			sort.Strings(vals)
+			best, tied := "", ""
+			for _, v := range vals {
+				switch {
+				case best == "":
+					best = v
+				case count[v] > count[best]:
+					best, tied = v, ""
+				case count[v] == count[best]:
+					tied = v
 				}
 			}
-			ans.Value = best
 			ans.Agreement = float64(count[best]) / float64(n)
 			ans.Confidence = math.Min(conf[best]/float64(count[best]), ans.Agreement)
+			if tied != "" {
+				// Two answers with an equal claim and nothing to choose
+				// between them. Something must break the tie, and neither
+				// this code nor the model is entitled to: the previous
+				// alphabetical break was a decision made by an accident of
+				// spelling, and it leant towards closing findings. A tie
+				// escalates whatever the gate, because a gate set below
+				// half the samples would otherwise let the accident
+				// decide.
+				ans.Escalate = true
+				ans.Why = fmt.Sprintf("the samples tied %d-%d between %q and %q",
+					count[best], count[tied], best, tied)
+				res.Answers = append(res.Answers, ans)
+				res.Escalate = true
+				continue
+			}
+			ans.Value = best
 		}
 		if ans.Confidence < gate {
 			ans.Escalate = true
