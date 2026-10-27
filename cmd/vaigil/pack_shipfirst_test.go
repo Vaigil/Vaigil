@@ -4,6 +4,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -481,5 +482,113 @@ func TestAuditctlRunIsAFindingAndLogRotationIsNot(t *testing.T) {
 	if len(got) == 1 && got[0].Seen != 1 {
 		t.Errorf("seen %d times; logrotate and journalctl must not count",
 			got[0].Seen)
+	}
+}
+
+// watchChangeOn is one watched-file change as the collector's ingest
+// stores it on a host an operator has mapped: the declared closed list in
+// raw.agents, and — only when the host maps to exactly one agent — the
+// join name in raw.agent (cmd/vaigil's ingest path, declaredAgents). An
+// unmapped host is declared=nil and carries neither.
+func watchChangeOn(host, kind, op string, declared []string,
+	at time.Time) labelled {
+	raw := map[string]string{"path": "/home/dana/.mcp.json", "kind": kind,
+		"op": op, "sha256": "b42d4f9e", "size": "612", "host": host}
+	if len(declared) > 0 {
+		raw["agents"] = strings.Join(declared, ",")
+		if len(declared) == 1 {
+			raw["agent"] = declared[0]
+		}
+	}
+	return labelled{"watch " + host, true, telemetry.Event{
+		Source: "collector/watch", Class: telemetry.ClassFileActivity,
+		Time: at, Received: at.Add(time.Second),
+		Device:  telemetry.ID{Issuer: "collector", Value: host},
+		Message: fmt.Sprintf("/home/dana/.mcp.json %s (%s)", op, kind),
+		Raw:     raw}}
+}
+
+// genaiToolCall is one tool-call span as the OTLP boundary stores it: the
+// span's own actor claim, carried into the join field the declaration
+// writes (otelCarriesTheJoinName). The actor is the SDK's string, whatever
+// it is — the point of the corridor is that nothing reconciles it with the
+// registry by force.
+func genaiToolCall(agent string, at time.Time) labelled {
+	return labelled{"genai " + agent, true, telemetry.Event{
+		Source: "otel/genai", Class: telemetry.ClassAPIActivity,
+		Disposition: telemetry.DispositionAllowed,
+		Actor:       telemetry.ID{Issuer: "otel", Value: agent},
+		Message:     "execute_tool", Time: at, Received: at.Add(time.Second),
+		Raw: map[string]string{"operation": "execute_tool",
+			"tool": "filesystem.write", "status": "ok", "agent": agent}}}
+}
+
+// TestAConfigChangeThenItsAgentsCallsIsTheChain: the corridor the pack's
+// own end-comment refused until the join became a declaration — a config
+// change on a host mapped to one agent, then that agent's tool calls. The
+// whole firing matrix in one corpus: the join that fires, and every
+// honest non-join beside it — the unmapped host, the shared box, another
+// agent's calls, the reverse order, and the SDK that names its agent
+// differently from the registry.
+func TestAConfigChangeThenItsAgentsCallsIsTheChain(t *testing.T) {
+	root, rules := packSite(t)
+	w0 := closedWindow()
+	at := func(m int) time.Time { return w0.Add(time.Duration(m) * time.Minute) }
+	appendEvents(t, root, []labelled{
+		// The chain: build01 is mapped to watcher alone; its config
+		// changed, and watcher called tools afterwards.
+		watchChangeOn("build01", "mcp-config", "changed", []string{"watcher"}, at(10)),
+		genaiToolCall("watcher", at(20)),
+		// An unmapped host: the same change carries no declaration and
+		// joins nothing, however nearby its calls are.
+		watchChangeOn("ci02", "mcp-config", "changed", nil, at(11)),
+		genaiToolCall("runner-2", at(21)),
+		// A shared box: two agents declared, no single name, and the
+		// change is not attributed between them — the join refuses to
+		// choose, so neither agent's calls chain onto it.
+		watchChangeOn("shared07", "mcp-config", "changed",
+			[]string{"docs-bot", "watcher"}, at(12)),
+		genaiToolCall("docs-bot", at(22)),
+		// The reverse order: triage called tools and its config was
+		// changed afterwards, which is an agent being reconfigured, not
+		// the chain.
+		genaiToolCall("triage", at(25)),
+		watchChangeOn("desk09", "agent-config", "created", []string{"triage"}, at(30)),
+		// An SDK that names its agent differently from the registry:
+		// agent-7 is not the declared name, and nothing is forced to match.
+		watchChangeOn("desk10", "mcp-config", "changed", []string{"watcher"}, at(13)),
+		genaiToolCall("agent-7", at(23)),
+	})
+	if err := detectRun(root, []string{"--rules", rules}); err != nil {
+		t.Fatal(err)
+	}
+	got := bySource(queue(t, root))
+	chain := got["corr.watch-then-call"]
+	if len(chain) != 1 || !strings.Contains(chain[0].Entity.String(), "watcher") {
+		t.Fatalf("the chain: %+v — want exactly watcher's, and only it", chain)
+	}
+	if len(chain) == 1 && !strings.Contains(chain[0].Entity.String(), "raw.agent") {
+		t.Errorf("the finding is about %+v; the join field should say whose "+
+			"chain it is", chain[0].Entity)
+	}
+	// The severity-3 rule still raises the changes themselves — the watch
+	// stream carries no actor, so it is one finding seen once per change —
+	// and the corridor adds the chain without swallowing the finding it
+	// joins on.
+	changes := got["collector.agent-config-changed"]
+	if len(changes) != 1 || changes[0].Seen != 5 {
+		seen := 0
+		if len(changes) == 1 {
+			seen = changes[0].Seen
+		}
+		t.Errorf("the config changes raised %d finding(s) seen %d time(s); "+
+			"want the one actor-less finding, still there beside the chain "+
+			"and seen for each of the five changes", len(changes), seen)
+	}
+	for _, quiet := range []string{"collector.agent-config-changed-mapped",
+		"otel.tool-call"} {
+		if len(got[quiet]) != 0 {
+			t.Errorf("%s raised %d findings of its own", quiet, len(got[quiet]))
+		}
 	}
 }

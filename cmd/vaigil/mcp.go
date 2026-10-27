@@ -22,6 +22,7 @@ import (
 	"github.com/vaigil/vaigil/internal/config"
 	"github.com/vaigil/vaigil/internal/dpop"
 	"github.com/vaigil/vaigil/internal/find"
+	"github.com/vaigil/vaigil/internal/macaroon"
 	"github.com/vaigil/vaigil/internal/mcp"
 )
 
@@ -212,19 +213,20 @@ func mountMCP(mux *http.ServeMux, root string, cfg *config.Config, addr string) 
 			auditMCPCall(root, c.Principal, tool, operation, rerr)
 		},
 	})
-	// The document a 401 points at: what this resource is, and nothing it
-	// cannot honour. No authorization_servers is named because there is no
-	// authorization server yet — the tokens this resource accepts are issued
-	// by this same deployment at its own command line and narrowed at its
-	// own /token/exchange — so a client that follows the metadata to its
-	// OAuth conclusion finds this origin and no /authorize on it, which is
-	// the truth, rather than an issuer pointing at a door that is not
-	// there. When an authorization server is built it is named here and
-	// nowhere else.
+	// The document a 401 points at: what this resource is, and the one
+	// authorization server that issues for it. The AS is this same
+	// deployment (mounted beside the console, oauthserve.go): its
+	// authorization endpoint asks the person signed in to the console, and
+	// its tokens arrive resource-bound to exactly this address. Named
+	// here and nowhere else — the issuer a client discovers is the issuer
+	// this resource answers for.
 	mux.Handle(wellKnownMCP, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"resource": origin + "/mcp"})
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"resource":              origin + "/mcp",
+			"authorization_servers": []string{origin},
+		})
 	}))
 }
 
@@ -240,12 +242,33 @@ func mountMCP(mux *http.ServeMux, root string, cfg *config.Config, addr string) 
 // /mcp is the audience it was issued for. That is the RFC 8707 seam
 // internal/mcp's package comment names, closed at the one place it can be.
 func agentCaller(root string, r *http.Request, token string, proofs *dpop.Replays) (*Caller, error) {
+	// A run credential arrives as one string in two halves — the secret the
+	// store holds the hash of, then its caveat payload (internal/macaroon).
+	// The halves are split here for the same reason resolveCaller splits
+	// them on stdio: the store decides the bearer without knowing caveats
+	// exist, and the caveat gate — not the store — refuses a payload that
+	// does not verify. The whole string is carried to that gate, so what is
+	// checked is what was presented. This surface once refused the dotted
+	// form at the door because nothing behind the door checked the payload;
+	// the exchange now mints run-shaped tokens (agent:NAME/obo-GRANT, bound
+	// to this audience), so the door learned the split and the gate behind
+	// it learned nothing new.
+	presented := token
+	if half, ok := macaroon.Split(token); ok {
+		token = half
+	}
 	toks, err := loadTokens(root)
 	if err != nil {
 		return nil, fmt.Errorf("the token store could not be read: %v", err)
 	}
 	now := time.Now()
-	tok, err := toks.AuthenticateFor(token, "/mcp", now)
+	// The resource this request is asking about is this request's own /mcp
+	// address (RFC 8707): a token audience-bound to the agent interface is
+	// accepted here, and a token bound to any other resource — the admin, a
+	// future second interface, another deployment — is not, which is what
+	// keeps an app's OAuth token from being a way into everything else.
+	resource := mcpRequestURL(root, r)
+	tok, err := toks.AuthenticateFor(token, resource, now)
 	if errors.Is(err, auth.ErrKeyBound) {
 		// The token is bound to a key, so the request must carry the proof
 		// that key made for it, checked here against this request's method
@@ -259,7 +282,7 @@ func agentCaller(root string, r *http.Request, token string, proofs *dpop.Replay
 		if perr != nil {
 			return nil, perr
 		}
-		tok, err = toks.AuthenticateProved(token, "/mcp", thumb, now)
+		tok, err = toks.AuthenticateProved(token, resource, thumb, now)
 	}
 	if err != nil {
 		return nil, err
@@ -267,7 +290,11 @@ func agentCaller(root string, r *http.Request, token string, proofs *dpop.Replay
 	// Using a token records that it was used, over HTTP as over the command
 	// line, so `token stale` can find credentials nobody needs any more.
 	_ = saveTokens(root, toks)
-	return callerFromToken(tok), nil
+	c := callerFromToken(tok)
+	if presented != token {
+		c.RunToken = presented
+	}
+	return c, nil
 }
 
 // mcpOrigins is the page origins the agent interface answers: this server's

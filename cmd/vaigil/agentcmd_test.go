@@ -451,3 +451,109 @@ func TestAgentCommandHelpNamesTheDeliberateOmission(t *testing.T) {
 		}
 	}
 }
+
+// -- the host mapping -----------------------------------------------------
+
+// mapHost declares through the command, so the mapping file, the audit
+// record and the listing all see the same declaration.
+func mapHost(t *testing.T, root, agent, host string) {
+	t.Helper()
+	if err := cmdAgent(root, []string{"maps", agent, "--host", host}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestAgentCommandMapsHostsRefusesAndRecords: the mapping is the
+// watch-then-call chain's onboarding act, and what it refuses is the
+// honest half — names the registry does not hold, a host no recorder could
+// report, a fifth agent on one machine, and a declaration made twice —
+// each refused in words, and every change on the record under the
+// agent's name with the host beside it.
+func TestAgentCommandMapsHostsRefusesAndRecords(t *testing.T) {
+	root := registrySite(t, "dana@acme.example", auth.RoleAdmin)
+	register(t, root, "watcher", "vaigil_read")
+	register(t, root, "triage", "vaigil_read")
+	register(t, root, "docs-bot", "vaigil_read")
+	register(t, root, "loader", "vaigil_read")
+	register(t, root, "fifth", "vaigil_read")
+
+	if err := cmdAgent(root, []string{"maps", "ghost", "--host", "build01"}); err == nil {
+		t.Error("an agent the registry does not hold was mapped")
+	}
+	if err := cmdAgent(root, []string{"maps", "watcher", "--host",
+		"build 01"}); err == nil {
+		t.Error("a host with a space in it was mapped")
+	}
+	if err := cmdAgent(root, []string{"maps", "watcher"}); err == nil {
+		t.Error("a mapping with no host was accepted")
+	}
+
+	mapHost(t, root, "watcher", "build01")
+	if err := cmdAgent(root, []string{"maps", "watcher", "--host",
+		"build01"}); err == nil {
+		t.Error("the same declaration was accepted twice")
+	}
+	// A shared box, up to the cap: three more agents on build01.
+	for _, agent := range []string{"triage", "docs-bot", "loader"} {
+		mapHost(t, root, agent, "build01")
+	}
+	err := cmdAgent(root, []string{"maps", "fifth", "--host", "build01"})
+	if err == nil {
+		t.Fatal("a fifth agent was mapped onto one host")
+	}
+	if !strings.Contains(err.Error(), "cap") {
+		t.Errorf("the cap refusal does not say it is one: %s", err)
+	}
+	// The cap is per host, and the mapping is agent-first: the same agent
+	// may run elsewhere.
+	mapHost(t, root, "fifth", "ci02")
+	mapHost(t, root, "watcher", "ci02")
+
+	maps, merr := agentMapStore(root).Load()
+	if merr != nil {
+		t.Fatal(merr)
+	}
+	if got := agentreg.AgentsFor(maps, "build01"); len(got) != 4 {
+		t.Errorf("build01 declares %v, want the four below the cap", got)
+	}
+	if hosts := agentreg.Hosts(maps, "watcher"); strings.Join(hosts, ",") !=
+		"build01,ci02" {
+		t.Errorf("watcher's hosts: %v", hosts)
+	}
+
+	// Taking one back, then one that was never there.
+	if err := cmdAgent(root, []string{"maps", "triage", "--host",
+		"build01", "--remove"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := cmdAgent(root, []string{"maps", "triage", "--host",
+		"build01", "--remove"}); err == nil {
+		t.Error("an unmap of nothing was answered as done")
+	}
+
+	events, err := audit.Read(auditPath(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Both directions on the record, each naming the agent and the host:
+	// watcher declared on build01, triage taken back off it.
+	want := map[string]bool{
+		"agent.mapped watcher build01":  false,
+		"agent.unmapped triage build01": false,
+	}
+	for _, e := range events {
+		switch {
+		case e.Action == "agent.mapped" && e.Detail["agent"] == "watcher" &&
+			e.Detail["host"] == "build01":
+			want["agent.mapped watcher build01"] = true
+		case e.Action == "agent.unmapped" && e.Detail["agent"] == "triage" &&
+			e.Detail["host"] == "build01":
+			want["agent.unmapped triage build01"] = true
+		}
+	}
+	for record, seen := range want {
+		if !seen {
+			t.Errorf("%s was never written to the audit log", record)
+		}
+	}
+}

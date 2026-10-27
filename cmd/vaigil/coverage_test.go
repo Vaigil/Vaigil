@@ -737,6 +737,20 @@ func TestEveryRemovalFlagIsReachableFromTheInterface(t *testing.T) {
 				"the register this surface must not offer; what an agent may " +
 				"call is decided about it, never by it",
 		},
+		// Taking a host declaration back removes an agent's name from the
+		// evidence that host's records carry. Same surface and same argument
+		// as the allowlist half beside it: the mapping says whose name joins
+		// whose evidence, and that is decided about agents, never by them.
+		"maps.remove": {
+			Why: "unmapping a host takes an agent's name off the evidence " +
+				"that host's records carry, and is an operator's decision at " +
+				"the same register, read back through the people and audit " +
+				"surfaces like every change to it",
+			NoMCP: "the mapping decides whose name joins whose evidence, and " +
+				"a model that could edit it could aim its own actions at " +
+				"another agent's name; where an agent runs is decided about " +
+				"it, never by it",
+		},
 		"asset.remove": {
 			GUI: "/security/vulns",
 			NoMCP: "how exposed a machine is and what is lost with it is " +

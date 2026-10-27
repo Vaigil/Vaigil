@@ -60,6 +60,7 @@ import (
 	"github.com/vaigil/vaigil/internal/enrol"
 	"github.com/vaigil/vaigil/internal/icons"
 	"github.com/vaigil/vaigil/internal/lockout"
+	"github.com/vaigil/vaigil/internal/oauthas"
 	"github.com/vaigil/vaigil/internal/throttle"
 	"html/template"
 	"math"
@@ -223,6 +224,22 @@ type Server struct {
 	// it does not know where the log lives, and since the writer was separated
 	// out it must not.
 	Audit func(action, resource string, detail map[string]string)
+	// AuditAgent records what an agent did, as an AI principal: the exchange
+	// that mints an on-behalf-of credential writes here, so the record
+	// carries an agent's kind and name rather than a person's. Nil records
+	// nothing, which is only right in a test.
+	AuditAgent func(action, resource, agent string, detail map[string]string)
+	// RunKey returns the store's caveat-minting key (the file beside the
+	// registry, cmd/vaigil's agents.key), for the exchange to verify the run
+	// credential an agent presents and to mint the caveats of the token it
+	// issues. Nil means no on-behalf-of token can be minted, which the
+	// exchange says rather than resolving to issue one without caveats.
+	RunKey func() ([]byte, error)
+	// Consents is the consent register the authorization server writes
+	// (internal/oauthas). The exchange reads it, because a token minted
+	// under a consent the register no longer honours would be a delegation
+	// nobody agreed to.
+	Consents oauthas.Store
 	// OnSignIn records an authentication. Separate from the handler so the
 	// audit log stays the host's concern.
 	OnSignIn func(principal, tokenID string)
@@ -502,6 +519,32 @@ func (s *Server) authenticate(r *http.Request) (principal, error) {
 		}
 	}
 	return p, nil
+}
+
+// Session is the person signed in to the console that a request carries, for
+// a surface mounted beside the console: the authorization server's
+// authorization endpoint, which has to know who is approving an agent's ask
+// before it shows one.
+//
+// The console's own rules hold. A request that authenticated with a pasted
+// token is refused — the console is for people signed in with two factors,
+// and a consent given over a one-factor bearer is a consent whoever lifted
+// the token could also give. A session waiting to prove its person is
+// refused too, for the same reason requireAuth refuses it everywhere: the
+// person has not confirmed they are the one holding the session.
+//
+// Exported read-only and to no other purpose: this resolves, it never
+// authorises. What the person may consent to is the policy's to say, and the
+// caller asks its own hook for that.
+func (s *Server) Session(r *http.Request) (string, bool) {
+	if r.Header.Get("Authorization") != "" {
+		return "", false
+	}
+	p, err := s.authenticate(r)
+	if err != nil || !p.Session || p.StepUp != "" {
+		return "", false
+	}
+	return p.Name, true
 }
 
 // can checks a permission and writes the refusal itself if there is one.

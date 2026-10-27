@@ -135,8 +135,8 @@ People, sign-in and changes
   vaigil saml add | list | show | metadata | presets | remove   sign in with a SAML provider
   vaigil scim status | token | map GROUP ROLE|JOB | unmap GROUP   provisioning from your identity provider
   vaigil token issue NAME --principal WHO | exchange | keygen FILE | proof | list | revoke ID | stale
-  vaigil agent list | add NAME --owner WHO --allow TOOL | allow NAME --add|--remove TOOL | disable NAME --why "…" | enable NAME --why "…" | token NAME --tools TOOL[,TOOL] --for-run ID | help
-                                        the register of AI agents: who runs, what each may call, one kill switch each
+  vaigil agent list | add NAME --owner WHO --allow TOOL | allow NAME --add|--remove TOOL | maps NAME --host HOST | disable NAME --why "…" | enable NAME --why "…" | token NAME --tools TOOL[,TOOL] --for-run ID | consents [revoke ID] | help
+                                        the register of AI agents: who runs, what each may call, where each runs, one kill switch each, what was consented to
   vaigil ssf receivers | key | send NAME --why "…" | help
                                         where the kill switch is announced: receivers hearing session-revoked
   vaigil pending [list] | approve | decline | withdraw | redeem ID   privileged changes, approved by a second administrator

@@ -317,6 +317,15 @@ var commandNeeds = map[string]need{
 	"agent":         {action: auth.ActGrant},
 	"agent list":    {action: auth.ActView},
 	"agent disable": {action: auth.ActRespond},
+	// The consent register's read-and-end surface, and the responder's
+	// rung for both halves: revoking a consent is the delegation kill —
+	// the same rung `agent disable` holds, for the same 3am reason — and
+	// the listing rides at the same rung because the table reads one word
+	// deep. Over-guarded rather than under-, which is the direction this
+	// table's own test insists on; an auditor who only needs to read the
+	// register has the audit log, where every consent.grant and
+	// consent.revoke is already recorded.
+	"agent consents": {action: auth.ActRespond},
 	// The transmitter speaks in this deployment's name — its kill switch,
 	// announced to other platforms. Sending is the responder's weight, the
 	// same rung as the disable that causes it; reading where events go and

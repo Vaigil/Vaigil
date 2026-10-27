@@ -56,8 +56,13 @@ var selfDetail = []string{"role", "surface", "failures", "setting", "to",
 // it is already marked as what it is. Neither is the person an agent acted
 // for: their name is personal data, and the event store is read wider than
 // the log. The agent itself is the actor, under the log's pseudonym.
+//
+// The exchange's words are here because they are closed ones: the scope a
+// consent carried, the depth of the chain, the tools the intersection left
+// — facts a rule can match, not prose a model wrote.
 var agentDetail = []string{"finding", "agent", "client", "to", "why",
-	"confidence", "tool", "operation", "used_in", "used_out"}
+	"confidence", "tool", "operation", "used_in", "used_out",
+	"scope", "depth", "tools"}
 
 type selfCursor struct {
 	Seq int64 `json:"seq"`

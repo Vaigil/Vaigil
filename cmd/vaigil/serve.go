@@ -71,6 +71,25 @@ func cmdServe(root string, args []string) error {
 	// the registry lives beside the policy and is loaded per request, so a
 	// change the CLI makes is on the board without restarting the console.
 	admin.AgentRegistry = agentStore(root)
+	// The on-behalf-of half of the token exchange: the register a consent
+	// lives in, the key a run credential's caveats are signed under, and
+	// the audit record an exchange writes. All three existed before the
+	// exchange did — the exchange composes them, it does not add state of
+	// its own.
+	srv.Consents = consentStore(root)
+	srv.RunKey = func() ([]byte, error) { return loadRunKey(root) }
+	srv.AuditAgent = func(action, resource, agent string, detail map[string]string) {
+		record(root, audit.Record{
+			Action: action, Resource: resource, Outcome: audit.Success,
+			// The agent is the actor and the record says so: an AI
+			// principal, acting under its own name, so the vaigil/agent
+			// telemetry (selfwatch.go) picks the exchange up as the
+			// agent's act. Who the agent acts for stays in this log and
+			// out of the wider-read event store.
+			Principal: agent, Kind: audit.KindAI, Model: agent, Verified: true,
+			Detail: detail,
+		})
+	}
 	// Persistence and auditing for the changes the console makes. Without
 	// these an access change lives until the process restarts, and the
 	// administrator has already been told it worked.
@@ -528,6 +547,7 @@ func cmdServe(root string, args []string) error {
 	// bearer tokens, not cookies.
 	mux := http.NewServeMux()
 	mountMCP(mux, root, cfg, *addr)
+	mountOAuthAS(mux, root, cfg, *addr, srv)
 	mountOTLP(mux, root)
 	mountCollector(mux, root)
 	mux.Handle("/", srv.Handler())
@@ -549,6 +569,7 @@ func cmdServe(root string, args []string) error {
 	fmt.Printf("  %ssign in with a passkey; somebody without one gets a link that adds it:%s\n", dim, reset)
 	fmt.Printf("  %s    vaigil auth enrol NAME   (on a new store, vaigil init --admin NAME)%s\n", dim, reset)
 	fmt.Printf("  %sagents reach it over MCP at http://%s/mcp with a token from 'vaigil token issue', or 'vaigil mcp' on stdio%s\n", dim, *addr, reset)
+	fmt.Printf("  %san agent asking to act for somebody is consented to at http://%s/oauth/authorize; 'vaigil agent consents' reviews what was agreed%s\n", dim, *addr, reset)
 	if *openBrowser {
 		// Not an error if it fails: a container, a machine over SSH and CI
 		// have no desktop, and the address is on the line above.

@@ -662,6 +662,18 @@ type Token struct {
 	Client string `json:"client,omitempty"`
 	Grant  string `json:"grant,omitempty"`
 
+	// Act is the delegation chain an on-behalf-of token carries: the person
+	// who consented first, the agent acting for them last, in the order
+	// RFC 8693's act claim orders them. Empty on every other credential,
+	// which is what makes the field an answer rather than a label — a token
+	// either acts for somebody else and says whom, or it does not.
+	//
+	// The chain is capped at MaxActChain by the only mint that writes it,
+	// so "how far does delegation run in this store" has one answer and it
+	// is two long: a person and one agent, never an agent acting for an
+	// agent.
+	Act []string `json:"act,omitempty"`
+
 	// Bound is the kind of device and the country a session was issued to,
 	// "Chrome on Windows|GB", so a session carried somewhere else — a
 	// cookie copied by malware — can be noticed (see BindSession).
@@ -1286,6 +1298,99 @@ func (ts *TokenStore) IssueForGrant(principal string, role Role, scope Scope,
 		Principal: principal, Role: role, Resource: "/", Scope: scope,
 		CreatedAt: now.Unix(), ExpiresAt: now.Add(ttl).Unix(),
 		Audience: audience, Client: client, Grant: grant,
+	}
+	ts.pruneSessions(now)
+	ts.Tokens = append(ts.Tokens, t)
+	return secret, t, nil
+}
+
+// MaxActChain caps how long a delegation chain may be: the person who
+// consented, and one agent acting for them.
+//
+// A number here rather than nowhere because the cap is a revocation property
+// as much as an authorisation one. Revoke's cascade walks one level of
+// Parent, and every added link is a link whose death has to be checked
+// another way; two is also what the design sized (docs/research/
+// 02-access-control.md §8.2: "person → agent; no agent→agent re-exchange in
+// v1"), so the mint refuses a third link rather than leaving the question to
+// whoever wires the next one.
+const MaxActChain = 2
+
+// IssueForAgent mints a token for an agent client a person consented to: the
+// access token the consent flow issues, and the on-behalf-of credential the
+// exchange mints from it. Both are bound to one audience (/mcp), both name
+// their grant so a revocation of the consent reaches them, and neither is a
+// session of the person — signing out of the console disconnects nobody.
+//
+// The name is the caller's because its grammar belongs to the registry: the
+// consent token carries agent:NAME so every gate that reads a token's name
+// treats it as that agent's (the registry gate and the tool allowlist
+// included), and the exchanged token carries agent:NAME/run because it is
+// run-shaped and the caveat gate reads the run. The store validates that the
+// name says something, not what it says — the registry is the authority on
+// agent names, and a name nothing recognises is refused by every gate
+// anyway, which is the fail-closed answer to a claim nobody backs.
+//
+// Act is written as given and refused beyond MaxActChain; Parent, when set,
+// is what makes revocation cascade from the subject token to everything
+// minted on it. Thumbprint binds the token to a key when the request that
+// minted it carried that key's proof.
+func (ts *TokenStore) IssueForAgent(name, principal string, role Role, scope Scope,
+	client, grant, audience, parent string, act []string, thumbprint string,
+	ttl time.Duration, now time.Time) (string, Token, error) {
+
+	if strings.TrimSpace(name) == "" {
+		return "", Token{}, errors.New("a token needs a name, so it can be recognised later")
+	}
+	if client == "" || grant == "" || audience == "" {
+		return "", Token{}, errors.New("an agent's token names its client, its grant and its audience")
+	}
+	if ttl <= 0 || ttl > MaxSessionTTL {
+		return "", Token{}, fmt.Errorf("an agent's token lasts more than nothing and at most %s", MaxSessionTTL)
+	}
+	if err := scope.Validate(); err != nil {
+		return "", Token{}, err
+	}
+	if !role.Valid() {
+		return "", Token{}, fmt.Errorf("%q is not a role", role)
+	}
+	if len(act) > MaxActChain {
+		return "", Token{}, fmt.Errorf("a delegation chain is at most %d long — the person and one agent — not %d",
+			MaxActChain, len(act))
+	}
+	for _, who := range act {
+		if strings.TrimSpace(who) == "" {
+			return "", Token{}, errors.New("a delegation chain names who is acting, and an empty link names nobody")
+		}
+	}
+	secret, err := NewSecret()
+	if err != nil {
+		return "", Token{}, err
+	}
+	idRaw := make([]byte, 6)
+	if _, err := rand.Read(idRaw); err != nil {
+		return "", Token{}, fmt.Errorf("cannot generate a token id: %w", err)
+	}
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+	t := Token{
+		ID: hex.EncodeToString(idRaw), Name: name, Hash: hashToken(secret),
+		Principal: principal, Role: role, Resource: "/", Scope: scope,
+		CreatedAt: now.Unix(), ExpiresAt: now.Add(ttl).Unix(),
+		Audience: audience, Client: client, Grant: grant,
+		Parent: parent, Act: append([]string(nil), act...),
+		Key: thumbprint,
+	}
+	if parent != "" {
+		// Session-shaped: it must not outlive the credential it came from,
+		// and its assurance is judged by that credential (see Inherits).
+		t.Methods = []string{MethodToken}
+		t.AAL, t.AuthAt = 1, now.Unix()
+		for i := range ts.Tokens {
+			if ts.Tokens[i].ID == parent && ts.Tokens[i].Key == "" {
+				t.Inherits = ts.Tokens[i].ExpiresAt - ts.Tokens[i].CreatedAt
+			}
+		}
 	}
 	ts.pruneSessions(now)
 	ts.Tokens = append(ts.Tokens, t)
