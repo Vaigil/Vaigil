@@ -177,19 +177,51 @@ correlation:
     condition:
         gte: 10
 level: medium
-# Deliberately not in this file: the watch-then-call chain — a config
+---
+# The chain this file refused for a long time (see the end of this file),
+# now that the join is a declaration rather than an inference: an operator
+# has mapped the recorder's host to one registered agent (vaigil agent
+# maps), the watch events from that host carry the declared name, and the
+# otel/genai spans carry their actor in the same field. Watch then call, in
+# that order, joined on the name both halves state. Coincident, not causal
+# — the agent whose config changed calling tools afterwards is also what
+# an agent reloading its own configuration looks like, and what a
+# developer editing a config the agent then uses looks like — so it is
+# medium and triage decides, never high on the join's own say-so. An hour,
+# because an agent picks up its config on its next run and a window longer
+# than that starts joining changes to calls that had nothing to do with
+# them.
+title: An agent's configuration changed and that agent called tools
+id: corr.watch-then-call
+correlation:
+    type: temporal_ordered
+    rules:
+        - collector.agent-config-changed-mapped
+        - otel.tool-call
+    group-by:
+        - raw.agent
+    timespan: 1h
+level: medium
+# Landed above, after a long refusal: the watch-then-call chain — a config
 # change on collector/watch followed by tool calls from the agent whose
-# config it was. The two sources share no key: a watch event carries the
-# recorder's device id and no actor at all, and an otel/genai event
-# carries the agent's own id. No group-by exists that both legs of a
-# temporal correlation could sit in — the engine drops any event missing
-# its grouping field — and grouping by something both do carry, like
+# config it was. The two sources still share no native key: a watch event
+# carries the recorder's device id and no actor at all, and an otel/genai
+# event carries the agent's own id, so no group-by existed that both legs
+# of a temporal correlation could sit in — the engine drops any event
+# missing its grouping field — and grouping by something both carry, like
 # source, would correlate any config change on any host with any agent's
-# calls anywhere, which is false precision rather than a detection. That
-# chain needs a mapping from recorder host to agent id, which is an
-# onboarding feature, not a rule. Blocked the same way: heartbeat
+# calls anywhere, which is false precision rather than a detection. What
+# changed is that the join key now exists as a declaration: an operator
+# maps recorder hosts to registered agents (vaigil agent maps,
+# internal/agentreg), the collector's ingest carries the declared names on
+# each watch and heartbeat event, and the corridor above joins on the one
+# field both legs then carry. Its honesty is the mapping's: a host mapped
+# to more than one agent joins nothing (the closed list is not a single
+# name and the program refuses to choose), an SDK whose agent id is not
+# the registered name joins nothing, and a mapping change reaches forward
+# to the next push only. Still deliberately not in this file: heartbeat
 # absence (a scheduler must notice; a falling count fires for every
 # collector that never existed), first-use-of-tool (needs per-agent
 # baseline state), token-spend thresholds (the store keeps per-call token
-# strings, never a session total; the burst rule above is the honest rate
-# proxy), and tool-argument content (nothing ships it).
+# strings, never a session total; the tool-burst rule above is the honest
+# rate proxy), and tool-argument content (nothing ships it).

@@ -20,6 +20,7 @@ import (
 	"github.com/vaigil/vaigil/internal/auth"
 	"github.com/vaigil/vaigil/internal/fetch"
 	"github.com/vaigil/vaigil/internal/macaroon"
+	"github.com/vaigil/vaigil/internal/oauthas"
 )
 
 // The register of agents this organisation runs — the IA-9 object, and the
@@ -42,11 +43,24 @@ func agentStore(root string) agentreg.Store {
 	return agentreg.Store{Path: agentsPath(root)}
 }
 
+// agentMapsPath is the recorder-host to agent mapping, beside the registry
+// it names. A sibling file rather than rows inside agents.json (see
+// internal/agentreg for the whole argument): the registry is the review of
+// who may act, and where evidence comes from is a declaration that changes
+// on the recorders' cadence, not the register's. Same discipline either
+// way — one document, changed whole under its lock.
+func agentMapsPath(root string) string { return filepath.Join(root, "agentmaps.json") }
+
+func agentMapStore(root string) agentreg.MapStore {
+	return agentreg.MapStore{Path: agentMapsPath(root), Registry: agentsPath(root)}
+}
+
 func agentUsage() error {
 	return fmt.Errorf("usage: vaigil agent list | add NAME --owner WHO --allow TOOL[,TOOL] [--note \"…\"] | " +
-		"allow NAME (--add | --remove) TOOL[,TOOL] | token NAME --tools TOOL[,TOOL] --for-run ID " +
+		"allow NAME (--add | --remove) TOOL[,TOOL] | maps NAME --host HOST [--remove] | " +
+		"token NAME --tools TOOL[,TOOL] --for-run ID " +
 		"[--hours N] [--purpose observe|triage] [--calls N] [--level N] | disable NAME --why \"…\" | " +
-		"enable NAME --why \"…\" | help")
+		"enable NAME --why \"…\" | consents [revoke ID] | help")
 }
 
 // cmdAgent manages the agent register.
@@ -76,18 +90,31 @@ func cmdAgent(root string, args []string) error {
 		return agentAdd(root, caller, args[1:], note)
 	case "allow":
 		return agentAllow(root, caller, args[1:], note)
+	case "maps":
+		return agentMaps(root, caller, args[1:], note)
 	case "token":
 		return agentMint(root, caller, args[1:], note)
 	case "disable":
 		return agentDisable(root, caller, args[1:], note)
 	case "enable":
 		return agentEnable(root, caller, args[1:], note)
+	case "consents":
+		return agentConsents(root, caller, args[1:], note)
 	}
 	return agentUsage()
 }
 
 func agentList(root string) error {
 	agents, err := agentStore(root).Load()
+	if err != nil {
+		return err
+	}
+	// The mapping is read beside the register so the review sees both
+	// halves of "what may act, and where its evidence comes from". A
+	// mapping that cannot be read is not an empty one — the same line the
+	// registry itself draws — because a listing that quietly forgot the
+	// declarations would show every host as unmapped and nobody would know.
+	maps, err := agentMapStore(root).Load()
 	if err != nil {
 		return err
 	}
@@ -110,6 +137,9 @@ func agentList(root string) error {
 		w.Human("  %s%s%s  %s  owner %s  %s\n", bold, a.Name, reset, state, a.Owner, allow)
 		if a.Note != "" {
 			w.Human("    %s\n", a.Note)
+		}
+		if hosts := agentreg.Hosts(maps, a.Name); len(hosts) > 0 {
+			w.Human("    %sruns on %s%s\n", dim, strings.Join(hosts, ", "), reset)
 		}
 		if a.Status == agentreg.Disabled && a.DisabledWhy != "" {
 			w.Human("    %sdisabled: %s%s\n", yellow, a.DisabledWhy, reset)
@@ -195,6 +225,58 @@ func agentAllow(root string, caller *Caller, args []string,
 		extra["added"] = *add
 	}
 	return note(action, pos[0], extra)
+}
+
+// agentMaps declares — or takes back — which recorder host an agent runs
+// on. The `allow` grammar on purpose: one verb, two directions, and the
+// audit actions say which way (agent.mapped, agent.unmapped).
+//
+// This is the onboarding act the watch-then-call correlation was refused
+// for lacking. The collector's evidence says a file changed on a host and
+// never who changed it; an operator who knows the estate can say which
+// agents run there, and the declaration — not a guess by the program — is
+// what the collector's events then carry (raw.agents, cmd/vaigil's ingest
+// path). The privilege is the dispatch table's `agent` row, the
+// register's own: deciding where an agent's name may be joined is deciding
+// what the register's names mean in the evidence.
+func agentMaps(root string, caller *Caller, args []string,
+	note func(string, string, map[string]string) error) error {
+
+	fs := flag.NewFlagSet("maps", flag.ContinueOnError)
+	host := fs.String("host", "", "the recorder host this agent runs on, "+
+		"spelled the way the recorder reports it")
+	remove := fs.Bool("remove", false, "take the declaration back")
+	pos, flags := leadingArgs(args, 1)
+	if err := fs.Parse(flags); err != nil {
+		return err
+	}
+	if len(pos) != 1 || strings.TrimSpace(*host) == "" {
+		return agentUsage()
+	}
+	if *remove {
+		if err := agentMapStore(root).Unmap(*host, pos[0], caller.Name,
+			time.Now().UTC()); err != nil {
+			return err
+		}
+		// Said out loud because the timing is the honest limit: what the
+		// next push carries is decided at the next push, so an event that
+		// arrives meanwhile still names the agent, and that event is the
+		// audit trail's to explain, not this command's to rewrite.
+		w.Human("%s no longer runs on %s%s\n", pos[0], strings.TrimSpace(*host),
+			dim+"; the next push from it carries nothing"+reset)
+		return note("agent.unmapped", pos[0], map[string]string{
+			"host": strings.TrimSpace(*host)})
+	}
+	if err := agentMapStore(root).Map(*host, pos[0], caller.Name,
+		time.Now().UTC()); err != nil {
+		return err
+	}
+	w.Human("%s%s%s is declared to run on %s\n", bold, pos[0], reset,
+		strings.TrimSpace(*host))
+	w.Human("  %sevidence from that host carries its name, because the "+
+		"operator said so and not because the program guessed%s\n", dim, reset)
+	return note("agent.mapped", pos[0], map[string]string{
+		"host": strings.TrimSpace(*host)})
 }
 
 // agentMint mints a run token: a caveat-bound credential for one run of a
@@ -689,6 +771,83 @@ func whySuffix(revoked int) string {
 	return fmt.Sprintf(" — and its %d live token(s) are revoked, so the bearers die at the next request", revoked)
 }
 
+// agentConsents is the consent register's read-and-end surface: what the
+// authorization server recorded when people answered their agents' asks
+// (internal/oauthas), listed for review, revoked one at a time.
+//
+// Revoking a consent is the delegation half of the kill switch's shape: the
+// register row dies and every token minted under it — the consented access
+// token and every on-behalf-of credential exchanged from it — dies with it,
+// in the same act, because a consent that outlived its revocation would be
+// a consent the register lied about.
+func agentConsents(root string, caller *Caller, args []string,
+	note func(string, string, map[string]string) error) error {
+
+	if len(args) == 0 {
+		return agentConsentsList(root)
+	}
+	if args[0] != "revoke" || len(args) != 2 {
+		return agentUsage()
+	}
+	id := args[1]
+	c, err := consentStore(root).Revoke(id, caller.Name, time.Now().UTC())
+	if err != nil {
+		return err
+	}
+	toks, err := loadTokens(root)
+	if err != nil {
+		// The register is revoked, which is the half that stops fresh
+		// tokens; the tokens that could not be reached are refused at
+		// their next exchange by the register itself, so the failure is
+		// reported loudly rather than rolled back — the same line the
+		// agent kill switch takes.
+		return fmt.Errorf("consent %s is revoked, but its tokens could not "+
+			"be: %v\n  they are refused at the next exchange regardless; "+
+			"`vaigil token list` shows what is still live", id, err)
+	}
+	killed := toks.RevokeGrant(id)
+	if err := saveTokens(root, toks); err != nil {
+		return err
+	}
+	w.Human("%s%s%s revoked — it was agent %s acting for %s (%s)%s\n", bold, id,
+		reset, c.Agent, c.Principal, c.Scope, whySuffix(killed))
+	return note("consent.revoke", c.Agent, map[string]string{
+		"grant": id, "scope": c.Scope, "revoked": fmt.Sprintf("%d", killed)})
+}
+
+// agentConsentsList prints the register: live consents first, then the
+// ended, newest of each first — the review's question is who may what now.
+func agentConsentsList(root string) error {
+	all, err := consentStore(root).Load()
+	if err != nil {
+		return err
+	}
+	if w.JSON(map[string]any{"consents": all}) {
+		return nil
+	}
+	live := oauthas.Sorted(all)
+	if len(live) == 0 {
+		w.Human("  no agent has been consented to; nothing has been delegated\n")
+		w.Human("  %sa consent is made where the authorization server asks: an agent's \"authorize\" request, answered in the console%s\n", dim, reset)
+		return nil
+	}
+	for _, c := range live {
+		word, until := "live", "until "+c.Until()
+		colour := green
+		if c.Revoked {
+			word, until, colour = "revoked", "revoked by "+c.RevokedBy, red
+		} else if time.Now().UTC().Unix() >= c.ExpiresAt {
+			word, colour = "ended", dim
+		}
+		w.Human("  %s%s%s  %s%s%s  agent %s  for %s  %s\n", bold, c.ID, reset,
+			colour, word, reset, c.Agent, c.Principal, c.Scope)
+		w.Human("    %s%s, given %s%s\n", colour, until,
+			c.CreatedAt.Format("2 Jan 2006 15:04"), reset)
+	}
+	w.Human("\n  %sa consent is one of the three bounds on an exchanged token; end one with \"vaigil agent consents revoke ID\"%s\n", dim, reset)
+	return nil
+}
+
 func agentHelp() error {
 	w.Human(`  Agents are registered before they act, and can be stopped as one act.
 
@@ -705,6 +864,18 @@ func agentHelp() error {
   vaigil agent list                     who is registered, what each may call
   vaigil agent allow watcher --add vaigil_write
   vaigil agent allow watcher --remove vaigil_read
+
+  Where each agent runs
+  vaigil agent maps watcher --host build01
+  A declaration, not a guess: the collector's evidence says a file changed
+  on a host and never who changed it, and an operator who knows the estate
+  is the one who can say which agents run there. Once said, every watch and
+  heartbeat event from that host carries the declared names (raw.agents),
+  so a config change can be joined to the agent whose config it was. A host
+  maps to at most four agents — a shared CI box is a fact, a mapping that
+  grows past it is an inference nobody wrote — and the names must be
+  registered here. --remove takes the declaration back; a change shows up
+  on the host's next push, never in the events already stored.
 
   Bounding one run
   vaigil agent token watcher --tools vaigil_read --for-run triage-2026-10-27
@@ -731,6 +902,21 @@ func agentHelp() error {
   best-effort, so a platform that trusted the agent kills its sessions too.
   A receiver that is down is recorded as not hearing it and the kill here
   stands regardless — the switch must work offline.
+
+  What people have consented to
+  vaigil agent consents
+  When an agent asks to act for somebody over the authorization server
+  (/oauth/authorize, mounted beside the console), the person answers in
+  their browser and the answer is a row in a register: who authorised which
+  agent for which scope bundle — observe (reads) or triage (reads and
+  proposals) — until when, twelve hours at most. The row outlives the
+  click; it is the durable half of a delegation, and this lists it.
+  vaigil agent consents revoke ID ends one, and every token minted under
+  it dies in the same act: the consented access token and every
+  on-behalf-of credential an agent exchanged from it. An exchange itself is
+  bounded three ways — the consent's bundle, the registry's allowlist, and
+  the credential the agent presented — and the narrowest of the three is
+  what the exchanged token carries.
 
   There is deliberately no "disable all agents" here. A switch that turns
   off every agent at once is an availability weapon — one command, every

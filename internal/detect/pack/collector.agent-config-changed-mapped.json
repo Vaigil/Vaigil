@@ -1,0 +1,146 @@
+{
+  "id": "collector.agent-config-changed-mapped",
+  "title": "An agent's configuration changed on a host declared to run it",
+  "why": "the join leg of the watch-then-call chain: the same config change the severity-3 rule already raises, restricted to a host an operator has mapped to exactly one registered agent (vaigil agent maps), so the change can be attributed to that agent and correlated with the calls it went on to make. Quiet on purpose — the change itself is the other rule's finding; this exists so the correlation has an attributed half to count",
+  "blind": "everything the recorder cannot see (who changed it, what changed) plus the join's own limits: a host declared to run more than one agent carries the closed list in raw.agents and no single name, and this rule refuses to choose between them, so a shared box never feeds the chain; an SDK whose gen_ai.agent.id is not the registered name never joins; and the declaration is read at push time, so a mapping made after a change does not reach back to it",
+  "sources": [
+    "collector/watch"
+  ],
+  "severity": 2,
+  "when": {
+    "all": [
+      {
+        "match": {
+          "field": "raw.kind",
+          "op": "equals",
+          "values": [
+            "mcp-config",
+            "agent-config"
+          ]
+        }
+      },
+      {
+        "match": {
+          "field": "raw.op",
+          "op": "equals",
+          "values": [
+            "changed",
+            "created"
+          ]
+        }
+      },
+      {
+        "match": {
+          "field": "raw.agent",
+          "op": "exists"
+        }
+      }
+    ]
+  },
+  "technique": [
+    "T1098",
+    "T1195.002",
+    "AML.T0051.001",
+    "ASI06"
+  ],
+  "quiet": true,
+  "fixtures": [
+    {
+      "name": "a config changed on a host declared to run one agent",
+      "match": true,
+      "event": {
+        "source": "collector/watch",
+        "time": "2026-10-26T09:00:00Z",
+        "received": "2026-10-26T09:00:05Z",
+        "class": 1001,
+        "device": {
+          "issuer": "collector",
+          "value": "build01"
+        },
+        "message": "/home/dana/.mcp.json changed (mcp-config)",
+        "raw": {
+          "path": "/home/dana/.mcp.json",
+          "kind": "mcp-config",
+          "op": "changed",
+          "sha256": "b42d4f9e",
+          "size": "612",
+          "host": "build01",
+          "agents": "watcher",
+          "agent": "watcher"
+        }
+      }
+    },
+    {
+      "name": "the same change on a host nobody mapped",
+      "match": false,
+      "event": {
+        "source": "collector/watch",
+        "time": "2026-10-26T09:01:00Z",
+        "received": "2026-10-26T09:01:05Z",
+        "class": 1001,
+        "device": {
+          "issuer": "collector",
+          "value": "ci02"
+        },
+        "message": "/home/dana/.mcp.json changed (mcp-config)",
+        "raw": {
+          "path": "/home/dana/.mcp.json",
+          "kind": "mcp-config",
+          "op": "changed",
+          "sha256": "b42d4f9e",
+          "size": "612",
+          "host": "ci02"
+        }
+      }
+    },
+    {
+      "name": "a config changed on a host declared to run two agents",
+      "match": false,
+      "event": {
+        "source": "collector/watch",
+        "time": "2026-10-26T09:02:00Z",
+        "received": "2026-10-26T09:02:05Z",
+        "class": 1001,
+        "device": {
+          "issuer": "collector",
+          "value": "shared07"
+        },
+        "message": "/home/dana/.cursorrules created (agent-config)",
+        "raw": {
+          "path": "/home/dana/.cursorrules",
+          "kind": "agent-config",
+          "op": "created",
+          "sha256": "9ac1e0dd",
+          "size": "1840",
+          "host": "shared07",
+          "agents": "docs-bot,watcher"
+        }
+      }
+    },
+    {
+      "name": "a key file changed on a mapped host",
+      "match": false,
+      "event": {
+        "source": "collector/watch",
+        "time": "2026-10-26T09:03:00Z",
+        "received": "2026-10-26T09:03:05Z",
+        "class": 1001,
+        "device": {
+          "issuer": "collector",
+          "value": "build01"
+        },
+        "message": "/home/dana/.ssh/id_ed25519 changed (key)",
+        "raw": {
+          "path": "/home/dana/.ssh/id_ed25519",
+          "kind": "key",
+          "op": "changed",
+          "sha256": "77bd3a10",
+          "size": "419",
+          "host": "build01",
+          "agents": "watcher",
+          "agent": "watcher"
+        }
+      }
+    }
+  ]
+}

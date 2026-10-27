@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/vaigil/vaigil/internal/agentreg"
 	"github.com/vaigil/vaigil/internal/atomicfile"
 	"github.com/vaigil/vaigil/internal/audit"
 	"github.com/vaigil/vaigil/internal/automate"
@@ -882,6 +883,37 @@ func feedNames(m map[string]inbound.Feed) []string {
 
 // -- OpenTelemetry traces -----------------------------------------------------
 
+// otelCarriesTheJoinName copies each GenAI span's actor into the raw field
+// the recorder-side declaration writes — the way every cross-source
+// correlation in the pack joins, on one named field both sides carry
+// (raw.person for the identity rules, actor.value for the platform ones).
+//
+// Nothing is inferred: the span's actor is a fact the SDK stated, and this
+// renames it into the join field rather than deciding anything. The two
+// halves then meet in corr.watch-then-call — the watch leg carrying the
+// name an operator declared for the host, this leg carrying the name the
+// SDK claims for itself — and where those are the same string, the join is
+// as honest as either half: the operator said the agent runs there, and the
+// agent said it did this. Where they differ, nothing joins and nothing is
+// forced to.
+//
+// A raw.agent the span itself carried is left alone: the source's own word
+// about its agent beats a rename of the typed actor.
+func otelCarriesTheJoinName(events []telemetry.Event) {
+	for i := range events {
+		e := &events[i]
+		if e.Source != "otel/genai" || e.Actor.Value == "" {
+			continue
+		}
+		if e.Raw == nil {
+			e.Raw = map[string]string{}
+		}
+		if _, said := e.Raw["agent"]; !said {
+			e.Raw["agent"] = e.Actor.Value
+		}
+	}
+}
+
 // mountOTLP puts the OTLP/HTTP-JSON traces endpoint beside the console, on
 // the same port and outside its session middleware, the way the agent
 // interface is mounted: it answers a bearer credential, not a cookie.
@@ -906,6 +938,7 @@ func mountOTLP(mux *http.ServeMux, root string) {
 			return findSource(root, "otel/genai")
 		},
 		Store: func(events []telemetry.Event) error {
+			otelCarriesTheJoinName(events)
 			return withSpool(root, func(sp *spool.Spool) error {
 				if _, err := sp.AppendBatch(events); err != nil {
 					return err
@@ -1245,11 +1278,24 @@ func readCollectorBody(r *http.Request) ([]byte, int, string) {
 // because no mapping exists for them and inventing one to read three known
 // fields through would be ceremony, not reuse.
 //
+// The watch and heartbeat records are also where the recorder-host to agent
+// mapping is read (vaigil agent maps, internal/agentreg): once per batch,
+// never cached across pushes, so a mapping change is in force on the next
+// push and not on some later restart. A mapping that cannot be read refuses
+// the batch — the same line the registry draws — because storing evidence
+// as though nobody had ever declared anything would silently undo every
+// declaration on the file, and the honest failure is the loud one.
+//
 // Records with a source this endpoint does not know refuse the whole batch:
 // a version skew is a deployment error to surface, not half a batch to
 // store and half to drop, and the spool's append-only batch is the unit
 // either way.
 func (e *collectorEndpoint) events(name string, batch collector.Batch, now time.Time) ([]telemetry.Event, error) {
+	maps, err := agentMapStore(e.root).Load()
+	if err != nil {
+		return nil, fmt.Errorf("the recorder-host mapping cannot be read, so "+
+			"no collector evidence can be stored against it: %w", err)
+	}
 	var auditd []any
 	var out []telemetry.Event
 	for _, rec := range batch.Records {
@@ -1257,13 +1303,15 @@ func (e *collectorEndpoint) events(name string, batch collector.Batch, now time.
 		case collector.SourceAuditd:
 			auditd = append(auditd, rec.Data)
 		case collector.SourceWatch:
-			ev, err := collectorWatchEvent(name, rec, now)
+			ev, err := collectorWatchEvent(name, rec, now,
+				agentreg.AgentsFor(maps, recString(rec.Data, "host")))
 			if err != nil {
 				return nil, err
 			}
 			out = append(out, ev)
 		case collector.SourceHeartbeat:
-			ev, err := collectorHeartbeatEvent(name, rec, now)
+			ev, err := collectorHeartbeatEvent(name, rec, now,
+				agentreg.AgentsFor(maps, recString(rec.Data, "host")))
 			if err != nil {
 				return nil, err
 			}
@@ -1298,11 +1346,46 @@ func (e *collectorEndpoint) events(name string, batch collector.Batch, now time.
 	return out, nil
 }
 
+// declaredAgents writes the operator's host-to-agent declaration into a
+// collector event's raw fields. Three honesty rules, and they are the whole
+// design:
+//
+// The event says what the OPERATOR declared, not what the program guessed.
+// The collector saw a file change on a host and nothing else; every name
+// below is one a person wrote into the mapping beside the registry, and an
+// event from a host nobody mapped carries nothing at all — not an empty
+// list, not a guessed one.
+//
+// No actor is invented. The recorder's device id stays the event's only
+// who-or-where; stamping an Actor from the declaration would turn "these
+// agents run here" into "this agent did it", which is exactly the false
+// precision the pack's refusal was refusing.
+//
+// The closed list travels whole (raw.agents), and the single name a join
+// needs (raw.agent) travels only when the list has exactly one entry. A
+// host declared to run two agents is not attributed between them — the
+// program refuses to choose, which is why the join leg below carries
+// nothing for a shared box and says so in its blind.
+func declaredAgents(e telemetry.Event, declared []string) telemetry.Event {
+	if len(declared) == 0 {
+		return e
+	}
+	if e.Raw == nil {
+		e.Raw = map[string]string{}
+	}
+	e.Raw["agents"] = strings.Join(declared, ",")
+	if len(declared) == 1 {
+		e.Raw["agent"] = declared[0]
+	}
+	return e
+}
+
 // collectorWatchEvent is one watched-path change as an event. The raw
 // fields are the whole of what the collector noticed — path, kind, sha256,
-// size, op — and the content the hash stands for is not, and cannot be,
-// here.
-func collectorWatchEvent(name string, r collector.Record, at time.Time) (telemetry.Event, error) {
+// size, op — plus, when the recorder's host has been mapped to agent(s), the
+// names the operator declared there (declaredAgents above).
+func collectorWatchEvent(name string, r collector.Record, at time.Time,
+	declared []string) (telemetry.Event, error) {
 	path := recString(r.Data, "path")
 	kind := recString(r.Data, "kind")
 	op := recString(r.Data, "op")
@@ -1335,6 +1418,7 @@ func collectorWatchEvent(name string, r collector.Record, at time.Time) (telemet
 			"size":   recString(r.Data, "size"),
 			"host":   recString(r.Data, "host")},
 	}
+	e = declaredAgents(e, declared)
 	if e.Raw["sha256"] != "" {
 		e.Observables = append(e.Observables, telemetry.Observable{
 			Kind: telemetry.ObservableHash, Value: e.Raw["sha256"], Name: "sha256"})
@@ -1350,8 +1434,11 @@ func collectorWatchEvent(name string, r collector.Record, at time.Time) (telemet
 // collectorHeartbeatEvent is the recorder's one-minute "still here". The
 // missing-heartbeat detection is a rule written against this source, run
 // here on the server — a recorder that noticed its own silence would be a
-// recorder that judged, and judging is not its job.
-func collectorHeartbeatEvent(name string, r collector.Record, at time.Time) (telemetry.Event, error) {
+// recorder that judged, and judging is not its job. A mapped host's
+// heartbeat carries the declared names too (declaredAgents), so a host's
+// liveness and its agents can be asked about in one place.
+func collectorHeartbeatEvent(name string, r collector.Record, at time.Time,
+	declared []string) (telemetry.Event, error) {
 	when := r.At
 	if when.IsZero() {
 		when = at
@@ -1379,6 +1466,7 @@ func collectorHeartbeatEvent(name string, r collector.Record, at time.Time) (tel
 		}
 	}
 	e.Raw = raw
+	e = declaredAgents(e, declared)
 	if err := e.Validate(); err != nil {
 		return telemetry.Event{}, err
 	}
