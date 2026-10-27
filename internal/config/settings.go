@@ -292,6 +292,50 @@ var settings = []Setting{
 			"hands every name to the receiving system and to whoever can read it.",
 		Weaker: onIsWeaker("people's names leave in the audit stream"),
 	},
+	{
+		Key: "ssf.transmit.receivers", Kind: List, Default: "",
+		Summary:  "addresses that hear the agent kill switch, as SSF receivers",
+		Controls: []string{"AC-2(3)", "AC-2"},
+		Why: "Each entry is where a receiver listens for security event tokens " +
+			"(https, or http to this machine), and may name the stored secret " +
+			"holding its bearer token after a bar: URL|SECRET. When an agent " +
+			"is disabled, a signed session-revoked event is pushed to every " +
+			"entry, best-effort — a failed push is recorded and the local kill " +
+			"stands. Empty means transmitting is off: the kill switch still " +
+			"works, it says nothing to other platforms.",
+	},
+	{
+		Key: "ssf.transmit.allow_remote", Kind: Bool, Default: "false",
+		Summary: "permit a kill-switch receiver that is not on this machine or network",
+		Why: "A session-revoked event names an agent and carries the reason a " +
+			"person typed. Sending that to a hosted service is a disclosure that " +
+			"should be a sentence somebody typed rather than a " +
+			"consequence of pasting an address. Loopback and private " +
+			"addresses need no flag.",
+		Weaker: onIsWeaker("the kill switch's events leave this network"),
+	},
+
+	// -- compliance ------------------------------------------------------------
+	{
+		Key: NISTModeKey, Kind: Bool, Default: "false",
+		Summary:  "refuse to weaken a setting while the NIST floors hold",
+		Controls: []string{"AC-5"},
+		Why: "A profile of defaults rather than a different program. While it " +
+			"is on, a value that a setting's floor calls weaker is refused " +
+			"outright — not accepted with a reason, and not waiting for a " +
+			"second administrator. The floors it holds are exactly the " +
+			"settings whose weakening would otherwise need that second " +
+			"administrator: how long a token or a sign-in may last, what may " +
+			"leave this network, and how much of the internet a forwarded " +
+			"address may be believed from.\n\n" +
+			"The two NIST caps this program is named for hold for every " +
+			"deployment, mode or no mode, so the mode does not tighten them: " +
+			"a console session nobody is using ends after an hour, and after " +
+			"fifteen minutes for anybody who can grant access.\n\n" +
+			"Turning the mode off is allowed and is recorded like any other " +
+			"change; nothing is locked. The Compliance screen shows what the " +
+			"mode holds and what the audit chain evidences.",
+	},
 }
 
 // -- the shapes a floor takes ------------------------------------------------
@@ -599,6 +643,30 @@ func (s Setting) Validate(v string) error {
 		if s.Key == "network.trusted_proxies" && strings.TrimSpace(v) != "" {
 			if _, err := clientip.ParseProxies(strings.Split(v, ",")); err != nil {
 				return err
+			}
+		}
+		if s.Key == "ssf.transmit.receivers" && strings.TrimSpace(v) != "" {
+			// Each entry is a receiver's address, and may carry the name of
+			// the stored secret that holds its bearer token after a bar. The
+			// address rule is siem.stream.url's: https, or http only to this
+			// machine, because the push is signed but the line to it is not.
+			for _, entry := range strings.Split(v, ",") {
+				entry = strings.TrimSpace(entry)
+				if entry == "" {
+					continue
+				}
+				where, secret, _ := strings.Cut(entry, "|")
+				u, err := url.Parse(where)
+				if err != nil || where == "" || u.Host == "" || u.User != nil ||
+					(u.Scheme != "https" && !(u.Scheme == "http" && isLoopbackHost(u.Hostname()))) {
+					return fmt.Errorf("%q is not an https address a receiver listens on "+
+						"(http only to this machine)", where)
+				}
+				if secret != "" && (len(secret) > 64 ||
+					strings.Trim(secret, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-") != "") {
+					return fmt.Errorf("%q is not a secret name; letters, digits, dots, "+
+						"dashes and underscores", secret)
+				}
 			}
 		}
 	}

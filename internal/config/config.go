@@ -296,6 +296,11 @@ func (c *Config) Set(key, value, reason, by string) error {
 	if err := s.Validate(value); err != nil {
 		return fmt.Errorf("%s: %w", key, err)
 	}
+	// The NIST profile, when on, comes before acceptance: this value is not
+	// weakenable-with-a-reason here, it is refused.
+	if err := nistRefusal(c, s, value); err != nil {
+		return err
+	}
 
 	if weaker, why := s.IsWeaker(value); weaker {
 		if strings.TrimSpace(reason) == "" {
@@ -334,6 +339,12 @@ func (c *Config) Put(key, value, reason, by string) error {
 	}
 	if err := s.Validate(value); err != nil {
 		return fmt.Errorf("%s: %w", key, err)
+	}
+	// The NIST profile holds here too. Put is the two-administrator path, and
+	// a floor is not a floor if the second administrator can step outside it:
+	// the mode's answer to a weaker value is the same whoever approves.
+	if err := nistRefusal(c, s, value); err != nil {
+		return err
 	}
 	c.dropAcceptance(key)
 	if weaker, _ := s.IsWeaker(value); weaker {

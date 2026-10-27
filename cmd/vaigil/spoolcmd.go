@@ -1,4 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Rashik Adhikari
+// SPDX-FileCopyrightText: 2026 Anthropic PBC
 // SPDX-License-Identifier: Apache-2.0
 
 package main
@@ -261,10 +262,13 @@ func spoolRetain(root string, args []string) error {
 	apply := fs.Bool("apply", false, "carry the plan out")
 	keep := fs.Duration("keep", spool.DefaultKeep, "the age limit")
 	capBytes := fs.Int64("cap", spool.DefaultCap, "the size limit, in bytes")
+	floorDays := fs.Int("floor", 0, "the retention floor in days: nothing "+
+		"younger is deleted, whatever the cap says")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	s, err := openSpool(root, spool.Options{Keep: *keep, Cap: *capBytes})
+	s, err := openSpool(root, spool.Options{Keep: *keep, Cap: *capBytes,
+		Floor: time.Duration(*floorDays) * 24 * time.Hour})
 	if err != nil {
 		return err
 	}
@@ -279,6 +283,15 @@ func spoolRetain(root string, args []string) error {
 		for _, seg := range plan.Drop {
 			w.Human("  %s%s  %d event(s)  %d byte(s)%s\n",
 				dim, seg.Name, seg.Events, seg.Bytes, reset)
+		}
+		for _, seg := range plan.Pinned {
+			w.Human("  %s%s  %d event(s)  kept: inside the retention floor%s\n",
+				yellow, seg.Name, seg.Events, reset)
+		}
+		if len(plan.Pinned) > 0 {
+			w.Human("  %s%d segment(s) the cap wanted are younger than the "+
+				"floor. The spool stays over cap; the floor is a promise, "+
+				"the disk is now the constraint%s\n", yellow, len(plan.Pinned), reset)
 		}
 		if len(plan.Drop) > 0 {
 			w.Human("\n  %snothing was deleted. Run again with --apply%s\n",
@@ -328,11 +341,18 @@ func detailOfRetention(gone int, plan spool.Plan) map[string]string {
 	if !plan.Covers.IsZero() {
 		covers = plan.Covers.Format(time.RFC3339)
 	}
-	return map[string]string{
+	detail := map[string]string{
 		"dropped": fmt.Sprint(gone),
 		"freed":   fmt.Sprint(plan.Freed),
 		"covers":  covers,
 	}
+	// The floor is only recorded when one was in force: the record of a
+	// deletion is read years later, and an absent key has to mean "no
+	// floor" rather than "nobody wrote it down".
+	if plan.Floor > 0 {
+		detail["floor"] = fmt.Sprint(int64(plan.Floor / (24 * time.Hour)))
+	}
+	return detail
 }
 
 func spoolHold(root string, args []string) error {

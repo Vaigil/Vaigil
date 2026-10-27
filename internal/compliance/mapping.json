@@ -1,0 +1,643 @@
+{
+  "schema": "vaigil/mapping/v1",
+  "generated": "2026-10-26",
+  "catalogs": {
+    "nist-sp-800-53": "5.2.0",
+    "nist-csf": "2.0",
+    "nist-ai-rmf": "1.0",
+    "owasp-agentic": "2026",
+    "mitre-atlas": "2026-10",
+    "mitre-attack": "16"
+  },
+  "entries": [
+    {
+      "id": "vaigil.signin-failures",
+      "kind": "detection",
+      "title": "Repeated failed sign-ins to this program",
+      "nist": {
+        "controls": ["AC-7", "AU-12", "SI-4"],
+        "csf": ["PR.AA", "DE.CM"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": ["T1110"],
+      "evidence": {
+        "actions": ["auth.failures"],
+        "proves": "the failures this rule counts are themselves reacted to in the chain, with the count"
+      }
+    },
+    {
+      "id": "vaigil.admin-granted",
+      "kind": "detection",
+      "title": "Somebody was made an administrator of this program",
+      "nist": {
+        "controls": ["AC-2", "AC-6(9)", "AU-12"],
+        "csf": ["PR.AA"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": ["T1098"],
+      "evidence": {
+        "actions": ["auth.granted", "auth.denied"],
+        "proves": "every grant and deny is a signed record naming the subject and the role"
+      }
+    },
+    {
+      "id": "vaigil.admin-token-issued",
+      "kind": "detection",
+      "title": "A token with administrator rights was issued",
+      "nist": {
+        "controls": ["AC-2", "IA-5", "AU-12"],
+        "csf": ["PR.AA"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": ["T1098"],
+      "evidence": {
+        "actions": ["token.issue"],
+        "proves": "each token issue is signed with its role and scope, capped by the issuer's own"
+      }
+    },
+    {
+      "id": "vaigil.break-glass",
+      "kind": "detection",
+      "title": "Emergency access recovery was used",
+      "nist": {
+        "controls": ["AC-2(3)", "IA-5", "IR-4"],
+        "csf": ["PR.AA", "RS.MI"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": ["T1078"],
+      "evidence": {
+        "actions": ["auth.break-glass"],
+        "proves": "recovery is rare and loud: one signed record each time it is used, refused while any admin token still works"
+      }
+    },
+    {
+      "id": "vaigil.audit-log-moved",
+      "kind": "detection",
+      "title": "The audit log was moved",
+      "nist": {
+        "controls": ["AU-9"],
+        "csf": ["PR.PS"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": ["T1070"],
+      "evidence": {
+        "actions": ["auditlog.dir", "dual.approved"],
+        "proves": "repointing every reader at a different log waits for a second administrator, and both decisions are signed"
+      }
+    },
+    {
+      "id": "vaigil.setting-weakened",
+      "kind": "detection",
+      "title": "A security setting was weakened",
+      "nist": {
+        "controls": ["AC-5", "AU-12"],
+        "csf": ["PR.PS"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": ["T1562"],
+      "evidence": {
+        "actions": ["config.set", "config.unset", "dual.approved"],
+        "proves": "weakening a setting is a dual-control change, and every set and unset is signed with the value"
+      }
+    },
+    {
+      "id": "vaigil.agent-proposed",
+      "kind": "detection",
+      "title": "A model proposed what to do with a finding",
+      "nist": {
+        "controls": ["AU-3", "AU-12"],
+        "csf": ["DE.AE"],
+        "ai_rmf": ["GV-4"]
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": [],
+      "evidence": {
+        "actions": ["proposal.finding"],
+        "proves": "a model's proposal is recorded as an AI actor's under its own name, and a model cannot record the decision"
+      }
+    },
+    {
+      "id": "vaigil.agent-call-denied",
+      "kind": "detection",
+      "title": "A model's tool call was refused",
+      "nist": {
+        "controls": ["AC-3", "AU-12", "SI-4"],
+        "csf": ["PR.AA", "DE.CM"],
+        "ai_rmf": ["ME-3"]
+      },
+      "owasp_agentic": ["ASI02"],
+      "atlas": [],
+      "attack": [],
+      "evidence": {
+        "actions": ["mcp.call"],
+        "proves": "refusals are kept apart from failures in the chain, per actor and tool, so a run of them is countable"
+      }
+    },
+    {
+      "id": "okta.mfa-reset",
+      "kind": "detection",
+      "title": "A second factor was reset or removed in Okta",
+      "nist": {
+        "controls": ["IA-5", "SI-4"],
+        "csf": ["DE.CM"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": ["T1556"],
+      "evidence": {
+        "actions": [],
+        "proves": "the platform's events live in the detection store, not this chain; what this chain holds is each pass that watched for them (engine.detection-runs)"
+      }
+    },
+    {
+      "id": "okta.admin-privilege-granted",
+      "kind": "detection",
+      "title": "An administrator role was granted in Okta",
+      "nist": {
+        "controls": ["AC-2", "AU-12"],
+        "csf": ["DE.CM"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": ["T1098"],
+      "evidence": {
+        "actions": [],
+        "proves": "the platform's events live in the detection store; each pass that watched for them is signed (engine.detection-runs)"
+      }
+    },
+    {
+      "id": "okta.api-token-created",
+      "kind": "detection",
+      "title": "An API token was created in Okta",
+      "nist": {
+        "controls": ["IA-5", "SI-4"],
+        "csf": ["DE.CM"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": ["T1528"],
+      "evidence": {
+        "actions": [],
+        "proves": "the platform's events live in the detection store; each pass that watched for them is signed (engine.detection-runs)"
+      }
+    },
+    {
+      "id": "aws.trail-tampered",
+      "kind": "detection",
+      "title": "A CloudTrail trail was stopped, deleted or narrowed",
+      "nist": {
+        "controls": ["AU-9", "SI-4"],
+        "csf": ["DE.CM"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": ["T1562.008"],
+      "evidence": {
+        "actions": [],
+        "proves": "the platform's events live in the detection store; each pass that watched for them is signed (engine.detection-runs)"
+      }
+    },
+    {
+      "id": "auditd.auditctl-run",
+      "kind": "detection",
+      "title": "The audit daemon's control tool was run",
+      "nist": {
+        "controls": ["AU-9", "SI-4"],
+        "csf": ["DE.CM"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": ["T1562.008"],
+      "evidence": {
+        "actions": [],
+        "proves": "the host's events live in the detection store; each pass that watched for them is signed (engine.detection-runs)"
+      }
+    },
+    {
+      "id": "github.deploy-key-added",
+      "kind": "detection",
+      "title": "A deploy key was added to a repository on GitHub",
+      "nist": {
+        "controls": ["AC-2", "IA-5", "SI-4"],
+        "csf": ["DE.CM"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": ["T1098"],
+      "evidence": {
+        "actions": [],
+        "proves": "the platform's events live in the detection store; each pass that watched for them is signed (engine.detection-runs)"
+      }
+    },
+    {
+      "id": "k8s.anonymous-succeeded",
+      "kind": "detection",
+      "title": "A Kubernetes request succeeded as system:anonymous",
+      "nist": {
+        "controls": ["AC-3", "AU-12", "SI-4"],
+        "csf": ["DE.CM"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": ["T1190", "T1078.001"],
+      "evidence": {
+        "actions": [],
+        "proves": "the cluster's events live in the detection store; each pass that watched for them is signed (engine.detection-runs)"
+      }
+    },
+    {
+      "id": "authn.phishing-resistant",
+      "kind": "feature",
+      "title": "Passkeys with mandatory user verification; SSO that must assert two factors",
+      "nist": {
+        "controls": ["IA-2", "IA-2(1)", "IA-2(2)"],
+        "csf": ["PR.AA"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": [],
+      "evidence": {
+        "actions": ["session.start", "signin.oidc"],
+        "proves": "each session and federated sign-in names its method in the chain; passkey user verification has no setting that turns it off"
+      }
+    },
+    {
+      "id": "session.limits",
+      "kind": "feature",
+      "title": "Idle and absolute session caps, fifteen minutes for administrators",
+      "nist": {
+        "controls": ["AC-12", "AC-2(5)"],
+        "csf": ["PR.AA"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": [],
+      "evidence": {
+        "actions": ["session.start"],
+        "proves": "every session starts as a signed record; the caps that end it are policy read at start"
+      }
+    },
+    {
+      "id": "dual.control",
+      "kind": "feature",
+      "title": "Privileged changes asked by one administrator and decided by another",
+      "nist": {
+        "controls": ["AC-5", "AU-9(5)"],
+        "csf": ["PR.AA"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": [],
+      "evidence": {
+        "actions": ["dual.proposed", "dual.approved", "dual.declined", "dual.withdrawn", "dual.redeemed"],
+        "proves": "every proposal and every decision is signed by a different pseudonymised principal"
+      }
+    },
+    {
+      "id": "agents.kill-switch",
+      "kind": "feature",
+      "title": "One act disables an agent: its register row, its credential, and its neighbours' sessions",
+      "nist": {
+        "controls": ["AC-2(3)", "IR-4"],
+        "csf": ["RS.MI"],
+        "ai_rmf": ["MG-3"]
+      },
+      "owasp_agentic": ["ASI03"],
+      "atlas": [],
+      "attack": [],
+      "evidence": {
+        "actions": ["agent.disable", "agent.enable", "token.revoke", "ssf.transmitted", "ssf.transmit-failed"],
+        "proves": "a disable is one signed act with its reason; the revocations and the announcement to other platforms are signed beside it, and so is any failure to announce"
+      }
+    },
+    {
+      "id": "agents.registry",
+      "kind": "feature",
+      "title": "The register of AI agents: an unregistered agent is nobody",
+      "nist": {
+        "controls": ["AC-2", "IA-9"],
+        "csf": ["PR.AA"],
+        "ai_rmf": ["GV-4"]
+      },
+      "owasp_agentic": ["ASI03"],
+      "atlas": [],
+      "attack": [],
+      "evidence": {
+        "actions": ["agent.add", "agent.allow", "agent.disallow"],
+        "proves": "every registration and every change to what an agent may call is signed, with the owner"
+      }
+    },
+    {
+      "id": "agents.calls",
+      "kind": "feature",
+      "title": "Agent tool calls authorised per operation, then recorded with their verdict",
+      "nist": {
+        "controls": ["AC-3", "AC-6", "AU-12", "IA-9"],
+        "csf": ["PR.AA"],
+        "ai_rmf": ["ME-3"]
+      },
+      "owasp_agentic": ["ASI02"],
+      "atlas": [],
+      "attack": [],
+      "evidence": {
+        "actions": ["mcp.call"],
+        "proves": "each call is checked against the register before it runs and recorded after, with success, failure and denial kept apart"
+      }
+    },
+    {
+      "id": "model.masking",
+      "kind": "feature",
+      "title": "Identifiers masked before a model sees a prompt, and the masking recorded",
+      "nist": {
+        "controls": ["AC-4", "SI-19"],
+        "csf": ["PR.DS"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": [],
+      "evidence": {
+        "actions": ["model.masked"],
+        "proves": "what was withheld from the model is itself a signed count per call"
+      }
+    },
+    {
+      "id": "content.signed-packs",
+      "kind": "feature",
+      "title": "Detection packs that arrive signed, installed and rolled back under signature",
+      "nist": {
+        "controls": ["SA-15", "SI-7"],
+        "csf": ["GV.SC"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": [],
+      "evidence": {
+        "actions": ["content.keygen", "content.signed", "content.installed", "content.rolled-back"],
+        "proves": "a pack the keys do not verify never installs; the key, each signing, each install and each rollback are signed records"
+      }
+    },
+    {
+      "id": "telemetry.one-shape",
+      "kind": "feature",
+      "title": "One event shape for every source this program reads",
+      "nist": {
+        "controls": ["SA-15(13)"],
+        "csf": ["DE.CM"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": [],
+      "evidence": {
+        "actions": [],
+        "proves": "the control is the ingest design itself: one schema, checked per source, before anything is stored"
+      }
+    },
+    {
+      "id": "engine.detection-runs",
+      "kind": "feature",
+      "title": "Every pass of the rules is a signed record of its own",
+      "nist": {
+        "controls": ["AU-12", "CA-7", "SI-4"],
+        "csf": ["DE.AE"],
+        "ai_rmf": ["ME-3"]
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": [],
+      "evidence": {
+        "actions": ["detect.run"],
+        "proves": "the monitoring demonstrably ran, when and by whom — the thing an auditor cannot get from a system that only records what it found"
+      }
+    },
+    {
+      "id": "tuning.suppressions",
+      "kind": "feature",
+      "title": "Suppressions that end by their own date",
+      "nist": {
+        "controls": ["SI-4"],
+        "csf": ["DE.CM"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": [],
+      "evidence": {
+        "actions": ["detect.suppress", "detect.unsuppress"],
+        "proves": "making a suppression and lifting it are signed, with the owner and the expiry"
+      }
+    },
+    {
+      "id": "tuning.trial-ring",
+      "kind": "feature",
+      "title": "A rule reaches the live ring by recorded verdict, not by opinion",
+      "nist": {
+        "controls": ["CA-7", "SI-4"],
+        "csf": ["ID.RA"],
+        "ai_rmf": ["ME-3"]
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": [],
+      "evidence": {
+        "actions": ["detect.ring"],
+        "proves": "each move between trial and live is signed with its reason, behind a floor of measured verdicts"
+      }
+    },
+    {
+      "id": "vuln.ranking",
+      "kind": "feature",
+      "title": "The vulnerability queue ranked from KEV, EPSS and SSVC decisions",
+      "nist": {
+        "controls": ["RA-5", "SI-2"],
+        "csf": ["ID.RA", "RS.MI"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": [],
+      "evidence": {
+        "actions": ["vuln.imported", "vuln.loaded"],
+        "proves": "each feed load is signed: what the queue was ranked from, and when"
+      }
+    },
+    {
+      "id": "finding.decisions",
+      "kind": "feature",
+      "title": "A finding's state is the fold of an append-only log of decisions",
+      "nist": {
+        "controls": ["AU-10", "RA-7"],
+        "csf": ["DE.AE", "GV.RR"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": [],
+      "evidence": {
+        "actions": ["finding.*"],
+        "proves": "who decided what and when, signed, with acceptance carrying its expiry; a model's name never appears as the decider"
+      }
+    },
+    {
+      "id": "lockout.place",
+      "kind": "feature",
+      "title": "Repeated failures lock the place, not the person",
+      "nist": {
+        "controls": ["AC-7"],
+        "csf": ["PR.AA"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": [],
+      "evidence": {
+        "actions": ["auth.failures"],
+        "proves": "the threshold crossed is a signed record with the count, and it names nobody it cannot prove"
+      }
+    },
+    {
+      "id": "ir.clocks",
+      "kind": "feature",
+      "title": "The notification clocks, started by a declaration and ticked by each notice",
+      "nist": {
+        "controls": ["IR-6"],
+        "csf": ["RS.CO"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": [],
+      "evidence": {
+        "actions": ["incident.declared", "notice.delivered"],
+        "proves": "the declaration that starts a clock and each delivery against it are signed with their time"
+      }
+    },
+    {
+      "id": "ingest.otlp",
+      "kind": "feature",
+      "title": "GenAI spans ingested over OTLP and detected on arrival",
+      "nist": {
+        "controls": ["AU-2", "AU-12"],
+        "csf": ["DE.CM"],
+        "ai_rmf": ["ME-3"]
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": [],
+      "evidence": {
+        "actions": ["detect.run", "inbound.store"],
+        "proves": "each pass over what arrived is signed, and a store that refused a batch is recorded as a failure rather than passed over in silence"
+      }
+    },
+    {
+      "id": "soar.platform-actions",
+      "kind": "soar-action",
+      "title": "An act on another platform: asked by one person, approved by another, undoable",
+      "nist": {
+        "controls": ["AC-2(3)", "AC-5", "IR-4"],
+        "csf": ["RS.MI"],
+        "ai_rmf": ["MG-3"]
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": [],
+      "evidence": {
+        "actions": ["incident.act-request", "incident.act-approve", "incident.act-undo"],
+        "proves": "the request, the second administrator's approval and any undo are three signed records"
+      }
+    },
+    {
+      "id": "automation.runs",
+      "kind": "feature",
+      "title": "Automations that act on sign-ins, within hourly limits, never approved by their author",
+      "nist": {
+        "controls": ["IR-4", "SI-4"],
+        "csf": ["RS.MI"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": [],
+      "evidence": {
+        "actions": ["automation.run-*"],
+        "proves": "each run's state changes are signed as they happen, watch, ask and act kept apart"
+      }
+    },
+    {
+      "id": "audit.heads",
+      "kind": "feature",
+      "title": "Tree heads signed twice, Ed25519 and ML-DSA-65, anchored through OpenTimestamps",
+      "nist": {
+        "controls": ["AU-9", "AU-10"],
+        "csf": ["PR.PS"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": [],
+      "evidence": {
+        "actions": [],
+        "proves": "the dual-signed head carried by every evidence pack is itself the evidence: two algorithms over one root, and an anchor that outlives any certificate authority"
+      }
+    },
+    {
+      "id": "audit.retention",
+      "kind": "feature",
+      "title": "An append-only log: no deletion path exists to record",
+      "nist": {
+        "controls": ["AU-11"],
+        "csf": [],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": [],
+      "evidence": {
+        "actions": [],
+        "proves": "retention is the log itself: day-rolled segments, sealed under SHA-256, with no command that removes an entry"
+      }
+    },
+    {
+      "id": "compliance.mapping",
+      "kind": "feature",
+      "title": "This mapping, checked against the program rather than asserted",
+      "nist": {
+        "controls": ["CA-2"],
+        "csf": ["GV.SC"],
+        "ai_rmf": []
+      },
+      "owasp_agentic": [],
+      "atlas": [],
+      "attack": [],
+      "evidence": {
+        "actions": [],
+        "proves": "the build fails if a rule this names does not ship or an action it queries is one the program never writes"
+      }
+    }
+  ]
+}
