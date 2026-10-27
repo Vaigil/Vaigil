@@ -185,6 +185,11 @@ var commandNeeds = map[string]need{
 	// The analyst reads every finding and spends the model budget.
 	"analyst":      {action: auth.ActTriage},
 	"analyst plan": {action: auth.ActView},
+	// The benchmark measures the analyst and, against a real model, spends
+	// the model budget to do it: the same weight as the analyst's own eval.
+	// Rendering a document somebody already has is only reading.
+	"bench":        {action: auth.ActTune},
+	"bench report": {action: auth.ActView},
 	// An action changes something in somebody else's tool.
 	"action":           {action: auth.ActGrant},
 	"action catalogue": {action: auth.ActView},
@@ -601,7 +606,7 @@ var commandAreas = map[string]string{
 	"workforce": auth.AreaSecurity, "hunt": auth.AreaSecurity, "detect": auth.AreaSecurity,
 	"sigma": auth.AreaSecurity, "correlate": auth.AreaSecurity, "telemetry": auth.AreaSecurity,
 	"siem": auth.AreaLog, "automate": auth.AreaSecurity, "inbound": auth.AreaSecurity,
-	"auditlog": auth.AreaLog, "compliance": auth.AreaLog,
+	"auditlog": auth.AreaLog, "compliance": auth.AreaLog, "bench": auth.AreaSecurity,
 }
 
 // commandArea is the area a command works in, if it works in one.

@@ -171,6 +171,21 @@ var coverage = map[string]surfaces{
 		NoMCP: "it is the agent. A model starting the analyst is a model " +
 			"starting a model, with nobody in the loop to have asked for it",
 	},
+
+	// The open benchmark of the analyst's first pass: the labelled corpus,
+	// the metrics over it, and the document a run produces.
+	"bench": {
+		Why: "a benchmark's results are terminal output and documents that " +
+			"carry their own digests, compared run against run by the " +
+			"people who changed the analyst between them; the screen worth " +
+			"building is the trend over runs, which arrives when there are " +
+			"runs to trend",
+		NoMCP: "measuring the analyst is not an operation an agent " +
+			"performs: an agent invoking the benchmark would be the thing " +
+			"being measured spending the model budget to measure itself, " +
+			"and a document an agent generates about its own performance " +
+			"is the one nobody should be able to hand somebody",
+	},
 	"action": {GUI: "/security/cases",
 		Why: "an action is asked for and approved on the incident's page; " +
 			"installing one and giving it a credential are the operator's",

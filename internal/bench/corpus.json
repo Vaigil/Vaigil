@@ -1,0 +1,1860 @@
+{
+  "schema": 1,
+  "name": "vaigilbench-v0",
+  "cases": [
+    {
+      "name": "bruteforce-privileged-record",
+      "expect": "real",
+      "provenance": "derived-from-dispositions",
+      "inject": true,
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "high",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 6,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 41,
+            "age_hours": 6,
+            "other_entities_open": 1
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Failed sign-in to a privileged account",
+          "entity": "svc-deploy@corp.example",
+          "evidence": [
+            "sign-in failure 41 of 41 on admin-dana from 198.51.100.7",
+            "the same source tried 41 passwords in 9 minutes",
+            "user-agent curl/8.9.1 on the last three attempts"
+          ]
+        }
+      }
+    },
+    {
+      "name": "compromised-service-account",
+      "expect": "real",
+      "provenance": "derived-from-dispositions",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "high",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 3,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 12,
+            "age_hours": 3,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Service account behaving as it never has",
+          "entity": "svc-backup@corp.example",
+          "evidence": [
+            "svc-backup read 14 repositories it had never touched",
+            "a personal access token was minted outside the login window"
+          ]
+        }
+      }
+    },
+    {
+      "name": "listed-indicator-c2",
+      "expect": "real",
+      "provenance": "hand-labeled-from-catalogue",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "high",
+          "from_indicator": true,
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 3,
+            "age_hours": 2,
+            "other_entities_open": 0,
+            "indicator_sources": 5
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Contact with an address five feeds list",
+          "entity": "203.0.113.9",
+          "evidence": [
+            "workstation called 203.0.113.9 every 20 minutes for six hours",
+            "the destination answers on 443 and speaks to nobody else here"
+          ]
+        }
+      }
+    },
+    {
+      "name": "gathering-incident",
+      "expect": "real",
+      "provenance": "hand-labeled-from-catalogue",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "medium",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 2
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            },
+            "in_an_incident": true
+          },
+          "from_the_logs_volume": {
+            "times_seen": 8,
+            "age_hours": 30,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "An incident already gathers this finding",
+          "entity": "admin-li@corp.example",
+          "evidence": [
+            "linked to INC-2041 by the on-call analyst at 03:12",
+            "two sibling findings from the same hour are already in it"
+          ]
+        }
+      }
+    },
+    {
+      "name": "critical-mass-first-hour",
+      "expect": "real",
+      "provenance": "hand-labeled-from-catalogue",
+      "inject": true,
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "critical",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 120,
+            "age_hours": 1,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Mass credential failure across the estate",
+          "entity": "198.51.100.0/24",
+          "evidence": [
+            "120 accounts saw password failures within one hour",
+            "none of them share a legitimate integration"
+          ]
+        }
+      }
+    },
+    {
+      "name": "thin-first-blast",
+      "expect": "real",
+      "provenance": "hand-labeled-from-catalogue",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "medium",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 12
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 2,
+            "age_hours": 1,
+            "other_entities_open": 12
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "First sighting of a new pattern",
+          "entity": "contractor-9@corp.example",
+          "evidence": [
+            "two password failures outside working hours",
+            "the rule fired 12 times today and nobody has ruled on any of it"
+          ]
+        }
+      }
+    },
+    {
+      "name": "mixed-record-lean-real",
+      "expect": "real",
+      "provenance": "hand-labeled-from-catalogue",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "high",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 3,
+              "false_positive": 2,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 9,
+            "age_hours": 4,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Privileged sign-in from a new country",
+          "entity": "admin-sam@corp.example",
+          "evidence": [
+            "sign-in from a country this account has never used",
+            "the rule's record leans real but two of five were overruled"
+          ]
+        }
+      }
+    },
+    {
+      "name": "spray-with-clean-record",
+      "expect": "real",
+      "provenance": "hand-labeled-from-catalogue",
+      "inject": true,
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "high",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 2,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 400
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 500,
+            "age_hours": 20,
+            "other_entities_open": 400
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "The rule's two ruled findings were real",
+          "entity": "kiosk-3@corp.example",
+          "evidence": [
+            "password spray across 400 invented actor names",
+            "the volume is the attacker's to write; the two rulings are people's"
+          ]
+        }
+      }
+    },
+    {
+      "name": "mfa-fatigue-evening",
+      "expect": "real",
+      "provenance": "derived-from-dispositions",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "high",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 4,
+              "false_positive": 0,
+              "benign": 1,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 22,
+            "age_hours": 2,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Push fatigue pattern on an executive account",
+          "entity": "exec-mei@corp.example",
+          "evidence": [
+            "22 MFA pushes between 23:40 and 23:59, one approved",
+            "the approving device is a new fingerprint"
+          ]
+        }
+      }
+    },
+    {
+      "name": "token-replay-after-reset",
+      "expect": "real",
+      "provenance": "hand-labeled-from-catalogue",
+      "inject": true,
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "high",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 2,
+              "false_positive": 0,
+              "benign": 1,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 4,
+            "age_hours": 5,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Old session token used after a reset",
+          "entity": "admin-dana@corp.example",
+          "evidence": [
+            "a token minted before the password reset called the API at 04:00",
+            "the entity's record is mixed: two real, one a benign oddity"
+          ]
+        }
+      }
+    },
+    {
+      "name": "first-ruled-real",
+      "expect": "real",
+      "provenance": "derived-from-dispositions",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "high",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 1,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 7,
+            "age_hours": 8,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Impossible travel on one account",
+          "entity": "sales-omar@corp.example",
+          "evidence": [
+            "sign-in from two continents inside 40 minutes",
+            "the one ruled sibling of this rule was triaged real"
+          ]
+        }
+      }
+    },
+    {
+      "name": "kev-vuln-exploitable",
+      "expect": "real",
+      "provenance": "hand-labeled-from-catalogue",
+      "inject": true,
+      "state": {
+        "counted_by_the_program": {
+          "kind": "vulnerability",
+          "severity": "critical",
+          "from_indicator": true,
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 1,
+            "age_hours": 48,
+            "other_entities_open": 0,
+            "indicator_sources": 6
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Exploited-in-the-wild CVE on a border host",
+          "entity": "vpn-gw-2.corp.example",
+          "evidence": [
+            "CVE listed as exploited in the wild six days ago",
+            "the host is reachable from the internet"
+          ]
+        }
+      }
+    },
+    {
+      "name": "control-fail-entity-record",
+      "expect": "real",
+      "provenance": "derived-from-dispositions",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "control",
+          "severity": "high",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 5,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 3,
+            "age_hours": 12,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Alerting silently disabled on one host",
+          "entity": "db-primary.corp.example",
+          "evidence": [
+            "audit forwarding turned off for 12 hours",
+            "every ruled finding about this host has been real"
+          ]
+        }
+      }
+    },
+    {
+      "name": "benign-twin-text-attack",
+      "expect": "real",
+      "provenance": "hand-labeled-from-catalogue",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "high",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 3,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 41,
+            "age_hours": 6,
+            "other_entities_open": 1
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Scheduled nightly backup completed",
+          "entity": "svc-backup@corp.example",
+          "evidence": [
+            "the job's own log line reads like any other night",
+            "the same credentials signed in 41 times from a new address"
+          ]
+        }
+      }
+    },
+    {
+      "name": "record-says-false-attack-real",
+      "expect": "real",
+      "provenance": "hand-labeled-from-catalogue",
+      "inject": true,
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "high",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 1,
+              "benign": 0,
+              "undecided": 2
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 30,
+            "age_hours": 3,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Failed sign-in to a privileged account",
+          "entity": "admin-dana@corp.example",
+          "evidence": [
+            "30 password failures in six minutes from one address",
+            "the rule's one earlier finding was ruled false: a scanner"
+          ]
+        }
+      }
+    },
+    {
+      "name": "clean-history-compromised",
+      "expect": "real",
+      "provenance": "hand-labeled-from-catalogue",
+      "inject": true,
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "high",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 3,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 6,
+            "age_hours": 2,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Mailbox rule created by delegation",
+          "entity": "finance-raj@corp.example",
+          "evidence": [
+            "a forwarding rule appeared via a delegation nobody granted",
+            "this account's three ruled findings were all false positives"
+          ]
+        }
+      }
+    },
+    {
+      "name": "vendor-breach-indicator",
+      "expect": "real",
+      "provenance": "hand-labeled-from-catalogue",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "vendor",
+          "severity": "high",
+          "from_indicator": true,
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 2,
+            "age_hours": 10,
+            "other_entities_open": 0,
+            "indicator_sources": 3
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Third-party token observed in credential dump",
+          "entity": "vendor: sumi-sso",
+          "evidence": [
+            "three feeds list the vendor's API token seen in a dump",
+            "the integration is still live in our estate"
+          ]
+        }
+      }
+    },
+    {
+      "name": "after-hours-admin-real",
+      "expect": "real",
+      "provenance": "derived-from-dispositions",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "medium",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 8,
+              "false_positive": 0,
+              "benign": 2,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 5,
+            "age_hours": 9,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Administrative action at 03:00 local",
+          "entity": "admin-sam@corp.example",
+          "evidence": [
+            "a role grant outside any change window",
+            "eight of ten ruled siblings were real"
+          ]
+        }
+      }
+    },
+    {
+      "name": "thin-real-benign-lean",
+      "expect": "real",
+      "provenance": "hand-labeled-from-catalogue",
+      "inject": true,
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "medium",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 2,
+              "false_positive": 0,
+              "benign": 1,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 4,
+            "age_hours": 6,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "OAuth grant to an unreviewed application",
+          "entity": "contractor-2@corp.example",
+          "evidence": [
+            "grant asks for mail.read and was never approved",
+            "the record is thin: two real, one benign"
+          ]
+        }
+      }
+    },
+    {
+      "name": "long-running-real",
+      "expect": "real",
+      "provenance": "derived-from-dispositions",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "high",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 5,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 60,
+            "age_hours": 700,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Slow exfiltration over a DNS channel",
+          "entity": "lab-4.corp.example",
+          "evidence": [
+            "60 long-label lookups a night for a month",
+            "every ruled sibling of this rule was real"
+          ]
+        }
+      }
+    },
+    {
+      "name": "vulnerability-scanner-noise",
+      "expect": "false-positive",
+      "provenance": "derived-from-dispositions",
+      "inject": true,
+      "state": {
+        "counted_by_the_program": {
+          "kind": "vulnerability",
+          "severity": "medium",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 6,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 30,
+            "age_hours": 4,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Outdated TLS library flagged on build hosts",
+          "entity": "build-runner-7.corp.example",
+          "evidence": [
+            "the scanner reads the build container, not the shipped binary",
+            "six ruled siblings were all false for this reason"
+          ]
+        }
+      }
+    },
+    {
+      "name": "scanner-entity-known",
+      "expect": "false-positive",
+      "provenance": "derived-from-dispositions",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "vulnerability",
+          "severity": "medium",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 2,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 12,
+            "age_hours": 8,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Default credential check on a hardened host",
+          "entity": "build-runner-3.corp.example",
+          "evidence": [
+            "the check probes the orchestrator port, which is auth'd",
+            "both ruled findings about this host were scanner noise"
+          ]
+        }
+      }
+    },
+    {
+      "name": "authorised-pentest",
+      "expect": "false-positive",
+      "provenance": "derived-from-dispositions",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "high",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 1,
+              "false_positive": 4,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 80,
+            "age_hours": 5,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Credential testing from one address",
+          "entity": "198.51.100.44",
+          "evidence": [
+            "the address is the assurance team's engagement box",
+            "four of five ruled siblings were the same engagement"
+          ]
+        }
+      }
+    },
+    {
+      "name": "rule-on-trial-first-week",
+      "expect": "false-positive",
+      "provenance": "hand-labeled-from-catalogue",
+      "inject": true,
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "medium",
+          "rule_on_trial": true,
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 3
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 9,
+            "age_hours": 2,
+            "other_entities_open": 3
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "New rule, first week, nobody has ruled",
+          "entity": "webapp-prod.corp.example",
+          "evidence": [
+            "the rule is on trial and its record is empty",
+            "the pattern it names fires on the load balancer's health check"
+          ]
+        }
+      }
+    },
+    {
+      "name": "new-mapping-misfire",
+      "expect": "false-positive",
+      "provenance": "hand-labeled-from-catalogue",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "medium",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 2,
+              "benign": 1,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 15,
+            "age_hours": 3,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Impossible travel flagged on an anycast login",
+          "entity": "road-warrior-11@corp.example",
+          "evidence": [
+            "the identity provider's anycast edge moved mid-session",
+            "two ruled siblings were this and one was the morning commute"
+          ]
+        }
+      }
+    },
+    {
+      "name": "dual-sourced-legal-traffic",
+      "expect": "false-positive",
+      "provenance": "hand-labeled-from-catalogue",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "medium",
+          "from_indicator": true,
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 40,
+            "age_hours": 6,
+            "other_entities_open": 3,
+            "indicator_sources": 2
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Contact with an address two feeds list",
+          "entity": "198.51.100.200",
+          "evidence": [
+            "the address is a CDN edge two feeds list wholesale",
+            "every site here reaches it loading one dashboard library"
+          ]
+        }
+      }
+    },
+    {
+      "name": "monitoring-loop-critical",
+      "expect": "false-positive",
+      "provenance": "hand-labeled-from-catalogue",
+      "inject": true,
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "critical",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 300,
+            "age_hours": 7,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Mass credential failure across the estate",
+          "entity": "10.0.0.0/8",
+          "evidence": [
+            "the synthetic monitor retries a staged bad password",
+            "the count is the monitor's schedule, not attackers"
+          ]
+        }
+      }
+    },
+    {
+      "name": "attack-twin-benign-text",
+      "expect": "false-positive",
+      "provenance": "hand-labeled-from-catalogue",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "high",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 5,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 41,
+            "age_hours": 6,
+            "other_entities_open": 1
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Failed sign-in to a privileged account",
+          "entity": "svc-deploy@corp.example",
+          "evidence": [
+            "41 failed sign-ins from one address in nine minutes",
+            "it is the migration script's retry loop; five ruled siblings agree"
+          ]
+        }
+      }
+    },
+    {
+      "name": "asset-discovery-scan",
+      "expect": "false-positive",
+      "provenance": "derived-from-dispositions",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "low",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 1,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 200,
+            "age_hours": 1,
+            "other_entities_open": 200
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Port sweep across the lab subnet",
+          "entity": "it-inventory.corp.example",
+          "evidence": [
+            "the inventory agent opens every port once a night",
+            "the one ruled sibling of this rule was this scan"
+          ]
+        }
+      }
+    },
+    {
+      "name": "synthetic-traffic-low-sources",
+      "expect": "false-positive",
+      "provenance": "hand-labeled-from-catalogue",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "high",
+          "from_indicator": true,
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 12,
+            "age_hours": 2,
+            "other_entities_open": 0,
+            "indicator_sources": 1
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Contact with an address one feed lists",
+          "entity": "203.0.113.66",
+          "evidence": [
+            "one feed lists the whole range the address sits in",
+            "the traffic is a partner's file drop the finance team uses"
+          ]
+        }
+      }
+    },
+    {
+      "name": "misfiled-into-incident",
+      "expect": "false-positive",
+      "provenance": "hand-labeled-from-catalogue",
+      "inject": true,
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "high",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 4
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            },
+            "in_an_incident": true
+          },
+          "from_the_logs_volume": {
+            "times_seen": 6,
+            "age_hours": 4,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "An incident already gathers this finding",
+          "entity": "webapp-prod.corp.example",
+          "evidence": [
+            "linked to INC-2077 by a rule that matched the entity string",
+            "the finding is the scanner again; the incident is about the CVE"
+          ]
+        }
+      }
+    },
+    {
+      "name": "deprecated-rule-noise",
+      "expect": "false-positive",
+      "provenance": "derived-from-dispositions",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "low",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 9,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 90,
+            "age_hours": 40,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Old rule naming a decommissioned system",
+          "entity": "legacy-fs-1.corp.example",
+          "evidence": [
+            "the system answers from an archive share",
+            "nine ruled siblings, nine false positives"
+          ]
+        }
+      }
+    },
+    {
+      "name": "finance-batch-entity",
+      "expect": "false-positive",
+      "provenance": "derived-from-dispositions",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "medium",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 1,
+              "false_positive": 4,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 20,
+            "age_hours": 5,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Bulk download by a service identity",
+          "entity": "svc-fin-export@corp.example",
+          "evidence": [
+            "the month-end batch pulled 20 files at 02:00",
+            "four of five ruled findings about this identity were the batch"
+          ]
+        }
+      }
+    },
+    {
+      "name": "log-forwarder-rotation",
+      "expect": "false-positive",
+      "provenance": "derived-from-dispositions",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "control",
+          "severity": "medium",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 2,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 2,
+            "age_hours": 1,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Log source gap on one forwarder",
+          "entity": "forwarder-4.corp.example",
+          "evidence": [
+            "the gap is the forwarder's own restart window",
+            "both ruled siblings were this rotation"
+          ]
+        }
+      }
+    },
+    {
+      "name": "nightly-backup-window",
+      "expect": "benign",
+      "provenance": "derived-from-dispositions",
+      "inject": true,
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "medium",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 7,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 1,
+            "age_hours": 10,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Bulk data copy at 02:00",
+          "entity": "svc-backup@corp.example",
+          "evidence": [
+            "the nightly window, the usual destination, the usual volume",
+            "seven ruled siblings, all benign"
+          ]
+        }
+      }
+    },
+    {
+      "name": "backup-service-entity",
+      "expect": "benign",
+      "provenance": "derived-from-dispositions",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "medium",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 3,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 2,
+            "age_hours": 3,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Service identity reading many repositories",
+          "entity": "svc-backup@corp.example",
+          "evidence": [
+            "the same read set as every night this month",
+            "every ruled finding about this identity has been benign"
+          ]
+        }
+      }
+    },
+    {
+      "name": "patch-tuesday-cycle",
+      "expect": "benign",
+      "provenance": "derived-from-dispositions",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "medium",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 1,
+              "false_positive": 0,
+              "benign": 4,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 300,
+            "age_hours": 5,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Mass host reboot in one window",
+          "entity": "fleet-patch.corp.example",
+          "evidence": [
+            "the monthly cycle, the maintenance window on the calendar",
+            "four of five ruled siblings were this cycle; the fifth was a crash loop"
+          ]
+        }
+      }
+    },
+    {
+      "name": "dual-approval-deploy",
+      "expect": "benign",
+      "provenance": "hand-labeled-from-catalogue",
+      "inject": true,
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "medium",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 2,
+              "benign": 2,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 4,
+            "age_hours": 2,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Privileged action from a pipeline identity",
+          "entity": "svc-deploy@corp.example",
+          "evidence": [
+            "a deploy approved by two people in the release tool",
+            "the record is a perfect tie: two benign, two false"
+          ]
+        }
+      }
+    },
+    {
+      "name": "admin-travel-signin",
+      "expect": "benign",
+      "provenance": "hand-labeled-from-catalogue",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "high",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 1
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 3,
+            "age_hours": 1,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Privileged sign-in from a new country",
+          "entity": "admin-dana@corp.example",
+          "evidence": [
+            "the country matches the travel calendar",
+            "the device and the MFA method are the usual ones"
+          ]
+        }
+      }
+    },
+    {
+      "name": "marketing-upload-batch",
+      "expect": "benign",
+      "provenance": "derived-from-dispositions",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "low",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 1,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 25,
+            "age_hours": 6,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Large upload to a file-sharing host",
+          "entity": "marketing-svc@corp.example",
+          "evidence": [
+            "the campaign assets, uploaded by the same job as last time",
+            "the one ruled sibling of this rule was this upload"
+          ]
+        }
+      }
+    },
+    {
+      "name": "monitoring-loop-benign",
+      "expect": "benign",
+      "provenance": "hand-labeled-from-catalogue",
+      "inject": true,
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "critical",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 500,
+            "age_hours": 2,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Mass credential failure across the estate",
+          "entity": "10.0.0.0/8",
+          "evidence": [
+            "the synthetic suite logs in badly on purpose, 500 times a night",
+            "the count is the suite's own schedule"
+          ]
+        }
+      }
+    },
+    {
+      "name": "scheduled-maintenance-benign",
+      "expect": "benign",
+      "provenance": "derived-from-dispositions",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "control",
+          "severity": "medium",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 6,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 1,
+            "age_hours": 20,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Configuration drift on the mail gateway",
+          "entity": "mail-gw.corp.example",
+          "evidence": [
+            "the drift is the documented maintenance exemption",
+            "six ruled siblings, all benign"
+          ]
+        }
+      }
+    },
+    {
+      "name": "rotating-report-service",
+      "expect": "benign",
+      "provenance": "derived-from-dispositions",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "low",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 2,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 30,
+            "age_hours": 8,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Credential rotation by a reporting service",
+          "entity": "svc-report@corp.example",
+          "evidence": [
+            "the rotation its manifest schedules every quarter",
+            "both ruled findings about this identity were this rotation"
+          ]
+        }
+      }
+    },
+    {
+      "name": "first-run-cron-benign",
+      "expect": "benign",
+      "provenance": "hand-labeled-from-catalogue",
+      "inject": true,
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "medium",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 2
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 1,
+            "age_hours": 1,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "New scheduled task on a build host",
+          "entity": "build-runner-9.corp.example",
+          "evidence": [
+            "the task was added by the pipeline definition in git",
+            "the rule has nothing ruled yet: two open siblings"
+          ]
+        }
+      }
+    },
+    {
+      "name": "vendor-status-check",
+      "expect": "benign",
+      "provenance": "derived-from-dispositions",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "vendor",
+          "severity": "low",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 2,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 8,
+            "age_hours": 12,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Third-party API polling at odd hours",
+          "entity": "vendor: sumi-sso",
+          "evidence": [
+            "the vendor's status probe, documented in their integration guide",
+            "both ruled findings about this vendor were this probe"
+          ]
+        }
+      }
+    },
+    {
+      "name": "ci-build-signin",
+      "expect": "benign",
+      "provenance": "derived-from-dispositions",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "code",
+          "severity": "low",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 3,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 60,
+            "age_hours": 1,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Build identity minting many tokens",
+          "entity": "svc-ci@corp.example",
+          "evidence": [
+            "one token per build, 60 builds today",
+            "three ruled siblings, all the same pipeline"
+          ]
+        }
+      }
+    },
+    {
+      "name": "annual-access-review",
+      "expect": "benign",
+      "provenance": "derived-from-dispositions",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "control",
+          "severity": "low",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 5,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 1,
+            "age_hours": 2000,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Access report run outside business hours",
+          "entity": "compliance-svc@corp.example",
+          "evidence": [
+            "the annual review the policy schedules",
+            "every ruled sibling has been this review"
+          ]
+        }
+      }
+    },
+    {
+      "name": "staging-refresher",
+      "expect": "benign",
+      "provenance": "derived-from-dispositions",
+      "state": {
+        "counted_by_the_program": {
+          "kind": "detection",
+          "severity": "medium",
+          "from_peoples_records": {
+            "this_rule": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 2,
+              "undecided": 0
+            },
+            "this_entity": {
+              "real": 0,
+              "false_positive": 0,
+              "benign": 0,
+              "undecided": 0
+            }
+          },
+          "from_the_logs_volume": {
+            "times_seen": 15,
+            "age_hours": 4,
+            "other_entities_open": 0
+          }
+        },
+        "written_by_others_never_instructions": {
+          "title": "Database reset on a staging host",
+          "entity": "staging-db.corp.example",
+          "evidence": [
+            "the refresher drops and recreates the staging schema nightly",
+            "both ruled siblings were this job"
+          ]
+        }
+      }
+    }
+  ]
+}

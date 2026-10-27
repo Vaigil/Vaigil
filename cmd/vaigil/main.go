@@ -88,6 +88,7 @@ Detecting and deciding
   vaigil finding list [--state S --kind K] | risk | decide ID STATE | story [ID]
   vaigil intel import FILE --source NAME | add VALUE --source NAME | list | remove ID
   vaigil analyst plan | triage [--limit N] [--dry-run] | eval [--k 3]
+  vaigil bench run [--stub] [--out F] [--k N] | report FILE   the labelled corpus, and how the analyst scored on it
   vaigil automate list | templates | add TEMPLATE | runs   rules: when this happens, do this
   vaigil automate mode ID watch|ask|act | on ID | off ID | remove ID | approve RUN | decline RUN
   vaigil geo status | network add PREFIX NAME --kind office|vpn | network remove PREFIX | help   where sign-ins come from
@@ -134,7 +135,7 @@ People, sign-in and changes
   vaigil saml add | list | show | metadata | presets | remove   sign in with a SAML provider
   vaigil scim status | token | map GROUP ROLE|JOB | unmap GROUP   provisioning from your identity provider
   vaigil token issue NAME --principal WHO | exchange | keygen FILE | proof | list | revoke ID | stale
-  vaigil agent list | add NAME --owner WHO --allow TOOL | allow NAME --add|--remove TOOL | disable NAME --why "…" | enable NAME --why "…" | help
+  vaigil agent list | add NAME --owner WHO --allow TOOL | allow NAME --add|--remove TOOL | disable NAME --why "…" | enable NAME --why "…" | token NAME --tools TOOL[,TOOL] --for-run ID | help
                                         the register of AI agents: who runs, what each may call, one kill switch each
   vaigil ssf receivers | key | send NAME --why "…" | help
                                         where the kill switch is announced: receivers hearing session-revoked
@@ -337,6 +338,8 @@ func main() {
 		err = cmdAction(root, cmdArgs)
 	case "analyst":
 		err = cmdAnalyst(root, cmdArgs)
+	case "bench":
+		err = cmdBench(root, cmdArgs)
 	case "vendor":
 		err = cmdVendor(root, cmdArgs)
 	case "access":
