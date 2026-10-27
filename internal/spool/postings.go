@@ -84,11 +84,15 @@ import (
 // marshalPostings writes one field's section from its value→ordinals map:
 // the two offset tables with sentinels, the sorted key blob, the delta-coded
 // runs. keys and runs are the blob lengths the header carries, returned
-// rather than recomputed so the file can never disagree with itself.
+// rather than recomputed so the file can never disagree with itself. sorted
+// is the key blob's entries in dictionary order, returned so the dictionary
+// columns — whose entries name their postings key's position — can be built
+// against the very order this section wrote, without either guessing at the
+// other's.
 func marshalPostings(values map[string][]int) (section []byte, keys,
-	runs int64) {
+	runs int64, sorted []string) {
 
-	sorted := make([]string, 0, len(values))
+	sorted = make([]string, 0, len(values))
 	for k := range values {
 		sorted = append(sorted, k)
 	}
@@ -124,7 +128,7 @@ func marshalPostings(values map[string][]int) (section []byte, keys,
 	buf.Write(runTable)
 	buf.Write(keyBlob)
 	buf.Write(runBlob)
-	return buf.Bytes(), int64(len(keyBlob)), int64(len(runBlob))
+	return buf.Bytes(), int64(len(keyBlob)), int64(len(runBlob)), sorted
 }
 
 // postingsCol addresses one field's postings section inside an open sidecar.

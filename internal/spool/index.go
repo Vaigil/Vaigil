@@ -6,7 +6,7 @@
 //
 // A sealed segment never changes again — that is what sealing means — so
 // everything worth knowing about its contents can be computed once, at seal
-// time, and kept beside it. Three things are kept:
+// time, and kept beside it. Four things are kept:
 //
 //   - a column of (line offset, arrival time) pairs, one per event, in file
 //     order, so a read by arrival can binary-search for the first event in
@@ -19,6 +19,12 @@
 //     be answered exactly: a value absent from the dictionary is absent from
 //     the segment, and a value present says which events carry it, by
 //     ordinal into the times column. See postings.go for that section.
+//   - a dictionary column for each of those four fields — the distinct
+//     original values, sorted by folded key, plus one dictionary ordinal per
+//     event — so a scan that only wants to know what an event's source,
+//     class, actor.value or message says can read the ordinals and the
+//     dictionaries instead of decoding every line. See columns.go for those
+//     sections and the scan they serve.
 //
 // The index is derived data, never authoritative. It is validated against the
 // segment's seal digest on every use, rebuilt when missing or stale, and a
@@ -58,9 +64,9 @@ import (
 // sidecarMagic identifies the format. A version bump means "rebuild
 // everything", which is exactly what a reader does with bytes it does not
 // understand, so one version number is all the format ever carries. vspool2
-// added the postings section; a vspool1 file parses as nothing at all and is
-// rebuilt with one.
-const sidecarMagic = "vspool2\n"
+// added the postings section; vspool3 added the dictionary columns; a file
+// of any older magic parses as nothing at all and is rebuilt with both.
+const sidecarMagic = "vspool3\n"
 
 // SidecarExt is appended to a segment's name for its index.
 const SidecarExt = ".idx"
@@ -165,12 +171,18 @@ type sidecar struct {
 	pn [postFields]uint64
 	pk [postFields]uint64
 	pp [postFields]uint64
+	// The dictionary columns, per field: the count of distinct original
+	// values and the bytes of the value blob. The ordinal column's length
+	// needs no descriptor of its own — it is one ordinal per event at a width
+	// the count decides.
+	dn [postFields]uint64
+	dk [postFields]uint64
 }
 
 // sidecarHeaderLen is everything before the times column. Fixed, so every
 // column and section is addressed by arithmetic instead of by a footer.
 const sidecarHeaderLen = len(sidecarMagic) + 64 + 8 + 8 + 1 + 24 +
-	3*8*postFields
+	3*8*postFields + 2*8*postFields
 
 // sidecarPostingsAt is the file offset the postings sections start at: the
 // end of the third bloom.
@@ -195,10 +207,30 @@ func (sc *sidecar) postingsBase(i int) int64 {
 	return at
 }
 
+// dictLen is field i's whole dictionary section: the offset table with its
+// sentinel entry, the value blob, one postings position per entry, and one
+// ordinal per event at the width the dictionary's own size decides. See
+// columns.go for what the section says and how it is checked on the way in.
+func (sc *sidecar) dictLen(i int) int64 {
+	return 4*int64(sc.dn[i]+1) + int64(sc.dk[i]) + 4*int64(sc.dn[i]) +
+		int64(sc.events)*int64(dictWidth(int(sc.dn[i]), dictAbsent(i)))
+}
+
+// dictBase is field i's dictionary section start: the end of the last
+// postings section — which postingsBase(postFields) already is — plus every
+// dictionary section before i's.
+func (sc *sidecar) dictBase(i int) int64 {
+	at := sc.postingsBase(postFields)
+	for j := 0; j < i; j++ {
+		at += sc.dictLen(j)
+	}
+	return at
+}
+
 // fileEnd is the whole file this header describes. A sidecar shorter than
 // this is a torn write and reads as absent.
 func (sc *sidecar) fileEnd() int64 {
-	return sc.postingsBase(postFields)
+	return sc.dictBase(postFields)
 }
 
 // sidecarOffsetOf is the file offset of column entry i.
@@ -304,6 +336,14 @@ func parseSidecarHeader(b []byte) *sidecar {
 	}
 	for i := range sc.pp {
 		sc.pp[i] = binary.LittleEndian.Uint64(b[p:])
+		p += 8
+	}
+	for i := range sc.dn {
+		sc.dn[i] = binary.LittleEndian.Uint64(b[p:])
+		p += 8
+	}
+	for i := range sc.dk {
+		sc.dk[i] = binary.LittleEndian.Uint64(b[p:])
 		p += 8
 	}
 	return sc
@@ -427,6 +467,15 @@ func buildSidecar(path string, seg Segment) ([]byte, error) {
 	for i := range posts {
 		posts[i] = map[string][]int{}
 	}
+	// The dictionary columns: per field, the distinct ORIGINAL values the
+	// events carry — folded nowhere, because a column's job is to answer
+	// what the line answers and the line says "Okta/System", not the folded
+	// key an equality would compare. Sorted by folded key when the section
+	// is marshalled, so the fold still disciplines the order.
+	var dicts [postFields]*dictBuild
+	for i := range dicts {
+		dicts[i] = newDictBuild()
+	}
 	sorted := true
 	var off uint64
 	for {
@@ -476,6 +525,15 @@ func buildSidecar(path string, seg Segment) ([]byte, error) {
 			}
 			msg := bloomKey(e.Message)
 			posts[3][msg] = append(posts[3][msg], ord)
+			// And the same four values the dictionary columns carry, spelled
+			// as the line spells them. actor.value's column skips actor-less
+			// events exactly as its postings do, with an ordinal of its own
+			// that says "no value" rather than a hole a reader could
+			// misread.
+			dicts[0].add(e.Source)
+			dicts[1].add(fmt.Sprint(uint32(e.Class)))
+			dicts[2].addIf(!e.Actor.Zero(), e.Actor.Value)
+			dicts[3].add(e.Message)
 		}
 		if rerr != nil {
 			if errors.Is(rerr, io.EOF) {
@@ -485,15 +543,30 @@ func buildSidecar(path string, seg Segment) ([]byte, error) {
 		}
 	}
 
-	// The postings sections are marshalled before the header is written,
-	// because the header carries their lengths and a reader addresses
-	// everything by arithmetic from them.
+	// The postings and dictionary sections are marshalled before the header
+	// is written, because the header carries their lengths and a reader
+	// addresses everything by arithmetic from them. The dictionary sections
+	// are marshalled against the postings' own sorted keys, so an entry's
+	// postings position is the position this build wrote, not a number
+	// re-derived at read time.
 	sections := make([][]byte, postFields)
+	sortedKeys := make([][]string, postFields)
 	var pk, pp [postFields]int64
 	size := sidecarPostingsAt(uint64(len(marks)))
 	for i := range posts {
-		sections[i], pk[i], pp[i] = marshalPostings(posts[i])
+		sections[i], pk[i], pp[i], sortedKeys[i] = marshalPostings(posts[i])
 		size += int64(len(sections[i]))
+	}
+	dsections := make([][]byte, postFields)
+	var dkeys [postFields]int64
+	for i := range dicts {
+		var derr error
+		dsections[i], dkeys[i], derr = marshalDict(dicts[i], dictAbsent(i),
+			sortedKeys[i])
+		if derr != nil {
+			return nil, derr
+		}
+		size += int64(len(dsections[i]))
 	}
 
 	buf := bytes.NewBuffer(make([]byte, 0, size))
@@ -525,6 +598,14 @@ func buildSidecar(path string, seg Segment) ([]byte, error) {
 	for i := range sections {
 		put(uint64(pp[i])) // ordinal-run bytes
 	}
+	// The dictionary descriptors the same way: counts, then value-blob
+	// lengths.
+	for i := range dsections {
+		put(uint64(len(dicts[i].vals))) // distinct original values
+	}
+	for i := range dsections {
+		put(uint64(dkeys[i])) // value blob bytes
+	}
 	for _, m := range marks {
 		put(m.offset)
 		put(uint64(m.at))
@@ -539,6 +620,9 @@ func buildSidecar(path string, seg Segment) ([]byte, error) {
 	}
 	for i := range sections {
 		buf.Write(sections[i])
+	}
+	for i := range dsections {
+		buf.Write(dsections[i])
 	}
 	return buf.Bytes(), nil
 }
