@@ -1,0 +1,158 @@
+{
+  "id": "openai.role-or-member-changed",
+  "title": "A role, member or service account changed in the OpenAI organisation",
+  "why": "spend and data access in the API platform are governed by these records: a role assignment created, a member added with a role, an invite sent, a service account stood up — each is an outsider becoming an insider without a single sign-in, and each is rare and deliberate enough that the event itself is the finding",
+  "blind": "the acceptance of an invite, which if the feed records it does so under a type this rule does not read, and role assignments removed — the connector's reads for this log name only the created form",
+  "sources": [
+    "openai/audit"
+  ],
+  "severity": 3,
+  "when": {
+    "match": {
+      "field": "message",
+      "op": "equals",
+      "values": [
+        "role.assignment.created",
+        "user.added",
+        "invite.sent",
+        "service_account.created"
+      ]
+    }
+  },
+  "technique": [
+    "T1098",
+    "T1136.003"
+  ],
+  "fixtures": [
+    {
+      "name": "a role assigned",
+      "match": true,
+      "event": {
+        "source": "openai/audit",
+        "time": "2026-10-22T09:00:10Z",
+        "received": "2026-10-22T09:00:15Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "openai",
+          "value": "user-77"
+        },
+        "message": "role.assignment.created",
+        "raw": {
+          "id": "audit_log-20",
+          "type": "role.assignment.created",
+          "email": "ada@acme.test",
+          "role_principal": "user-99",
+          "role_resource": "proj_1"
+        }
+      }
+    },
+    {
+      "name": "a member added as an owner",
+      "match": true,
+      "event": {
+        "source": "openai/audit",
+        "time": "2026-10-22T09:01:10Z",
+        "received": "2026-10-22T09:01:15Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "openai",
+          "value": "user-77"
+        },
+        "message": "user.added",
+        "raw": {
+          "id": "audit_log-21",
+          "type": "user.added",
+          "added_user": "user-99",
+          "added_role": "owner"
+        }
+      }
+    },
+    {
+      "name": "an invite sent",
+      "match": true,
+      "event": {
+        "source": "openai/audit",
+        "time": "2026-10-22T09:02:10Z",
+        "received": "2026-10-22T09:02:15Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "openai",
+          "value": "user-77"
+        },
+        "message": "invite.sent",
+        "raw": {
+          "id": "audit_log-22",
+          "type": "invite.sent",
+          "invite_email": "sam@acme.test",
+          "invite_role": "member"
+        }
+      }
+    },
+    {
+      "name": "a service account created",
+      "match": true,
+      "event": {
+        "source": "openai/audit",
+        "time": "2026-10-22T09:03:10Z",
+        "received": "2026-10-22T09:03:15Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "openai",
+          "value": "user-77"
+        },
+        "message": "service_account.created",
+        "raw": {
+          "id": "audit_log-23",
+          "type": "service_account.created",
+          "service_account": "sa-1"
+        }
+      }
+    },
+    {
+      "name": "a key created",
+      "match": false,
+      "event": {
+        "source": "openai/audit",
+        "time": "2026-10-22T09:04:10Z",
+        "received": "2026-10-22T09:04:15Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "openai",
+          "value": "user-77"
+        },
+        "message": "api_key.created",
+        "raw": {
+          "id": "audit_log-24",
+          "type": "api_key.created",
+          "created_key": "key-A4"
+        }
+      }
+    },
+    {
+      "name": "a failed sign-in",
+      "match": false,
+      "event": {
+        "source": "openai/audit",
+        "time": "2026-10-22T09:05:10Z",
+        "received": "2026-10-22T09:05:15Z",
+        "class": 6003,
+        "disposition": 4,
+        "actor": {
+          "issuer": "openai",
+          "value": "user-99"
+        },
+        "message": "login.failed",
+        "raw": {
+          "id": "audit_log-25",
+          "type": "login.failed",
+          "login_error": "invalid_credentials"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+{
+  "id": "otel.tool-call",
+  "title": "An agent called a tool",
+  "why": "one tool call is an agent working; the finding is the rate, which the correlation over this counts — the runaway loops it exists for (catalogue B13) run at several calls a second where supervised work has gaps. Counted by a correlation, and raises nothing itself",
+  "blind": "everything the tool did — the span carries the tool's name and never its arguments, which are hashed upstream at best — and the calls of an SDK that set no gen_ai.operation.name and whose span name is not execute_tool",
+  "sources": [
+    "otel/genai"
+  ],
+  "severity": 2,
+  "when": {
+    "match": {
+      "field": "message",
+      "op": "equals",
+      "values": [
+        "execute_tool"
+      ]
+    }
+  },
+  "technique": [
+    "LLM10",
+    "ASI08"
+  ],
+  "quiet": true,
+  "fixtures": [
+    {
+      "name": "a tool call that worked",
+      "match": true,
+      "event": {
+        "source": "otel/genai",
+        "time": "2026-10-23T03:20:00Z",
+        "received": "2026-10-23T03:20:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "otel",
+          "value": "agent-7"
+        },
+        "target": {
+          "issuer": "otel",
+          "value": "claude-sonnet-4-5"
+        },
+        "message": "execute_tool",
+        "raw": {
+          "operation": "execute_tool",
+          "tool": "filesystem.write",
+          "model": "claude-sonnet-4-5",
+          "status": "ok",
+          "tokens_in": "1520",
+          "tokens_out": "344",
+          "conversation": "conv-0192",
+          "trace_id": "5b8efff798038103d269b633813fc60c"
+        }
+      }
+    },
+    {
+      "name": "a tool call that failed",
+      "match": true,
+      "event": {
+        "source": "otel/genai",
+        "time": "2026-10-23T03:21:00Z",
+        "received": "2026-10-23T03:21:05Z",
+        "class": 6003,
+        "disposition": 4,
+        "actor": {
+          "issuer": "otel",
+          "value": "agent-7"
+        },
+        "message": "execute_tool",
+        "raw": {
+          "operation": "execute_tool",
+          "tool": "filesystem.write",
+          "status": "error",
+          "conversation": "conv-0192",
+          "trace_id": "5b8efff798038103d269b633813fc60c"
+        }
+      }
+    },
+    {
+      "name": "an agent invoked",
+      "match": false,
+      "event": {
+        "source": "otel/genai",
+        "time": "2026-10-23T03:22:00Z",
+        "received": "2026-10-23T03:22:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "otel",
+          "value": "agent-7"
+        },
+        "message": "invoke_agent",
+        "raw": {
+          "operation": "invoke_agent",
+          "span_name": "invoke_agent",
+          "status": "ok",
+          "trace_id": "5b8efff798038103d269b633813fc60c"
+        }
+      }
+    },
+    {
+      "name": "a model invoked",
+      "match": false,
+      "event": {
+        "source": "otel/genai",
+        "time": "2026-10-23T03:23:00Z",
+        "received": "2026-10-23T03:23:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "otel",
+          "value": "agent-7"
+        },
+        "target": {
+          "issuer": "otel",
+          "value": "claude-sonnet-4-5"
+        },
+        "message": "invoke_chat_model",
+        "raw": {
+          "operation": "invoke_chat_model",
+          "model": "claude-sonnet-4-5",
+          "status": "ok",
+          "tokens_in": "812",
+          "tokens_out": "96"
+        }
+      }
+    }
+  ]
+}

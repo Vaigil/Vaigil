@@ -1,0 +1,137 @@
+{
+  "id": "otel.model-call-failed",
+  "title": "An agent's model call failed",
+  "why": "one failed model call is the ordinary friction of the model plane; a streak from one agent is a dead key, a broken deployment or a loop that will not take the model's answer, and the correlation over this counts the streak. Counted by a correlation, and raises nothing itself",
+  "blind": "why it failed — the span carries a status, not the model's error — and failures whose SDK names the operation anything other than invoke_model or invoke_chat_model",
+  "sources": [
+    "otel/genai"
+  ],
+  "severity": 2,
+  "when": {
+    "all": [
+      {
+        "match": {
+          "field": "message",
+          "op": "equals",
+          "values": [
+            "invoke_model",
+            "invoke_chat_model"
+          ]
+        }
+      },
+      {
+        "match": {
+          "field": "disposition",
+          "op": "equals",
+          "values": [
+            "failed"
+          ]
+        }
+      }
+    ]
+  },
+  "technique": [
+    "ASI08"
+  ],
+  "quiet": true,
+  "fixtures": [
+    {
+      "name": "a model call that errored",
+      "match": true,
+      "event": {
+        "source": "otel/genai",
+        "time": "2026-10-23T03:20:00Z",
+        "received": "2026-10-23T03:20:05Z",
+        "class": 6003,
+        "disposition": 4,
+        "actor": {
+          "issuer": "otel",
+          "value": "agent-7"
+        },
+        "target": {
+          "issuer": "otel",
+          "value": "claude-sonnet-4-5"
+        },
+        "message": "invoke_model",
+        "raw": {
+          "operation": "invoke_model",
+          "model": "claude-sonnet-4-5",
+          "status": "error",
+          "tokens_in": "812",
+          "trace_id": "5b8efff798038103d269b633813fc60c"
+        }
+      }
+    },
+    {
+      "name": "a chat model call that errored",
+      "match": true,
+      "event": {
+        "source": "otel/genai",
+        "time": "2026-10-23T03:21:00Z",
+        "received": "2026-10-23T03:21:05Z",
+        "class": 6003,
+        "disposition": 4,
+        "actor": {
+          "issuer": "otel",
+          "value": "agent-7"
+        },
+        "message": "invoke_chat_model",
+        "raw": {
+          "operation": "invoke_chat_model",
+          "span_name": "invoke_chat_model",
+          "status": "error",
+          "trace_id": "5b8efff798038103d269b633813fc60c"
+        }
+      }
+    },
+    {
+      "name": "a model call that worked",
+      "match": false,
+      "event": {
+        "source": "otel/genai",
+        "time": "2026-10-23T03:22:00Z",
+        "received": "2026-10-23T03:22:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "otel",
+          "value": "agent-7"
+        },
+        "target": {
+          "issuer": "otel",
+          "value": "claude-sonnet-4-5"
+        },
+        "message": "invoke_model",
+        "raw": {
+          "operation": "invoke_model",
+          "model": "claude-sonnet-4-5",
+          "status": "ok",
+          "tokens_in": "812",
+          "tokens_out": "96"
+        }
+      }
+    },
+    {
+      "name": "a tool call that failed",
+      "match": false,
+      "event": {
+        "source": "otel/genai",
+        "time": "2026-10-23T03:23:00Z",
+        "received": "2026-10-23T03:23:05Z",
+        "class": 6003,
+        "disposition": 4,
+        "actor": {
+          "issuer": "otel",
+          "value": "agent-7"
+        },
+        "message": "execute_tool",
+        "raw": {
+          "operation": "execute_tool",
+          "tool": "filesystem.write",
+          "status": "error",
+          "trace_id": "5b8efff798038103d269b633813fc60c"
+        }
+      }
+    }
+  ]
+}

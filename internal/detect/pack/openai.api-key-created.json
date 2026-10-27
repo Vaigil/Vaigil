@@ -1,0 +1,121 @@
+{
+  "id": "openai.api-key-created",
+  "title": "An API key was created in the OpenAI organisation",
+  "why": "an OpenAI key is a standing credential that spends money and reaches every project it is scoped to, and creation is deliberate and rare: the audit log names who made it and from where, and the key's own value never crosses the API — only its id does, so the finding is inventory rather than exposure",
+  "blind": "intent — an automation the organisation runs on purpose creates keys exactly the way an intruder does — and the key's scopes, which this log does not carry",
+  "sources": [
+    "openai/audit"
+  ],
+  "severity": 3,
+  "when": {
+    "match": {
+      "field": "message",
+      "op": "equals",
+      "values": [
+        "api_key.created"
+      ]
+    }
+  },
+  "technique": [
+    "T1098",
+    "ASI03"
+  ],
+  "fixtures": [
+    {
+      "name": "a key made by a person in the console",
+      "match": true,
+      "event": {
+        "source": "openai/audit",
+        "time": "2026-10-20T14:02:20Z",
+        "received": "2026-10-20T14:02:25Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "openai",
+          "value": "user-77"
+        },
+        "target": {
+          "issuer": "openai",
+          "value": "proj_1"
+        },
+        "message": "api_key.created",
+        "raw": {
+          "id": "audit_log-2",
+          "type": "api_key.created",
+          "email": "ada@acme.test",
+          "project": "proj_1",
+          "project_name": "prod",
+          "created_key": "key-A1"
+        }
+      }
+    },
+    {
+      "name": "a key made by another key",
+      "match": true,
+      "event": {
+        "source": "openai/audit",
+        "time": "2026-10-20T14:03:20Z",
+        "received": "2026-10-20T14:03:25Z",
+        "class": 6003,
+        "disposition": 1,
+        "target": {
+          "issuer": "openai",
+          "value": "proj_1"
+        },
+        "message": "api_key.created",
+        "raw": {
+          "id": "audit_log-3",
+          "type": "api_key.created",
+          "acting_key": "key-old",
+          "key_owner": "user-99",
+          "key_owner_email": "sam@acme.test",
+          "project": "proj_1",
+          "created_key": "key-A2"
+        }
+      }
+    },
+    {
+      "name": "a key's name edited",
+      "match": false,
+      "event": {
+        "source": "openai/audit",
+        "time": "2026-10-20T14:04:20Z",
+        "received": "2026-10-20T14:04:25Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "openai",
+          "value": "user-77"
+        },
+        "message": "api_key.updated",
+        "raw": {
+          "id": "audit_log-4",
+          "type": "api_key.updated",
+          "updated_key": "key-A1"
+        }
+      }
+    },
+    {
+      "name": "a failed sign-in",
+      "match": false,
+      "event": {
+        "source": "openai/audit",
+        "time": "2026-10-20T14:05:20Z",
+        "received": "2026-10-20T14:05:25Z",
+        "class": 6003,
+        "disposition": 4,
+        "actor": {
+          "issuer": "openai",
+          "value": "user-99"
+        },
+        "message": "login.failed",
+        "raw": {
+          "id": "audit_log-5",
+          "type": "login.failed",
+          "email": "sam@acme.test",
+          "login_error": "invalid_credentials"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,112 @@
+{
+  "id": "anthropic.api-key-created",
+  "title": "An API or admin key was created in the Claude organisation",
+  "why": "a Claude key does whatever its scopes allow and the admin key is the organisation's own administration credential — the one that can make keys, change SSO and read this very feed — so creation is the moment the observability boundary itself grew a new door. Rare, deliberate, actor on the record",
+  "blind": "the key's scopes and name, which the activity does not carry — only the id",
+  "sources": [
+    "anthropic/audit"
+  ],
+  "severity": 3,
+  "when": {
+    "match": {
+      "field": "message",
+      "op": "equals",
+      "values": [
+        "api_key_created",
+        "admin_api_key_created",
+        "service_key_created"
+      ]
+    }
+  },
+  "technique": [
+    "T1098",
+    "ASI03"
+  ],
+  "fixtures": [
+    {
+      "name": "a person made an API key",
+      "match": true,
+      "event": {
+        "source": "anthropic/audit",
+        "time": "2026-04-10T08:11:00Z",
+        "received": "2026-04-10T08:11:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "anthropic",
+          "value": "user_01A"
+        },
+        "message": "api_key_created",
+        "raw": {
+          "id": "activity_01C",
+          "type": "api_key_created",
+          "actor_kind": "user_actor",
+          "person": "ada@acme.test",
+          "api_key_id": "key-B2"
+        }
+      }
+    },
+    {
+      "name": "an admin key made by a machine actor",
+      "match": true,
+      "event": {
+        "source": "anthropic/audit",
+        "time": "2026-04-10T08:12:00Z",
+        "received": "2026-04-10T08:12:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "message": "admin_api_key_created",
+        "raw": {
+          "id": "activity_01D",
+          "type": "admin_api_key_created",
+          "actor_kind": "admin_api_key_actor",
+          "acting_admin_key": "adminkey-1",
+          "organization_id": "org_01Wv",
+          "admin_api_key_id": "adminkey-2"
+        }
+      }
+    },
+    {
+      "name": "a key deleted",
+      "match": false,
+      "event": {
+        "source": "anthropic/audit",
+        "time": "2026-04-10T08:13:00Z",
+        "received": "2026-04-10T08:13:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "anthropic",
+          "value": "user_01A"
+        },
+        "message": "scoped_api_key_deleted",
+        "raw": {
+          "id": "activity_01E",
+          "type": "scoped_api_key_deleted",
+          "api_key_id": "key-B2"
+        }
+      }
+    },
+    {
+      "name": "a failed sign-in",
+      "match": false,
+      "event": {
+        "source": "anthropic/audit",
+        "time": "2026-04-10T08:14:00Z",
+        "received": "2026-04-10T08:14:05Z",
+        "class": 6003,
+        "disposition": 4,
+        "actor": {
+          "issuer": "anthropic",
+          "value": "user_01A"
+        },
+        "message": "sso_login_failed",
+        "raw": {
+          "id": "activity_01F",
+          "type": "sso_login_failed",
+          "auth_method": "sso"
+        }
+      }
+    }
+  ]
+}

@@ -136,3 +136,60 @@ correlation:
     condition:
         gte: 30
 level: low
+---
+# A rate, not a call: one hundred and twenty tool calls in fifteen minutes
+# is a call every seven and a half seconds without pause, where agentic
+# work a person supervises has gaps — reading output, waiting on the
+# model, thinking. The runaway loops this exists for (catalogue B13's
+# identical-arguments loop, an exfiltration sweep) run at several calls a
+# second and cross this threshold inside two of its minutes; the number
+# sits above a heavy but honest coding session and below machine speed,
+# and a tenant whose agents live above it tunes the threshold on the
+# record rather than living with the noise.
+title: One agent called tools faster than work explains
+id: corr.agent-tool-burst
+correlation:
+    type: event_count
+    rules:
+        - otel.tool-call
+    group-by:
+        - actor.value
+    timespan: 15m
+    condition:
+        gte: 120
+level: medium
+---
+# Ten failed model calls in ten minutes from one agent: a revoked or
+# exhausted key, a deployment pointing at a model that is gone, or a loop
+# retrying what the model keeps refusing. A single failure is the
+# ordinary friction of the model plane; ten inside ten minutes is an
+# agent that cannot stop, and the actor the streak belongs to is the one
+# to throttle.
+title: One agent's model calls kept failing
+id: corr.agent-model-failure-streak
+correlation:
+    type: event_count
+    rules:
+        - otel.model-call-failed
+    group-by:
+        - actor.value
+    timespan: 10m
+    condition:
+        gte: 10
+level: medium
+# Deliberately not in this file: the watch-then-call chain — a config
+# change on collector/watch followed by tool calls from the agent whose
+# config it was. The two sources share no key: a watch event carries the
+# recorder's device id and no actor at all, and an otel/genai event
+# carries the agent's own id. No group-by exists that both legs of a
+# temporal correlation could sit in — the engine drops any event missing
+# its grouping field — and grouping by something both do carry, like
+# source, would correlate any config change on any host with any agent's
+# calls anywhere, which is false precision rather than a detection. That
+# chain needs a mapping from recorder host to agent id, which is an
+# onboarding feature, not a rule. Blocked the same way: heartbeat
+# absence (a scheduler must notice; a falling count fires for every
+# collector that never existed), first-use-of-tool (needs per-agent
+# baseline state), token-spend thresholds (the store keeps per-call token
+# strings, never a session total; the burst rule above is the honest rate
+# proxy), and tool-argument content (nothing ships it).

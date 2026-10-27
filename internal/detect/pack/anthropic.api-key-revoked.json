@@ -1,0 +1,132 @@
+{
+  "id": "anthropic.api-key-revoked",
+  "title": "An API or admin key was revoked in the Claude organisation",
+  "why": "revocation is hygiene after compromise or rotation, and it is also the compliance feed losing an eye: whichever key went away stops reporting the activities this rule reads, and an admin key deleted by anybody other than the owner is worth a question. The closed value list is deliberate — the feed names hundreds of *_revoked types, and only key material belongs in a rule that claims to be about keys",
+  "blind": "claude_code_credential_revoked, the agent CLI's own credential, which the feed names separately and this rule deliberately does not count; a revocation is not a threat by itself, and widening the list to every revoked type would bury the key material in consent and share revocations",
+  "sources": [
+    "anthropic/audit"
+  ],
+  "severity": 3,
+  "when": {
+    "match": {
+      "field": "message",
+      "op": "equals",
+      "values": [
+        "scoped_api_key_deleted",
+        "admin_api_key_deleted",
+        "service_key_revoked"
+      ]
+    }
+  },
+  "technique": [
+    "T1531"
+  ],
+  "fixtures": [
+    {
+      "name": "a scoped API key deleted",
+      "match": true,
+      "event": {
+        "source": "anthropic/audit",
+        "time": "2026-04-11T15:00:30Z",
+        "received": "2026-04-11T15:00:35Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "anthropic",
+          "value": "user_01A"
+        },
+        "message": "scoped_api_key_deleted",
+        "raw": {
+          "id": "activity_02A",
+          "type": "scoped_api_key_deleted",
+          "actor_kind": "user_actor",
+          "api_key_id": "key-B2"
+        }
+      }
+    },
+    {
+      "name": "an admin key deleted",
+      "match": true,
+      "event": {
+        "source": "anthropic/audit",
+        "time": "2026-04-11T15:01:30Z",
+        "received": "2026-04-11T15:01:35Z",
+        "class": 6003,
+        "disposition": 1,
+        "message": "admin_api_key_deleted",
+        "raw": {
+          "id": "activity_02B",
+          "type": "admin_api_key_deleted",
+          "actor_kind": "admin_api_key_actor",
+          "acting_admin_key": "adminkey-2",
+          "admin_api_key_id": "adminkey-1"
+        }
+      }
+    },
+    {
+      "name": "a service key revoked",
+      "match": true,
+      "event": {
+        "source": "anthropic/audit",
+        "time": "2026-04-11T15:02:30Z",
+        "received": "2026-04-11T15:02:35Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "anthropic",
+          "value": "user_01A"
+        },
+        "message": "service_key_revoked",
+        "raw": {
+          "id": "activity_02C",
+          "type": "service_key_revoked",
+          "actor_kind": "user_actor"
+        }
+      }
+    },
+    {
+      "name": "a key created",
+      "match": false,
+      "event": {
+        "source": "anthropic/audit",
+        "time": "2026-04-11T15:03:30Z",
+        "received": "2026-04-11T15:03:35Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "anthropic",
+          "value": "user_01A"
+        },
+        "message": "api_key_created",
+        "raw": {
+          "id": "activity_02D",
+          "type": "api_key_created",
+          "api_key_id": "key-B3"
+        }
+      }
+    },
+    {
+      "name": "a role updated",
+      "match": false,
+      "event": {
+        "source": "anthropic/audit",
+        "time": "2026-04-11T15:04:30Z",
+        "received": "2026-04-11T15:04:35Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "anthropic",
+          "value": "user_01A"
+        },
+        "message": "claude_user_role_updated",
+        "raw": {
+          "id": "activity_02E",
+          "type": "claude_user_role_updated",
+          "target_user": "user_01C",
+          "role_now": "admin",
+          "role_was": "member"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "id": "openai.api-key-deleted",
+  "title": "An API key was deleted in the OpenAI organisation",
+  "why": "a deleted key cannot be audited for what it did, which makes the deletion either hygiene after a rotation or somebody closing a door behind them: the event is identical, so the finding exists to keep the pair on the record — the created event named the id this one removes, and both stay queryable",
+  "blind": "which of the two it was; the log records the fact and not the reason",
+  "sources": [
+    "openai/audit"
+  ],
+  "severity": 3,
+  "when": {
+    "match": {
+      "field": "message",
+      "op": "equals",
+      "values": [
+        "api_key.deleted"
+      ]
+    }
+  },
+  "technique": [
+    "T1531"
+  ],
+  "fixtures": [
+    {
+      "name": "a key deleted",
+      "match": true,
+      "event": {
+        "source": "openai/audit",
+        "time": "2026-10-21T10:00:40Z",
+        "received": "2026-10-21T10:00:45Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "openai",
+          "value": "user-77"
+        },
+        "message": "api_key.deleted",
+        "raw": {
+          "id": "audit_log-8",
+          "type": "api_key.deleted",
+          "email": "ada@acme.test",
+          "deleted_key": "key-A1"
+        }
+      }
+    },
+    {
+      "name": "a key made, not deleted",
+      "match": false,
+      "event": {
+        "source": "openai/audit",
+        "time": "2026-10-21T10:01:40Z",
+        "received": "2026-10-21T10:01:45Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "openai",
+          "value": "user-77"
+        },
+        "message": "api_key.created",
+        "raw": {
+          "id": "audit_log-9",
+          "type": "api_key.created",
+          "created_key": "key-A3"
+        }
+      }
+    },
+    {
+      "name": "a key updated",
+      "match": false,
+      "event": {
+        "source": "openai/audit",
+        "time": "2026-10-21T10:02:40Z",
+        "received": "2026-10-21T10:02:45Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "openai",
+          "value": "user-77"
+        },
+        "message": "api_key.updated",
+        "raw": {
+          "id": "audit_log-10",
+          "type": "api_key.updated",
+          "updated_key": "key-A3"
+        }
+      }
+    }
+  ]
+}

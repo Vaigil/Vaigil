@@ -53,16 +53,18 @@ func TestEveryShippedRuleAgreesWithItsOwnFixtures(t *testing.T) {
 			platforms[strings.SplitN(s, "/", 2)[0]] = true
 		}
 	}
-	// Ten rules are quiet by design: the failed and succeeded sign-ins,
-	// the push denials and approvals, the IAM user and its access key, and
-	// the two halves of the agent's behaviour feed a correlation rather
-	// than a finding of their own.
-	if rules < 18 || quiet != 10 {
+	// Twelve rules are quiet by design: the failed and succeeded sign-ins,
+	// the push denials and approvals, the IAM user and its access key, the
+	// two halves of the agent's behaviour, and the agent telemetry's tool
+	// call and failed model call — each feeds a correlation rather than
+	// raising a finding of its own.
+	if rules < 29 || quiet != 12 {
 		t.Errorf("%d rules, %d of them quiet", rules, quiet)
 	}
 	for _, want := range []string{"okta", "entra", "workspace", "github",
 		"aws", "evm", "vaigil", "duo", "kubernetes", "snowflake",
-		"auditd", strings.SplitN(inbound.StreamSource, "/", 2)[0]} {
+		"auditd", "otel", "collector", "openai", "anthropic",
+		strings.SplitN(inbound.StreamSource, "/", 2)[0]} {
 		if !platforms[want] {
 			t.Errorf("no rule reads %s", want)
 		}

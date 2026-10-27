@@ -1,0 +1,130 @@
+{
+  "id": "collector.key-material-changed",
+  "title": "Key or environment material changed on a watched machine",
+  "why": "the watch pack declares what a kind is, and key and env are where standing credentials live: authorized_keys, id_*, .env. A change is the moment new credential material appeared on a developer machine — an attacker's line in authorized_keys, a token in .env — and it is placed at severity 2 rather than made quiet because rotation and .env edits are legitimate daily work; triage decides with the hash in hand, and a quiet rule would also need a correlation to count it while a count of key changes means nothing yet",
+  "blind": "removals — rotation cleanup, mostly benign — every credential file the deployment's watch pack did not name, and any actor: the watch stream carries none, so findings from this rule fold into one row per rule however many machines changed",
+  "sources": [
+    "collector/watch"
+  ],
+  "severity": 2,
+  "when": {
+    "all": [
+      {
+        "match": {
+          "field": "raw.kind",
+          "op": "equals",
+          "values": [
+            "key",
+            "env"
+          ]
+        }
+      },
+      {
+        "match": {
+          "field": "raw.op",
+          "op": "equals",
+          "values": [
+            "changed",
+            "created"
+          ]
+        }
+      }
+    ]
+  },
+  "technique": [
+    "T1098.004",
+    "AML.T0083"
+  ],
+  "fixtures": [
+    {
+      "name": "authorized_keys changed",
+      "match": true,
+      "event": {
+        "source": "collector/watch",
+        "time": "2026-10-25T09:00:00Z",
+        "received": "2026-10-25T09:00:05Z",
+        "class": 1001,
+        "device": {
+          "issuer": "collector",
+          "value": "build01"
+        },
+        "message": "/home/dana/.ssh/authorized_keys changed (key)",
+        "raw": {
+          "path": "/home/dana/.ssh/authorized_keys",
+          "kind": "key",
+          "op": "changed",
+          "sha256": "31ca7f02",
+          "size": "742",
+          "host": "build01"
+        }
+      }
+    },
+    {
+      "name": "an environment file appeared",
+      "match": true,
+      "event": {
+        "source": "collector/watch",
+        "time": "2026-10-25T09:01:00Z",
+        "received": "2026-10-25T09:01:05Z",
+        "class": 1001,
+        "device": {
+          "issuer": "collector",
+          "value": "build01"
+        },
+        "message": "/home/dana/.env created (env)",
+        "raw": {
+          "path": "/home/dana/.env",
+          "kind": "env",
+          "op": "created",
+          "sha256": "5e19cc83",
+          "size": "214",
+          "host": "build01"
+        }
+      }
+    },
+    {
+      "name": "an old key removed",
+      "match": false,
+      "event": {
+        "source": "collector/watch",
+        "time": "2026-10-25T09:02:00Z",
+        "received": "2026-10-25T09:02:05Z",
+        "class": 1001,
+        "device": {
+          "issuer": "collector",
+          "value": "build01"
+        },
+        "message": "/home/dana/.ssh/id_old removed (key)",
+        "raw": {
+          "path": "/home/dana/.ssh/id_old",
+          "kind": "key",
+          "op": "removed",
+          "host": "build01"
+        }
+      }
+    },
+    {
+      "name": "an agent config changed",
+      "match": false,
+      "event": {
+        "source": "collector/watch",
+        "time": "2026-10-25T09:03:00Z",
+        "received": "2026-10-25T09:03:05Z",
+        "class": 1001,
+        "device": {
+          "issuer": "collector",
+          "value": "build01"
+        },
+        "message": "/home/dana/.mcp.json changed (mcp-config)",
+        "raw": {
+          "path": "/home/dana/.mcp.json",
+          "kind": "mcp-config",
+          "op": "changed",
+          "sha256": "b42d4f9e",
+          "size": "612",
+          "host": "build01"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,155 @@
+{
+  "id": "collector.agent-config-changed",
+  "title": "An agent's configuration file changed",
+  "why": "an agent's config is its grant list and its instructions: .mcp.json names the MCP servers its tools run through, and CLAUDE.md, .cursorrules and the settings files are text the model obeys — postmark-mcp and the rules-file backdoors both shipped as edits to exactly these files (catalogue B10/B11). A developer editing a config is the common case, so this is severity 3 while the removal has its own, louder rule",
+  "blind": "who changed it and what changed — the recorder watches files, not processes, and ships a hash rather than content — and the chain this cannot close: nothing joins this stream to the otel/genai calls the same agent then made, because a watch event carries the recorder's device id and no actor at all",
+  "sources": [
+    "collector/watch"
+  ],
+  "severity": 3,
+  "when": {
+    "all": [
+      {
+        "match": {
+          "field": "raw.kind",
+          "op": "equals",
+          "values": [
+            "mcp-config",
+            "agent-config"
+          ]
+        }
+      },
+      {
+        "match": {
+          "field": "raw.op",
+          "op": "equals",
+          "values": [
+            "changed",
+            "created"
+          ]
+        }
+      }
+    ]
+  },
+  "technique": [
+    "T1098",
+    "T1195.002",
+    "AML.T0051.001",
+    "ASI06"
+  ],
+  "fixtures": [
+    {
+      "name": "an MCP config changed",
+      "match": true,
+      "event": {
+        "source": "collector/watch",
+        "time": "2026-10-25T09:00:00Z",
+        "received": "2026-10-25T09:00:05Z",
+        "class": 1001,
+        "device": {
+          "issuer": "collector",
+          "value": "build01"
+        },
+        "message": "/home/dana/.mcp.json changed (mcp-config)",
+        "raw": {
+          "path": "/home/dana/.mcp.json",
+          "kind": "mcp-config",
+          "op": "changed",
+          "sha256": "b42d4f9e",
+          "size": "612",
+          "host": "build01"
+        }
+      }
+    },
+    {
+      "name": "a rules file appeared",
+      "match": true,
+      "event": {
+        "source": "collector/watch",
+        "time": "2026-10-25T09:01:00Z",
+        "received": "2026-10-25T09:01:05Z",
+        "class": 1001,
+        "device": {
+          "issuer": "collector",
+          "value": "build01"
+        },
+        "message": "/home/dana/CLAUDE.md created (agent-config)",
+        "raw": {
+          "path": "/home/dana/CLAUDE.md",
+          "kind": "agent-config",
+          "op": "created",
+          "sha256": "9ac1e0dd",
+          "size": "1840",
+          "host": "build01"
+        }
+      }
+    },
+    {
+      "name": "the same config removed",
+      "match": false,
+      "event": {
+        "source": "collector/watch",
+        "time": "2026-10-25T09:02:00Z",
+        "received": "2026-10-25T09:02:05Z",
+        "class": 1001,
+        "device": {
+          "issuer": "collector",
+          "value": "build01"
+        },
+        "message": "/home/dana/.mcp.json removed (mcp-config)",
+        "raw": {
+          "path": "/home/dana/.mcp.json",
+          "kind": "mcp-config",
+          "op": "removed",
+          "host": "build01"
+        }
+      }
+    },
+    {
+      "name": "a key file changed",
+      "match": false,
+      "event": {
+        "source": "collector/watch",
+        "time": "2026-10-25T09:03:00Z",
+        "received": "2026-10-25T09:03:05Z",
+        "class": 1001,
+        "device": {
+          "issuer": "collector",
+          "value": "build01"
+        },
+        "message": "/home/dana/.ssh/id_ed25519 changed (key)",
+        "raw": {
+          "path": "/home/dana/.ssh/id_ed25519",
+          "kind": "key",
+          "op": "changed",
+          "sha256": "77bd3a10",
+          "size": "419",
+          "host": "build01"
+        }
+      }
+    },
+    {
+      "name": "a file watched without a kind that means anything",
+      "match": false,
+      "event": {
+        "source": "collector/watch",
+        "time": "2026-10-25T09:04:00Z",
+        "received": "2026-10-25T09:04:05Z",
+        "class": 1001,
+        "device": {
+          "issuer": "collector",
+          "value": "build01"
+        },
+        "message": "/etc/app.conf changed (other)",
+        "raw": {
+          "path": "/etc/app.conf",
+          "kind": "other",
+          "op": "changed",
+          "sha256": "e6d0b442",
+          "size": "96",
+          "host": "build01"
+        }
+      }
+    }
+  ]
+}

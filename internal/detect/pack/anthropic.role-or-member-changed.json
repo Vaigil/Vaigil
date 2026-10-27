@@ -1,0 +1,137 @@
+{
+  "id": "anthropic.role-or-member-changed",
+  "title": "A role or member changed in the Claude organisation",
+  "why": "a role updated, an assignment granted or revoked, the primary owner transferred, a member invited or removed: these are the organisation's privilege graph changing, and the ownership transfer is the single loudest event in it — the new owner can make keys, change SSO and read everything",
+  "blind": "workspace and RBAC role definitions, which the feed reports under their own types this rule does not read, and which member an invite was eventually accepted by",
+  "sources": [
+    "anthropic/audit"
+  ],
+  "severity": 3,
+  "when": {
+    "match": {
+      "field": "message",
+      "op": "equals",
+      "values": [
+        "claude_user_role_updated",
+        "role_assignment_granted",
+        "role_assignment_revoked",
+        "primary_owner_transferred",
+        "org_user_invite_sent",
+        "org_user_deleted"
+      ]
+    }
+  },
+  "technique": [
+    "T1098",
+    "T1136.003"
+  ],
+  "fixtures": [
+    {
+      "name": "an admin key raised somebody to admin",
+      "match": true,
+      "event": {
+        "source": "anthropic/audit",
+        "time": "2026-04-10T08:10:00Z",
+        "received": "2026-04-10T08:10:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "message": "claude_user_role_updated",
+        "raw": {
+          "id": "activity_01B",
+          "type": "claude_user_role_updated",
+          "actor_kind": "admin_api_key_actor",
+          "acting_admin_key": "adminkey-1",
+          "organization_id": "org_01Wv",
+          "target_user": "user_01C",
+          "role_now": "admin",
+          "role_was": "member"
+        }
+      }
+    },
+    {
+      "name": "the primary owner transferred",
+      "match": true,
+      "event": {
+        "source": "anthropic/audit",
+        "time": "2026-04-10T08:15:00Z",
+        "received": "2026-04-10T08:15:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "anthropic",
+          "value": "user_01A"
+        },
+        "message": "primary_owner_transferred",
+        "raw": {
+          "id": "activity_01G",
+          "type": "primary_owner_transferred",
+          "target_user": "user_01C",
+          "target_user_email": "bo@acme.test"
+        }
+      }
+    },
+    {
+      "name": "a member removed",
+      "match": true,
+      "event": {
+        "source": "anthropic/audit",
+        "time": "2026-04-10T08:16:00Z",
+        "received": "2026-04-10T08:16:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "anthropic",
+          "value": "user_01A"
+        },
+        "message": "org_user_deleted",
+        "raw": {
+          "id": "activity_01H",
+          "type": "org_user_deleted",
+          "target_user": "user_01C"
+        }
+      }
+    },
+    {
+      "name": "a failed sign-in",
+      "match": false,
+      "event": {
+        "source": "anthropic/audit",
+        "time": "2026-04-10T08:17:00Z",
+        "received": "2026-04-10T08:17:05Z",
+        "class": 6003,
+        "disposition": 4,
+        "actor": {
+          "issuer": "anthropic",
+          "value": "user_01A"
+        },
+        "message": "sso_login_failed",
+        "raw": {
+          "id": "activity_01I",
+          "type": "sso_login_failed",
+          "auth_method": "sso"
+        }
+      }
+    },
+    {
+      "name": "an API key created",
+      "match": false,
+      "event": {
+        "source": "anthropic/audit",
+        "time": "2026-04-10T08:18:00Z",
+        "received": "2026-04-10T08:18:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "anthropic",
+          "value": "user_01A"
+        },
+        "message": "api_key_created",
+        "raw": {
+          "id": "activity_01J",
+          "type": "api_key_created",
+          "api_key_id": "key-B2"
+        }
+      }
+    }
+  ]
+}

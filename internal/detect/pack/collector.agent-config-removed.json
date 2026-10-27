@@ -1,0 +1,126 @@
+{
+  "id": "collector.agent-config-removed",
+  "title": "An agent's configuration file was deleted",
+  "why": "a config that vanished is louder than one that was edited: an edit is a developer at work, a removal is the rug pulled after a malicious server did its job, an uninstall the recorder cannot tell from sabotage, or an agent destroying the definition of its own powers while running on whatever it loaded first (catalogue B25's shape). A separate rule rather than a severity split inside the change rule, because the two events answer different questions and a rule carries one severity",
+  "blind": "benign deletions — dotfile cleanup, tool uninstalls — which no field in this stream distinguishes, and, as with the change rule, no actor and no join to the otel/genai calls the same agent made afterwards",
+  "sources": [
+    "collector/watch"
+  ],
+  "severity": 4,
+  "when": {
+    "all": [
+      {
+        "match": {
+          "field": "raw.kind",
+          "op": "equals",
+          "values": [
+            "mcp-config",
+            "agent-config"
+          ]
+        }
+      },
+      {
+        "match": {
+          "field": "raw.op",
+          "op": "equals",
+          "values": [
+            "removed"
+          ]
+        }
+      }
+    ]
+  },
+  "technique": [
+    "T1070.004",
+    "T1562",
+    "ASI10"
+  ],
+  "fixtures": [
+    {
+      "name": "an MCP config deleted",
+      "match": true,
+      "event": {
+        "source": "collector/watch",
+        "time": "2026-10-25T09:00:00Z",
+        "received": "2026-10-25T09:00:05Z",
+        "class": 1001,
+        "device": {
+          "issuer": "collector",
+          "value": "build01"
+        },
+        "message": "/home/dana/.mcp.json removed (mcp-config)",
+        "raw": {
+          "path": "/home/dana/.mcp.json",
+          "kind": "mcp-config",
+          "op": "removed",
+          "host": "build01"
+        }
+      }
+    },
+    {
+      "name": "a rules file deleted",
+      "match": true,
+      "event": {
+        "source": "collector/watch",
+        "time": "2026-10-25T09:01:00Z",
+        "received": "2026-10-25T09:01:05Z",
+        "class": 1001,
+        "device": {
+          "issuer": "collector",
+          "value": "build01"
+        },
+        "message": "/home/dana/.cursorrules removed (agent-config)",
+        "raw": {
+          "path": "/home/dana/.cursorrules",
+          "kind": "agent-config",
+          "op": "removed",
+          "host": "build01"
+        }
+      }
+    },
+    {
+      "name": "the same config edited rather than deleted",
+      "match": false,
+      "event": {
+        "source": "collector/watch",
+        "time": "2026-10-25T09:02:00Z",
+        "received": "2026-10-25T09:02:05Z",
+        "class": 1001,
+        "device": {
+          "issuer": "collector",
+          "value": "build01"
+        },
+        "message": "/home/dana/.mcp.json changed (mcp-config)",
+        "raw": {
+          "path": "/home/dana/.mcp.json",
+          "kind": "mcp-config",
+          "op": "changed",
+          "sha256": "b42d4f9e",
+          "size": "612",
+          "host": "build01"
+        }
+      }
+    },
+    {
+      "name": "a key file deleted",
+      "match": false,
+      "event": {
+        "source": "collector/watch",
+        "time": "2026-10-25T09:03:00Z",
+        "received": "2026-10-25T09:03:05Z",
+        "class": 1001,
+        "device": {
+          "issuer": "collector",
+          "value": "build01"
+        },
+        "message": "/home/dana/.ssh/id_old removed (key)",
+        "raw": {
+          "path": "/home/dana/.ssh/id_old",
+          "kind": "key",
+          "op": "removed",
+          "host": "build01"
+        }
+      }
+    }
+  ]
+}
