@@ -158,9 +158,22 @@ func (m Manifest) first(e Endpoint, from State) *url.URL {
 	}
 	if e.Since != "" && from.Watermark != "" {
 		mark := from.Watermark
-		if e.WatermarkLayout == "epoch-ms" {
+		switch e.WatermarkLayout {
+		case "epoch-ms":
 			if ms, err := strconv.ParseInt(mark, 10, 64); err == nil {
 				mark = time.UnixMilli(ms).UTC().Format(time.RFC3339)
+			}
+		case "epoch-s":
+			// OpenAI's audit log writes its time as seconds since the epoch
+			// and takes seconds back. The first checkpoint a collector writes
+			// is a clock time rather than a count, and every later one is the
+			// seconds a record carried, so both have to reach the tool as
+			// seconds. Anything else is passed on untouched and the tool
+			// answers 400, which is louder than a silent misread.
+			if _, err := strconv.ParseInt(mark, 10, 64); err != nil {
+				if t, terr := time.Parse(time.RFC3339, mark); terr == nil {
+					mark = strconv.FormatInt(t.Unix(), 10)
+				}
 			}
 		}
 		switch {

@@ -10,7 +10,7 @@
 // wins the second case outright, and vaigil was local. Hosting changes which
 // case this is, so the conclusion changes with it.
 //
-// # Four tools, not fifteen
+// # Three tools, not fifteen
 //
 // The measured problem with MCP is that servers preload every tool definition
 // into the context window, which put naive servers at roughly 35x the tokens of
@@ -19,10 +19,10 @@
 // cut usage about 85%, its code-execution pattern went 150,000 tokens to 2,000,
 // and Cloudflare's Code Mode reports 99.9%.
 //
-// So this exposes four tools rather than one per CLI command, and one of them
-// describes the rest on demand. An agent that only wants to read a page pays for
-// four short definitions instead of fifteen long ones, and learns the detail of
-// exactly the operation it needs.
+// So this exposes three tools rather than one per CLI command, and one of them
+// describes the rest on demand. An agent that only wants to read pays for
+// three short definitions instead of fifteen long ones, and learns the detail
+// of exactly the operation it needs.
 //
 // # The gates apply here too
 //
@@ -31,10 +31,11 @@
 // exists on the command line and not in the API is a gate with a hole in
 // whichever one people automate against — which, for an agent, is this one.
 //
-// So publishing through MCP runs the same accessibility and provenance checks,
-// and refuses for the same reasons. Content written through MCP is marked as
-// AI-generated without being asked, because an agent calling a write tool is a
-// model writing content whatever the wrapper is called.
+// So every operation declares the role it needs and the server enforces that
+// before anything runs, and what an agent may do is deliberately less than a
+// person: it reads the findings, the incidents and the numbers, and it may
+// propose a decision on a finding — never record one, never grant anybody
+// anything, never reach another platform.
 //
 // # Authentication
 //
@@ -58,9 +59,6 @@ import (
 	"sort"
 	"strings"
 )
-
-// Protocol is the revision this speaks.
-const Protocol = "2025-06-18"
 
 // Request is a JSON-RPC 2.0 request.
 type Request struct {
@@ -199,10 +197,13 @@ func (s *Server) Register(op Operation, h Handler) {
 	s.handlers[op.Name] = h
 }
 
-// tools returns the four that are always present.
+// tools returns the three that are always present.
 //
 // Deliberately short descriptions. These are the only definitions that enter a
-// context window unasked, so every word in them is paid for on each session.
+// context window unasked, so every word in them is paid for on each session —
+// and each one says what the operations do now, because an agent plans around
+// what it is told: a description of something this server does not do is an
+// instruction to try the wrong thing.
 func (s *Server) tools() []Tool {
 	if s.Direct != nil {
 		return append([]Tool(nil), s.Direct.Tools...)
@@ -225,24 +226,21 @@ func (s *Server) tools() []Tool {
 			Annotations: map[string]any{"readOnlyHint": true, "openWorldHint": false},
 		},
 		{
-			Name:        "vaigil_read",
-			Description: "Read content or state. Use vaigil_find to learn the operations.",
+			Name: "vaigil_read",
+			Description: "Read the security queue: findings and their evidence, " +
+				"open incidents and their clocks, detection statistics, the " +
+				"vulnerability plan, the estate in numbers. Use vaigil_find to " +
+				"learn the operations.",
 			InputSchema: opSchema("a read operation name from vaigil_find"),
 			Annotations: map[string]any{"readOnlyHint": true, "openWorldHint": false},
 		},
 		{
 			Name: "vaigil_write",
-			Description: "Change a draft. Never publishes. Content written here is " +
-				"recorded as AI-generated.",
+			Description: "Propose a decision on a finding, for a person to make. " +
+				"Records a proposal only — a finding never changes state here. " +
+				"Use vaigil_find to learn the operations.",
 			InputSchema: opSchema("a write operation name from vaigil_find"),
 			Annotations: map[string]any{"readOnlyHint": false, "destructiveHint": false, "openWorldHint": false},
-		},
-		{
-			Name: "vaigil_check",
-			Description: "Run the checks that gate publishing: accessibility and " +
-				"content provenance.",
-			InputSchema: opSchema("a check operation name from vaigil_find"),
-			Annotations: map[string]any{"readOnlyHint": true, "openWorldHint": false},
 		},
 	}
 }
@@ -319,7 +317,13 @@ func (s *Server) Handle(req Request) *Response {
 
 	switch req.Method {
 	case "initialize":
-		resp.Result = s.initialize(Protocol)
+		// The version answered is negotiated, not recited: the client's own
+		// when it is one this server speaks, and the newest it does when not
+		// — the same answer the HTTP transport gives (http.go), because
+		// these are one server, and answering a fixed date here meant a
+		// client that asked for 2025-03-26 was told the session was in a
+		// dialect the rest of its requests would not be served in.
+		resp.Result = s.initialize(legacyVersion(req))
 
 	case "server/discover":
 		resp.Result = s.discover()
@@ -340,9 +344,16 @@ func (s *Server) Handle(req Request) *Response {
 	return resp
 }
 
-const instructions = "Call vaigil_find first to discover operations. " +
-	"Writes go to a draft and never publish. Content you write is " +
-	"recorded as AI-generated, which the EU AI Act requires."
+// The instructions are what a client shows beside the tools, so they say the
+// two things an agent must know before it calls anything: search rather than
+// guess, and that the one write here proposes a decision rather than making
+// one. They describe what this server does, because an agent that reads a
+// promise about drafts or publishing will plan around a thing that is not
+// here.
+const instructions = "Call vaigil_find first to discover operations. Reading " +
+	"is most of what is here. The one write, propose_finding_decision, " +
+	"records a suggestion that a person decides on: nothing you call " +
+	"changes a finding, an incident or anybody's authority."
 
 // initialize answers a legacy client's handshake.
 func (s *Server) initialize(version string) map[string]any {
@@ -405,12 +416,12 @@ func (s *Server) call(raw json.RawMessage) (any, *Error) {
 	}
 
 	kind := map[string]string{
-		"vaigil_read": "read", "vaigil_write": "write", "vaigil_check": "check",
+		"vaigil_read": "read", "vaigil_write": "write",
 	}[p.Name]
 	if kind == "" {
 		return nil, &Error{Code: CodeMethodNotFound,
 			Message: fmt.Sprintf("no tool %q; the tools are vaigil_find, "+
-				"vaigil_read, vaigil_write and vaigil_check", p.Name)}
+				"vaigil_read and vaigil_write", p.Name)}
 	}
 
 	opName, _ := p.Arguments["operation"].(string)
@@ -520,9 +531,6 @@ func (s *Server) describe(ops []Operation) string {
 		tool := "vaigil_read"
 		if op.Writes {
 			tool = "vaigil_write"
-		}
-		if strings.HasPrefix(op.Name, "check") {
-			tool = "vaigil_check"
 		}
 		fmt.Fprintf(&b, "%s — %s\n", op.Name, op.Summary)
 		fmt.Fprintf(&b, "  call: %s{operation:%q, arguments:{...}}\n", tool, op.Name)

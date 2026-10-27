@@ -67,6 +67,10 @@ func cmdServe(root string, args []string) error {
 	if err != nil {
 		return err
 	}
+	// The agents board joins what was observed onto what was registered;
+	// the registry lives beside the policy and is loaded per request, so a
+	// change the CLI makes is on the board without restarting the console.
+	admin.AgentRegistry = agentStore(root)
 	// Persistence and auditing for the changes the console makes. Without
 	// these an access change lives until the process restarts, and the
 	// administrator has already been told it worked.
@@ -519,10 +523,19 @@ func cmdServe(root string, args []string) error {
 	// someone runs it is how a development server ends up on the internet,
 	// and the fix has to be a decision rather than a default.
 	//
+	// The agent interface is mounted beside the console, on the same port
+	// and outside the console's session middleware (mcp.go): it answers
+	// bearer tokens, not cookies.
+	mux := http.NewServeMux()
+	mountMCP(mux, root, cfg, *addr)
+	mountOTLP(mux, root)
+	mountCollector(mux, root)
+	mux.Handle("/", srv.Handler())
+
 	// Who each request came from is decided once, here, for everything
 	// behind: limits, placing a sign-in, the audit log (internal/clientip).
 	httpSrv := &http.Server{Addr: *addr,
-		Handler: clientip.Middleware(proxies(root, "admin.trusted_proxy"), srv.Handler())}
+		Handler: clientip.Middleware(proxies(root, "admin.trusted_proxy"), mux)}
 
 	fmt.Printf("console on http://%s\n", *addr)
 	// A passkey belongs to a name, and a browser refuses an address as one,
@@ -535,6 +548,7 @@ func cmdServe(root string, args []string) error {
 	// reaches only "Confirm it's you" (see mfa.go).
 	fmt.Printf("  %ssign in with a passkey; somebody without one gets a link that adds it:%s\n", dim, reset)
 	fmt.Printf("  %s    vaigil auth enrol NAME   (on a new store, vaigil init --admin NAME)%s\n", dim, reset)
+	fmt.Printf("  %sagents reach it over MCP at http://%s/mcp with a token from 'vaigil token issue', or 'vaigil mcp' on stdio%s\n", dim, *addr, reset)
 	if *openBrowser {
 		// Not an error if it fails: a container, a machine over SSH and CI
 		// have no desktop, and the address is on the line above.

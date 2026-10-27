@@ -251,3 +251,37 @@ func TestNobodyLookingIsDistinctFromReopening(t *testing.T) {
 		t.Errorf("an empty history reads as %q", Story("f1", nil))
 	}
 }
+
+// -- a proposal says who made it ----------------------------------------------
+
+// A proposal's log principal is the generic "mcp-client", which names every
+// agent and so none of them, and the reason is shown to whoever decides. So
+// the client that proposed travels with it — and the built-in analyst's own
+// tag, so a page can tell a proposal this program's fixed plan wrote from
+// one whatever model a caller brought wrote.
+func TestAProposalCarriesWhoWroteIt(t *testing.T) {
+	events := []audit.Event{
+		{Seq: 1, At: now.UTC().Format(time.RFC3339Nano),
+			Action: ProposalAction, Principal: "p_mcp", Kind: audit.KindAI,
+			Detail: map[string]string{"finding": "f1", "to": "benign",
+				"because": "counts", "client": "ops-copilot"}},
+		{Seq: 2, At: now.Add(time.Minute).UTC().Format(time.RFC3339Nano),
+			Action: ProposalAction, Principal: "p_analyst", Kind: audit.KindAI,
+			Detail: map[string]string{"finding": "f1", "to": "triaged",
+				"because": "counts", "agent": "triage"}},
+	}
+	props := ProposalsFromAudit(events, "f1")
+	if len(props) != 2 {
+		t.Fatalf("%d proposals read from the log", len(props))
+	}
+	// Newest first, so the analyst's is the first.
+	if props[0].Agent != "triage" || props[0].Client != "" {
+		t.Errorf("the built-in analyst's tag was lost: %+v", props[0])
+	}
+	if props[1].Client != "ops-copilot" || props[1].Agent != "" {
+		t.Errorf("the external client was lost: %+v", props[1])
+	}
+	if props[0].By != "p_analyst" || props[1].By != "p_mcp" {
+		t.Errorf("the principal no longer travels with the proposal: %+v", props)
+	}
+}

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vaigil/vaigil/internal/agentreg"
 	"github.com/vaigil/vaigil/internal/audit"
 	"github.com/vaigil/vaigil/internal/auth"
 )
@@ -49,11 +50,6 @@ type Caller struct {
 	Verified bool
 	// Why explains an unverified caller, for the message a refusal prints.
 	Why string
-	// Remote marks a caller at the agent interface over HTTP, and Grant the
-	// app consent its token came from, when it came from one. See
-	// agentinterface.go.
-	Remote bool
-	Grant  string
 	// Bound is whether the token was bound to a key and proved by it, and
 	// Life how long the token was issued to last: together, how much a copy
 	// of it would be worth to somebody else.
@@ -64,6 +60,17 @@ type Caller struct {
 	// which model it runs, or an agent acting under its own identity.
 	// Empty for a person or a service.
 	Model string
+	// Agent is the registered agent this token was issued to: the name
+	// after the "agent:" prefix of the token's own name (agentreg.Bind).
+	// Empty for a person, a plain service credential and the command line.
+	//
+	// A naming convention, and as weak as the kind heuristic below, said
+	// out loud here as there: the token's name is a claim about who it was
+	// issued to, not a proof. What the claim buys is the opposite of
+	// authority — a caller carrying an agent name is refused by every gate
+	// until a registry entry says it is somebody (authorise, below), so
+	// minting an agent:-prefixed token grants nothing by itself.
+	Agent string
 }
 
 // tokenFile is preferred over the environment.
@@ -136,7 +143,14 @@ func resolveCaller(root, explicitToken string) *Caller {
 	// Using a token records that it was used, which is what makes `token stale`
 	// able to find credentials nobody needs any more.
 	_ = saveTokens(root, toks)
+	return callerFromToken(tok)
+}
 
+// callerFromToken is the caller a resolved token acts as, shared by the
+// command line and the agent interface over HTTP: the same limits, and the
+// same honesty about what kind of principal it is, wherever the token was
+// presented.
+func callerFromToken(tok *auth.Token) *Caller {
 	kind := audit.KindService
 	if strings.EqualFold(tok.Name, "cli") || strings.Contains(tok.Name, "@") {
 		// A weak heuristic, and named as one. Distinguishing a person's own
@@ -145,10 +159,22 @@ func resolveCaller(root, explicitToken string) *Caller {
 		// because over-attributing to a human is the direction that misleads.
 		kind = audit.KindHuman
 	}
-	return &Caller{
+	c := &Caller{
 		Name: tok.Principal, Role: tok.Role, Scope: tok.Resource,
 		Limits: tok.Scope, Kind: kind, Verified: true,
 	}
+	if name, ok := agentreg.Bind(tok.Name); ok {
+		// The agent convention is the one token name that says what kind of
+		// principal holds it, which is why it outranks the heuristic above
+		// rather than joining it: an agent is an AI principal, and its acts
+		// are recorded as its own. The model it runs is not in the registry
+		// yet, so the agent's name stands in — an honest placeholder where
+		// the audit log insists on not leaving the field empty.
+		c.Agent = name
+		c.Kind = audit.KindAI
+		c.Model = name
+	}
+	return c
 }
 
 func osUser() string {
@@ -200,6 +226,23 @@ func policyInUse(root string) (bool, error) {
 // two things was missing — an identity or a permission — because they need
 // different fixes and "forbidden" tells nobody which.
 func authorise(root string, c *Caller, action auth.Action, resource string) error {
+	// A caller issued to a registered agent answers to its registry entry
+	// before the policy is consulted, and whatever the policy says.
+	//
+	// Two orders were possible and this is not the cosmetic one. After the
+	// policy check, a store where nobody holds a binding — the single-user
+	// bootstrap, where authorise answers yes to everybody — would have
+	// answered yes to an agent: token too, because the short-circuit
+	// returns before any gate runs. An agent's authority is its registry
+	// row, not the policy's silence, and a store with no policy and no
+	// registry is a store where an agent: token names nobody. The registry
+	// check runs first so that never depends on somebody having configured
+	// anything else (agentGate, in mcpsecurity.go).
+	if c.Agent != "" {
+		if err := agentGate(root, c); err != nil {
+			return err
+		}
+	}
 	inUse, err := policyInUse(root)
 	if err != nil {
 		return err
@@ -263,6 +306,18 @@ func authoriseUnder(root string, c *Caller, action auth.Action, area string) err
 	err := authorise(root, c, action, area)
 	if err == nil {
 		return nil
+	}
+	// A binding that reaches under the area can rescue a policy refusal,
+	// and only a policy refusal. The agent registry's decision is not a
+	// judgement about resources, so nothing a principal holds anywhere can
+	// un-refuse it — without this, the fallback was an override: an
+	// unregistered or disabled agent whose principal happened to be granted
+	// under the area was let back in by the very loop meant to widen the
+	// check, not to second-guess a different gate.
+	if c.Agent != "" {
+		if gerr := agentGate(root, c); gerr != nil {
+			return gerr
+		}
 	}
 	p, perr := loadPolicy(root)
 	if perr == nil && c.Verified && p.AnywhereUnder(c.Name, action, area) {

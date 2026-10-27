@@ -598,6 +598,9 @@ func (x *Session) fetchPage(ctx context.Context, u *url.URL, e Endpoint,
 		}
 		req.Header.Set("Accept", accept)
 		req.Header.Set("User-Agent", "vaigil-connector")
+		for k, v := range e.Headers {
+			req.Header.Set(k, v)
+		}
 		x.m.Auth.decorate(req, credential)
 
 		res, err := x.c.Do(req)

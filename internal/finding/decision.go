@@ -321,6 +321,14 @@ type Proposal struct {
 	For     string `json:"for"`
 	To      State  `json:"to"`
 	Because string `json:"because,omitempty"`
+	// Client is which client proposed, when the proposal came through the
+	// agent interface. The log's principal there is the generic
+	// "mcp-client", which names every agent and so none of them, and a
+	// reason beside a decision form needs an author a person can hold to
+	// it. Agent is the analyst this program runs itself, whose plan is
+	// fixed in code rather than asked of whatever model a caller brings.
+	Client string `json:"client,omitempty"`
+	Agent  string `json:"agent,omitempty"`
 }
 
 // ProposalAction is the audit action a proposal is written under.
@@ -340,6 +348,7 @@ func ProposalsFromAudit(events []audit.Event, id string) []Proposal {
 		out = append(out, Proposal{
 			Finding: id, At: at, By: e.Principal, For: e.Detail["on_behalf_of"],
 			To: State(e.Detail["to"]), Because: e.Detail["because"],
+			Client: e.Detail["client"], Agent: e.Detail["agent"],
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].At.After(out[j].At) })

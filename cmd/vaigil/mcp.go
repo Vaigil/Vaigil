@@ -6,13 +6,21 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/vaigil/vaigil/internal/admin"
+	"github.com/vaigil/vaigil/internal/audit"
 	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/vaigil/vaigil/internal/config"
+	"github.com/vaigil/vaigil/internal/dpop"
 	"github.com/vaigil/vaigil/internal/find"
 	"github.com/vaigil/vaigil/internal/mcp"
 )
@@ -41,7 +49,7 @@ func cmdMCP(root string, args []string) error {
 			}
 			fmt.Printf("  %-22s %-6s %s\n", op.Name, kind, op.Summary)
 		}
-		fmt.Printf("\n  %s%d operations behind 4 tools; an agent loads only what it "+
+		fmt.Printf("\n  %s%d operations behind 3 tools; an agent loads only what it "+
 			"searches for%s\n", dim, len(srv.Operations()), reset)
 		return nil
 	}
@@ -49,9 +57,21 @@ func cmdMCP(root string, args []string) error {
 	// stdio. A hosted deployment fronts this with streamable HTTP, and the
 	// framing is the only difference — the routing and the gates are identical,
 	// which is why they live in buildMCP rather than in a transport.
-	in := bufio.NewScanner(os.Stdin)
+	return serveStdio(root, srv, caller, os.Stdin, os.Stdout)
+}
+
+// serveStdio answers the line-framed JSON-RPC protocol on a pair of streams.
+//
+// Every tools/call is audited (auditMCPCall), as the HTTP transport's Called
+// hook audits its own. An agent that scrapes the findings queue over stdio
+// leaves the same record as one that scrapes it over HTTP: without this, the
+// transport a caller happened to choose would decide whether anything could
+// tell it had been — and the detection rules that read these records as
+// events under the agent source watch stdio agents too.
+func serveStdio(root string, srv *mcp.Server, caller *Caller, r io.Reader, w io.Writer) error {
+	in := bufio.NewScanner(r)
 	in.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
-	out := json.NewEncoder(os.Stdout)
+	out := json.NewEncoder(w)
 
 	for in.Scan() {
 		line := strings.TrimSpace(in.Text())
@@ -65,6 +85,9 @@ func cmdMCP(root string, args []string) error {
 			continue
 		}
 		resp := srv.Handle(req)
+		if req.Method == "tools/call" {
+			auditStdioCall(root, caller, req.Params, resp)
+		}
 		// A notification has no id and expects no reply.
 		if len(req.ID) == 0 {
 			continue
@@ -74,6 +97,215 @@ func cmdMCP(root string, args []string) error {
 		}
 	}
 	return in.Err()
+}
+
+// auditStdioCall writes the audit record for one tools/call on stdio: the
+// tool and operation the request named, and the answer the caller was given.
+// The record itself is written by auditMCPCall, which the HTTP transport's
+// hook writes too, so nothing downstream can tell — or needs to tell — which
+// transport carried the call.
+func auditStdioCall(root string, caller *Caller, params json.RawMessage, resp *mcp.Response) {
+	var p struct {
+		Name      string          `json:"name"`
+		Arguments json.RawMessage `json:"arguments"`
+	}
+	_ = json.Unmarshal(params, &p)
+	operation := ""
+	if len(p.Arguments) > 0 {
+		var a struct {
+			Operation string `json:"operation"`
+		}
+		_ = json.Unmarshal(p.Arguments, &a)
+		operation = a.Operation
+	}
+	auditMCPCall(root, caller.Name, p.Name, operation, resp.Error)
+}
+
+// auditMCPCall writes the audit record for one tools/call, whichever
+// transport carried it: action mcp.call under the fixed mcp-client
+// principal, with the calling client in the detail. A refusal is a denied
+// outcome, not a failure, so a rule reading these events tells an agent
+// that was told no from one that broke.
+//
+// Reported rather than returned: the call has happened and the caller has
+// its answer, and a record that could not be written is a thing to say
+// loudly, not a reply to take back. The writes an agent makes are refused
+// outright unless the log can take their record (auditReady, in buildMCP's
+// gate); reads go on and are recorded here, which is what tells this
+// process the log is back.
+func auditMCPCall(root, client, tool, operation string, rerr *mcp.Error) {
+	outcome := audit.Success
+	if rerr != nil {
+		outcome = audit.Failure
+		if rerr.Code == mcp.CodeRefused {
+			outcome = audit.Denied
+		}
+	}
+	record(root, audit.Record{
+		Action: "mcp.call", Resource: "/mcp", Outcome: outcome,
+		Principal: "mcp-client", Kind: audit.KindAI, Model: "mcp-client",
+		Verified: false,
+		Detail: map[string]string{
+			"tool": tool, "operation": operation, "client": client},
+	})
+}
+
+// The agent interface over HTTP, mounted by serve beside the console. The
+// framing is the only difference from stdio: buildMCP is the whole surface,
+// and this transport only carries it, so the role gate, the
+// read-tool-cannot-write split and the audit-first rule for an agent's
+// writes are the same lines of code on both.
+//
+// wellKnownMCP is where RFC 9728 puts a resource's own metadata. The path
+// carries the resource's suffix because one origin may host several
+// protected resources, and the unsuffixed path would make a second one
+// impossible without moving the first.
+const wellKnownMCP = "/.well-known/oauth-protected-resource/mcp"
+
+// mountMCP puts the agent interface and its discovery document on the
+// console's server.
+//
+// It is mounted beside the console's handler rather than inside it on
+// purpose. The console answers a person holding a session cookie; this
+// answers a program holding a bearer token, resolved by the transport's
+// Authenticate hook on every request. Standing the endpoint outside the
+// console's middleware is what keeps the two credentials from mixing: a
+// console cookie must neither open the agent interface, nor — the sharper
+// edge — must the absence of one close it, and a page that tries to drive a
+// signed-in person's browser at this endpoint is stopped by the origin
+// check before any of that matters.
+func mountMCP(mux *http.ServeMux, root string, cfg *config.Config, addr string) {
+	// The resource is named for the address the operator chose to listen
+	// on, not for whatever host a request arrives claiming: a Host header is
+	// an input, not an identity.
+	scheme := "http"
+	if cfg.Bool("admin.behind_tls_proxy") {
+		scheme = "https"
+	}
+	origin := scheme + "://" + addr
+
+	// One replay window for the endpoint's life: a DPoP proof is good for
+	// one request, and the remembering has to outlive each of them.
+	var proofs dpop.Replays
+	origins := mcpOrigins(cfg, addr)
+
+	mux.Handle("/mcp", &mcp.Endpoint{
+		Metadata: origin + wellKnownMCP,
+		// Key-bound tokens are accepted here with the proof their key made
+		// for the request, which this surface becomes alongside
+		// /token/exchange (ErrKeyBound names it).
+		DPoP: dpop.AlgorithmNames(),
+		Authenticate: func(r *http.Request, token string) (*mcp.Caller, error) {
+			c, err := agentCaller(root, r, token, &proofs)
+			if err != nil {
+				return nil, err
+			}
+			return &mcp.Caller{Principal: c.Name, Data: c}, nil
+		},
+		Build: func(r *http.Request, c *mcp.Caller) (*mcp.Server, error) {
+			// The caller Authenticate resolved, carried to the same gates
+			// the stdio path applies to the token the CLI read.
+			return buildMCP(root, c.Data.(*Caller)), nil
+		},
+		SameOrigin: func(o string) bool { return origins[o] },
+		Called: func(r *http.Request, c *mcp.Caller, tool, operation string, rerr *mcp.Error) {
+			auditMCPCall(root, c.Principal, tool, operation, rerr)
+		},
+	})
+	// The document a 401 points at: what this resource is, and nothing it
+	// cannot honour. No authorization_servers is named because there is no
+	// authorization server yet — the tokens this resource accepts are issued
+	// by this same deployment at its own command line and narrowed at its
+	// own /token/exchange — so a client that follows the metadata to its
+	// OAuth conclusion finds this origin and no /authorize on it, which is
+	// the truth, rather than an issuer pointing at a door that is not
+	// there. When an authorization server is built it is named here and
+	// nowhere else.
+	mux.Handle(wellKnownMCP, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"resource": origin + "/mcp"})
+	}))
+}
+
+// agentCaller resolves the bearer token an HTTP request presented against
+// the same token store the command line and the console read. There is no
+// second store and no other issuer, so a token from `vaigil token issue` is
+// the credential here, and the caller it becomes carries the token's own
+// limits — role, path, scope — which is what caps an agent exactly as it
+// caps a person.
+//
+// The resource asked about is /mcp, so a token bound to one audience — the
+// OAuth shape, the day one is issued — is accepted only here, and only when
+// /mcp is the audience it was issued for. That is the RFC 8707 seam
+// internal/mcp's package comment names, closed at the one place it can be.
+func agentCaller(root string, r *http.Request, token string, proofs *dpop.Replays) (*Caller, error) {
+	toks, err := loadTokens(root)
+	if err != nil {
+		return nil, fmt.Errorf("the token store could not be read: %v", err)
+	}
+	now := time.Now()
+	tok, err := toks.AuthenticateFor(token, "/mcp", now)
+	if errors.Is(err, auth.ErrKeyBound) {
+		// The token is bound to a key, so the request must carry the proof
+		// that key made for it, checked here against this request's method
+		// and address rather than merely presented.
+		heads := r.Header.Values("DPoP")
+		if len(heads) != 1 {
+			return nil, fmt.Errorf("%w: a key-bound token comes with exactly one DPoP proof",
+				dpop.ErrProof)
+		}
+		thumb, perr := dpop.Check(heads[0], r.Method, mcpRequestURL(root, r), token, now, proofs)
+		if perr != nil {
+			return nil, perr
+		}
+		tok, err = toks.AuthenticateProved(token, "/mcp", thumb, now)
+	}
+	if err != nil {
+		return nil, err
+	}
+	// Using a token records that it was used, over HTTP as over the command
+	// line, so `token stale` can find credentials nobody needs any more.
+	_ = saveTokens(root, toks)
+	return callerFromToken(tok), nil
+}
+
+// mcpOrigins is the page origins the agent interface answers: this server's
+// own addresses, and nothing else. A request with no Origin header is not
+// from a page and never reaches this check (http.go); this decides only
+// which pages may drive a person's browser at the endpoint.
+func mcpOrigins(cfg *config.Config, addr string) map[string]bool {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil
+	}
+	names := []string{host}
+	// The console is opened as localhost when it listens on a bare address
+	// (serve says so on startup), so the loopback names all name this
+	// server, and a page served from any of them is one of ours.
+	if host == "127.0.0.1" || host == "localhost" || host == "::1" {
+		names = append(names, "127.0.0.1", "localhost", "::1")
+	}
+	scheme := "http"
+	if cfg.Bool("admin.behind_tls_proxy") {
+		scheme = "https"
+	}
+	out := map[string]bool{}
+	for _, h := range names {
+		out[scheme+"://"+net.JoinHostPort(h, port)] = true
+	}
+	return out
+}
+
+// mcpRequestURL is the address a request reached this process under, as a
+// DPoP proof names it: the scheme from the socket or the trusted-proxy
+// setting, and the host and path as the request came in.
+func mcpRequestURL(root string, r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil || mustConfig(root).Bool("admin.behind_tls_proxy") {
+		scheme = "https"
+	}
+	return scheme + "://" + r.Host + r.URL.Path
 }
 
 func buildMCP(root string, caller *Caller) *mcp.Server {

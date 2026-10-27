@@ -4,6 +4,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -13,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,9 +23,11 @@ import (
 	"github.com/vaigil/vaigil/internal/atomicfile"
 	"github.com/vaigil/vaigil/internal/audit"
 	"github.com/vaigil/vaigil/internal/automate"
+	"github.com/vaigil/vaigil/internal/collector"
 	"github.com/vaigil/vaigil/internal/fetch"
 	"github.com/vaigil/vaigil/internal/inbound"
 	"github.com/vaigil/vaigil/internal/oidc"
+	"github.com/vaigil/vaigil/internal/otlp"
 	"github.com/vaigil/vaigil/internal/source"
 	"github.com/vaigil/vaigil/internal/spool"
 	"github.com/vaigil/vaigil/internal/ssf"
@@ -416,12 +421,13 @@ func (s *inboundServer) store(sp *spool.Spool, p pushed, aliases map[string]alia
 	}
 	stored := 0
 	var serr error
-	for _, e := range events {
-		if _, err := sp.Append(e); err != nil {
-			serr = err
-			break
-		}
-		stored++
+	// One batch for one push: the writer's lock and the index's save are
+	// taken once, and a bad event refuses the whole push rather than
+	// leaving half of it stored around the failure.
+	if _, err := sp.AppendBatch(events); err != nil {
+		serr = err
+	} else {
+		stored = len(events)
 	}
 	s.mu.Lock()
 	st.Stored += stored
@@ -872,4 +878,531 @@ func feedNames(m map[string]inbound.Feed) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// -- OpenTelemetry traces -----------------------------------------------------
+
+// mountOTLP puts the OTLP/HTTP-JSON traces endpoint beside the console, on
+// the same port and outside its session middleware, the way the agent
+// interface is mounted: it answers a bearer credential, not a cookie.
+//
+// A push proves itself with the credential a feed's would (a sealed token
+// from the store, compared in constant time — made with `vaigil connect
+// secret inbound-otlp`), is mapped by the same machinery anything else
+// that arrives is (the otel/genai source), and is written to the store
+// before the answer says it was, then read by the rules at once like every
+// other delivery. GenAI spans carry prompt and completion content; that is
+// dropped at the boundary and only its length survives (internal/otlp).
+func mountOTLP(mux *http.ServeMux, root string) {
+	mux.Handle("/v1/traces", &otlp.Handler{
+		Token: func() (string, error) {
+			s, err := loadSecrets(root)
+			if err != nil {
+				return "", err
+			}
+			return s[otlp.SecretName], nil
+		},
+		Mapping: func() (source.Source, error) {
+			return findSource(root, "otel/genai")
+		},
+		Store: func(events []telemetry.Event) error {
+			return withSpool(root, func(sp *spool.Spool) error {
+				if _, err := sp.AppendBatch(events); err != nil {
+					return err
+				}
+				// The store is already held here, so the rules run over
+				// what has just arrived the way they do for a feed's
+				// worker: a push that waited for a timer is a push a quiet
+				// hour never checks.
+				detectInServer(root, sp)
+				return nil
+			})
+		},
+		// The feeds' own figure: far above anything a collector sends and
+		// far below what fills a disk.
+		Limit: feedRate,
+	})
+}
+
+// -- the collector endpoint ---------------------------------------------------
+
+// mountCollector puts the endpoint recorder's door beside the console and
+// the OTLP one: /v1/collector for the batches, /v1/collector/config for the
+// declarative watch pack the collector fetches at startup. Outside the
+// session middleware, answering a bearer credential, exactly like every
+// other thing that pushes.
+//
+// The collector is the read-only endpoint agent (docs/research/
+// 12-xdr-ndr-tip-iam.md §8), and the boundary here is where its evidence
+// stops being that program's and becomes this one's. Three properties of
+// that boundary are load-bearing enough to be named:
+//
+// One credential per collector. The X-Vaigil-Token header names it in the
+// sealed store (`vaigil connect secret inbound-build01`), the bearer value
+// is compared through a digest in constant time the way every push
+// credential here is, and revoking one collector's credential is one
+// rotation rather than a fleet's.
+//
+// Signed bodies. The batch is HMAC-SHA256 over the batch id, the send time
+// and the body, keyed with that same credential — one provisioned secret,
+// not two to drift. The timestamp is refused outside the five-minute window
+// every signed delivery here is held to, and the batch id is remembered, so
+// the collector's own retry after a lost answer stores nothing twice.
+//
+// Metadata, not content. What a watched file's record carries is the path,
+// the kind, the size, the SHA-256 and the operation — the collector hashes
+// content and never ships it, and there is nothing at this boundary that
+// could receive it even if it did. Evidence-grade means the fact a key
+// changed is here and the key is not.
+func mountCollector(mux *http.ServeMux, root string) {
+	e := &collectorEndpoint{root: root, now: time.Now}
+	mux.Handle("/v1/collector", e)
+	mux.Handle("/v1/collector/config", e)
+}
+
+// collectorConfigPath is the deployment's watch pack. One file for the
+// fleet, written by an operator, served only after it parses as the
+// collector's own struct has validated it: a pack this server cannot obey
+// is never handed to a collector that then ships the default one and calls
+// it deployed.
+func collectorConfigPath(root string) string {
+	return filepath.Join(root, "collector", "config.json")
+}
+
+// collectorBody caps one batch. The collector batches at a few hundred
+// records and gzips; four megabytes is far above that and far below what
+// fills a disk from outside.
+const collectorBody = 4 << 20
+
+// classSystem is OCSF's System Activity class (1011). internal/telemetry
+// carries the classes every mapped source needs; a heartbeat is neither a
+// file activity nor a process activity, and the arithmetic that makes 1011
+// well-formed (category*1000 + index) is the part of OCSF this project
+// borrowed on purpose.
+const classSystem = telemetry.Class(1011)
+
+type collectorStatus struct {
+	Batches int `json:"batches"`
+	Records int `json:"records"`
+	Stored  int `json:"stored"`
+	// Duplicates counts batch ids a retry carried. The collector's own
+	// answer-loss semantics make these ordinary, not hostile.
+	Duplicates int       `json:"duplicates"`
+	Refused    int       `json:"refused"`
+	LastAt     time.Time `json:"last_at,omitempty"`
+	LastRefuse time.Time `json:"last_refused,omitempty"`
+	Why        string    `json:"why,omitempty"`
+	Error      string    `json:"error,omitempty"`
+}
+
+type collectorEndpoint struct {
+	root string
+	now  func() time.Time
+	seen inbound.Seen
+
+	mu      sync.Mutex
+	status  collectorStatus
+	window  rateWindow
+	stopped bool
+}
+
+func (e *collectorEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if !e.allow() {
+		w.Header().Set("Retry-After", "60")
+		http.Error(w, "too many deliveries", http.StatusTooManyRequests)
+		return
+	}
+	name, secret, ok := e.authenticate(w, r)
+	if !ok {
+		return
+	}
+	if strings.HasSuffix(r.URL.Path, "/config") {
+		e.config(w, r, name, secret)
+		return
+	}
+	e.batch(w, r, name, secret)
+}
+
+// allow is the feeds' own window, reused for the same reason: far above
+// anything one collector legitimately sends, far below what fills a disk.
+func (e *collectorEndpoint) allow() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	now := e.now()
+	if e.window.start.IsZero() || now.Sub(e.window.start) >= time.Minute {
+		e.window = rateWindow{start: now}
+	}
+	e.window.n++
+	return e.window.n <= feedRate
+}
+
+// authenticate proves the delivery against the collector's own credential,
+// named in the header, before anything else is read.
+func (e *collectorEndpoint) authenticate(w http.ResponseWriter, r *http.Request) (string, string, bool) {
+	name := r.Header.Get(collector.HeaderToken)
+	if !inbound.ValidName(name) {
+		e.refused("the delivery names no credential this store could hold")
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return "", "", false
+	}
+	secrets, err := loadSecrets(e.root)
+	if err != nil {
+		http.Error(w, "unavailable", http.StatusServiceUnavailable)
+		return "", "", false
+	}
+	secret := secrets[name]
+	if secret == "" {
+		e.refused("there is no credential " + name + " in the store " +
+			"(vaigil connect secret " + name + ")")
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return "", "", false
+	}
+	if !inbound.StaticMatches(inbound.BearerOrRaw(r.Header.Get("Authorization")), inbound.Digest(secret)) {
+		e.refused("the Authorization header does not hold " + name + "'s credential")
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return "", "", false
+	}
+	return name, secret, true
+}
+
+func (e *collectorEndpoint) refused(why string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.status.Refused++
+	e.status.LastRefuse = e.now().UTC()
+	e.status.Why = why
+}
+
+// config answers GET with the deployment's watch pack.
+func (e *collectorEndpoint) config(w http.ResponseWriter, r *http.Request, name, secret string) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "GET only", http.StatusMethodNotAllowed)
+		return
+	}
+	b, err := readBounded(collectorConfigPath(e.root), 256<<10)
+	if os.IsNotExist(err) {
+		http.Error(w, "this server has no collector config; the collector "+
+			"will use its cached or built-in pack", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, "unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	// Validated with the collector's own rules before it is served, because
+	// a pack a collector would refuse is worse than no pack: the collector
+	// falls back to defaults silently on some versions and loudly on others.
+	if _, err := collector.LoadFile(collectorConfigPath(e.root)); err != nil {
+		http.Error(w, "the deployment's collector config is unusable: "+
+			err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(b)
+}
+
+// batch takes one signed delivery of evidence.
+func (e *collectorEndpoint) batch(w http.ResponseWriter, r *http.Request, name, secret string) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+	body, code, why := readCollectorBody(r)
+	if code != 0 {
+		http.Error(w, why, code)
+		return
+	}
+	// The replay windows: a timestamp outside the tolerance every signed
+	// delivery here is held to, then the signature over id, time and body.
+	at, err := strconv.ParseInt(r.Header.Get(collector.HeaderTime), 10, 64)
+	if err != nil || at <= 0 {
+		e.refused("the batch carries no usable time header")
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if d := e.now().Sub(time.Unix(at, 0)); d > inbound.Tolerance || d < -inbound.Tolerance {
+		e.refused(fmt.Sprintf("the batch is signed %s from now", d.Round(time.Second)))
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	id := r.Header.Get(collector.HeaderBatch)
+	if id == "" || len(id) > 128 {
+		e.refused("the batch carries no id")
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if !collector.VerifyBatch(secret, id, time.Unix(at, 0), body,
+		r.Header.Get(collector.HeaderSignature)) {
+		e.refused("the batch signature does not match its credential")
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	// The honest duplicate policy: a batch id is remembered for the day the
+	// feeds remember delivery ids, and a repeat is answered as taken without
+	// being stored again. The collector retries a batch whenever the answer
+	// was lost — a 200 that arrived nowhere — and the retry semantics are
+	// the collector's own; this side's job is to make them safe, not to
+	// punish them.
+	if !e.seen.First(name+":"+id, e.now()) {
+		e.mu.Lock()
+		e.status.Duplicates++
+		e.mu.Unlock()
+		writeCollectorAnswer(w, 0, true)
+		return
+	}
+	var batch collector.Batch
+	dec := json.NewDecoder(bytes.NewReader(body))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&batch); err != nil {
+		e.refused(err.Error())
+		http.Error(w, "the body is not a collector batch", http.StatusBadRequest)
+		return
+	}
+	if len(batch.Records) > 10000 {
+		http.Error(w, "a batch of that many records is not one this collector sends",
+			http.StatusRequestEntityTooLarge)
+		return
+	}
+	events, err := e.events(name, batch, e.now().UTC())
+	if err != nil {
+		e.refused(err.Error())
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	e.mu.Lock()
+	e.status.Batches++
+	e.status.Records += len(batch.Records)
+	e.status.LastAt = e.now().UTC()
+	e.mu.Unlock()
+	stored := 0
+	if len(events) > 0 {
+		if serr := withSpool(e.root, func(sp *spool.Spool) error {
+			if _, aerr := sp.AppendBatch(events); aerr != nil {
+				return aerr
+			}
+			// What arrived is read by the rules at once, the way every
+			// other delivery's is: an authorized_keys change that waits
+			// for a timer is a change a quiet hour never checks.
+			detectInServer(e.root, sp)
+			return nil
+		}); serr != nil {
+			e.mu.Lock()
+			e.status.Error = serr.Error()
+			e.mu.Unlock()
+			http.Error(w, "the event store did not take the batch; send it again",
+				http.StatusServiceUnavailable)
+			return
+		}
+		stored = len(events)
+	}
+	e.mu.Lock()
+	e.status.Stored += stored
+	e.status.Error = ""
+	e.mu.Unlock()
+	writeCollectorAnswer(w, stored, false)
+}
+
+func writeCollectorAnswer(w http.ResponseWriter, stored int, duplicate bool) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"stored": stored, "duplicate": duplicate})
+}
+
+// readCollectorBody takes the body, decoding the one compression the OTLP
+// endpoint also takes and capping the decompressed size.
+func readCollectorBody(r *http.Request) ([]byte, int, string) {
+	raw := io.LimitReader(r.Body, collectorBody+1)
+	var in io.Reader = raw
+	switch strings.ToLower(strings.TrimSpace(
+		r.Header.Get("Content-Encoding"))) {
+	case "", "identity":
+	case "gzip":
+		gz, err := gzip.NewReader(raw)
+		if err != nil {
+			return nil, http.StatusBadRequest, "the body says it is gzip and does not open as gzip"
+		}
+		defer gz.Close()
+		in = gz
+	default:
+		return nil, http.StatusUnsupportedMediaType, "this endpoint reads identity and gzip bodies only"
+	}
+	body, err := io.ReadAll(io.LimitReader(in, collectorBody+1))
+	if err != nil {
+		return nil, http.StatusBadRequest, "the body did not arrive whole"
+	}
+	if len(body) > collectorBody {
+		return nil, http.StatusRequestEntityTooLarge, "the body is larger than this endpoint reads"
+	}
+	return body, 0, ""
+}
+
+// events turns one batch's records into store events. The auditd records
+// go through the existing auditd mapping — the same one `vaigil collect
+// file` uses — so every rule written against auditd/events reads collector
+// evidence unchanged; the watch and heartbeat records become events here,
+// because no mapping exists for them and inventing one to read three known
+// fields through would be ceremony, not reuse.
+//
+// Records with a source this endpoint does not know refuse the whole batch:
+// a version skew is a deployment error to surface, not half a batch to
+// store and half to drop, and the spool's append-only batch is the unit
+// either way.
+func (e *collectorEndpoint) events(name string, batch collector.Batch, now time.Time) ([]telemetry.Event, error) {
+	var auditd []any
+	var out []telemetry.Event
+	for _, rec := range batch.Records {
+		switch rec.Source {
+		case collector.SourceAuditd:
+			auditd = append(auditd, rec.Data)
+		case collector.SourceWatch:
+			ev, err := collectorWatchEvent(name, rec, now)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, ev)
+		case collector.SourceHeartbeat:
+			ev, err := collectorHeartbeatEvent(name, rec, now)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, ev)
+		default:
+			return nil, fmt.Errorf("record %d names source %q, which this "+
+				"endpoint does not know; nothing in the batch was stored",
+				len(out)+len(auditd)+1, rec.Source)
+		}
+	}
+	if len(auditd) > 0 {
+		src, err := findSource(e.root, collector.SourceAuditd)
+		if err != nil {
+			return nil, err
+		}
+		aliases, _ := loadAliases(e.root)
+		if aliases == nil {
+			aliases = map[string]alias{}
+		}
+		cs := collectStatus{}
+		out = append(out, mapRecords(src, auditd, &cs, aliases, now)...)
+		if cs.Missed > 0 {
+			field, n := cs.Field, cs.Missed
+			if field == "" {
+				field = "(not a usable event)"
+			}
+			return nil, fmt.Errorf("%d of %d auditd record(s) did not map; "+
+				"%s was missing from %d. Nothing in the batch was stored",
+				cs.Missed, len(auditd), field, n)
+		}
+	}
+	return out, nil
+}
+
+// collectorWatchEvent is one watched-path change as an event. The raw
+// fields are the whole of what the collector noticed — path, kind, sha256,
+// size, op — and the content the hash stands for is not, and cannot be,
+// here.
+func collectorWatchEvent(name string, r collector.Record, at time.Time) (telemetry.Event, error) {
+	path := recString(r.Data, "path")
+	kind := recString(r.Data, "kind")
+	op := recString(r.Data, "op")
+	if path == "" {
+		return telemetry.Event{}, fmt.Errorf(
+			"a watch record names no path, so it is evidence about nothing")
+	}
+	switch op {
+	case collector.OpCreated, collector.OpChanged, collector.OpRemoved:
+	default:
+		return telemetry.Event{}, fmt.Errorf(
+			"a watch record says %q happened; it is created, changed or removed", op)
+	}
+	if kind == "" {
+		kind = collector.KindOther
+	}
+	when := r.At
+	if when.IsZero() {
+		when = at
+	}
+	e := telemetry.Event{
+		Time: when.UTC(), Received: at,
+		Class: telemetry.ClassFileActivity, Activity: 1,
+		Severity: telemetry.SeverityInfo,
+		Source:   collector.SourceWatch,
+		Message:  fmt.Sprintf("%s %s (%s)", path, op, kind),
+		Device:   telemetry.ID{Issuer: "collector", Value: name},
+		Raw: map[string]string{"path": path, "kind": kind, "op": op,
+			"sha256": recString(r.Data, "sha256"),
+			"size":   recString(r.Data, "size"),
+			"host":   recString(r.Data, "host")},
+	}
+	if e.Raw["sha256"] != "" {
+		e.Observables = append(e.Observables, telemetry.Observable{
+			Kind: telemetry.ObservableHash, Value: e.Raw["sha256"], Name: "sha256"})
+	}
+	e.Observables = append(e.Observables, telemetry.Observable{
+		Kind: telemetry.ObservableFile, Value: path, Name: "path"})
+	if err := e.Validate(); err != nil {
+		return telemetry.Event{}, err
+	}
+	return e, nil
+}
+
+// collectorHeartbeatEvent is the recorder's one-minute "still here". The
+// missing-heartbeat detection is a rule written against this source, run
+// here on the server — a recorder that noticed its own silence would be a
+// recorder that judged, and judging is not its job.
+func collectorHeartbeatEvent(name string, r collector.Record, at time.Time) (telemetry.Event, error) {
+	when := r.At
+	if when.IsZero() {
+		when = at
+	}
+	host := recString(r.Data, "host")
+	e := telemetry.Event{
+		Time: when.UTC(), Received: at,
+		Class: classSystem, Activity: 1,
+		Severity: telemetry.SeverityInfo,
+		Source:   collector.SourceHeartbeat,
+		Device:   telemetry.ID{Issuer: "collector", Value: name},
+	}
+	if host != "" {
+		e.Message = fmt.Sprintf("recorder alive on %s", host)
+		e.Observables = append(e.Observables, telemetry.Observable{
+			Kind: telemetry.ObservableHostname, Value: host, Name: "host"})
+	} else {
+		e.Message = "recorder alive"
+	}
+	raw := map[string]string{"host": host}
+	for _, k := range []string{"uptime_seconds", "shipped", "dropped",
+		"batches", "retries", "version", "go"} {
+		if v := recString(r.Data, k); v != "" {
+			raw[k] = v
+		}
+	}
+	e.Raw = raw
+	if err := e.Validate(); err != nil {
+		return telemetry.Event{}, err
+	}
+	return e, nil
+}
+
+// recString reads a record's field whatever side of JSON it arrived from:
+// the collector sends strings, but a body rebuilt through encoding/json
+// hands numbers back as float64, and a value that changes type on its way
+// through a decoder is a value a rule cannot match.
+func recString(m map[string]any, key string) string {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return ""
+	}
+	switch x := v.(type) {
+	case string:
+		return x
+	case float64:
+		if x == float64(int64(x)) {
+			return strconv.FormatInt(int64(x), 10)
+		}
+		return strconv.FormatFloat(x, 'f', -1, 64)
+	default:
+		return fmt.Sprint(x)
+	}
 }

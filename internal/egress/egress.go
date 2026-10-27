@@ -86,6 +86,16 @@ type Purpose struct {
 // review is the point.
 var Purposes = []Purpose{
 	{
+		Name: "collector",
+		What: "the endpoint recorder shipping its batches of audit facts, " +
+			"watched-file changes and heartbeats to this program's " +
+			"/v1/collector, and fetching the watch pack the operator " +
+			"deployed",
+		Without: "a recorder keeps its evidence in its bounded local spool " +
+			"and keeps retrying; the machines it watches go quiet here, " +
+			"and their missed-heartbeat signal goes quiet with them",
+	},
+	{
 		Name: "model",
 		What: "asking a language model for the AI analyst's first pass on a " +
 			"finding: counts and quoted evidence, with personal data and " +

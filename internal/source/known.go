@@ -41,6 +41,9 @@ func Known() []Source {
 		evmLogs(),
 		// On-premise, where there is no API and a line of text arrives.
 		linuxAuditd(),
+		// The AI stack: agents observed as telemetry, and the two audit
+		// trails every startup's model usage runs through.
+		otelGenAI(), openaiAudit(), anthropicAudit(),
 	}
 }
 
@@ -507,5 +510,140 @@ func evmLogs() Source {
 			"arg2_name", "arg2"},
 		// A block is final in minutes, and an explorer indexes behind it.
 		Lateness: 10 * time.Minute,
+	}
+}
+
+// otelGenAI is what a GenAI span becomes when it is pushed here over OTLP.
+//
+// The records are built by internal/otlp from OpenTelemetry's GenAI semantic
+// conventions, so this mapping's paths are that package's field names rather
+// than a vendor's. The fields it keeps are exactly the ones the agent
+// failure catalogue needs — operation, tool, model, tokens, conversation and
+// trace — and never the content of a prompt or completion: those are dropped
+// at the boundary and only their lengths survive, because a prompt is
+// attacker-influenced text and the event model already treats message that
+// way.
+func otelGenAI() Source {
+	return Source{
+		Issuer: "otel", Tool: "OpenTelemetry GenAI", Stream: "genai",
+		// An agent acting is an API activity: it called a tool or a model,
+		// and whether that is normal is a question about the call, not about
+		// a sign-in or a process.
+		Class: telemetry.ClassAPIActivity, Activity: 1,
+		Time: "time", Layout: time.RFC3339Nano,
+		// The agent identity: gen_ai.agent.id where the SDK set it, and the
+		// service.name of the emitting process where it did not. Requiring
+		// it refuses a span that attributes its actions to nobody, which is
+		// the one thing no detection can work around.
+		Actor:   "agent",
+		Target:  "model",
+		Message: "operation",
+		// A span status of error is a call that did not complete; unset and
+		// ok are the ordinary paths.
+		Outcome: "status", Succeeded: []string{"ok"},
+		Require: []string{"time", "agent", "trace_id", "operation", "status"},
+		Keep: []string{"operation", "tool", "model", "status", "tokens_in",
+			"tokens_out", "conversation", "trace_id", "span_id", "span_name",
+			"service", "agent_name", "system", "duration_ms", "prompt_bytes",
+			"completion_bytes", "content_events", "content_bytes"},
+		// SDKs batch (five seconds by default) and a collector adds its own
+		// queue, so a couple of minutes covers the push without pretending
+		// the stream is a batch import.
+		Lateness: 2 * time.Minute,
+	}
+}
+
+// openaiAudit is the API Platform organisation's audit log.
+//
+// The shape is the one the openai-python admin types are generated from
+// (src/openai/types/admin/organization/audit_log_list_response.py; the API
+// reference is developers.openai.com's Admin → organization → audit_logs
+// list method): an id, effective_at in seconds since the epoch, a type, an
+// actor union of a console session or an API key, and one type-specific
+// payload under a key that is the event type itself — with dots in it,
+// which the connector reads through the escaped path form.
+//
+// The class is API activity rather than authentication even though sign-ins
+// are in the feed, because they are a minority of it: the log is the audit
+// trail of keys, roles and projects, and the majority of its records are
+// administrative actions. The sign-ins still tell their own story through
+// the type, which is kept.
+func openaiAudit() Source {
+	return Source{
+		Issuer: "openai", Tool: "OpenAI", Stream: "audit",
+		Class: telemetry.ClassAPIActivity, Activity: 1,
+		// OpenAI writes the event time as seconds since the epoch.
+		Time: "effective_at", Layout: LayoutEpochSecond,
+		// A session actor is a person in the console; the other half of the
+		// actor union is an API key, whose owner is kept instead. Not
+		// required, because an api_key actor has no session user and
+		// requiring one would drop exactly the machine events this source
+		// exists to see.
+		Actor:   "actor.session.user.id",
+		Person:  "actor.session.user.email",
+		Target:  "project",
+		Message: "type",
+		// The type carries the outcome for the events that have one:
+		// login.failed and logout.failed are the failures of this feed, and
+		// everything else completed by the time it was recorded.
+		Outcome: "type", Failed: []string{"login.failed", "logout.failed"},
+		Observables: map[telemetry.ObservableKind]string{
+			telemetry.ObservableIP: "actor.session.ip_address",
+		},
+		Require: []string{"effective_at", "id", "type"},
+		Keep: []string{"id", "type", "email", "actor.session.ip_address",
+			"acting_key", "key_owner", "key_owner_email",
+			"key_service_account", "project", "project_name", "created_key",
+			"updated_key", "deleted_key", "invite_email", "invite_role",
+			"role_principal", "role_resource", "added_user", "added_role",
+			"service_account", "login_error"},
+		// The log is written as the action happens; a few minutes covers a
+		// batched read.
+		Lateness: 5 * time.Minute,
+	}
+}
+
+// anthropicAudit is the Compliance API's activity feed.
+//
+// The shape is documented at
+// platform.claude.com/docs/en/api/compliance/activities/list: an id, a
+// created_at in RFC 3339 with microseconds, an organization, a type, and an
+// actor that is a discriminated union — a user, an API key, an admin key,
+// an unauthenticated address, Anthropic itself, a system process or a SCIM
+// sync. Activities are queryable within a minute of occurring and kept six
+// years; conversation content is in other endpoints of the same API and
+// never in this feed.
+//
+// The same reasoning as OpenAI for the class. The user_actor identity is
+// the join and the rest are kept as they arrive, so a detection on the
+// machine actors does not depend on a person existing.
+func anthropicAudit() Source {
+	return Source{
+		Issuer: "anthropic", Tool: "Anthropic", Stream: "audit",
+		Class: telemetry.ClassAPIActivity, Activity: 1,
+		Time: "created_at", Layout: time.RFC3339Nano,
+		Actor:   "actor.user_id",
+		Person:  "actor.email_address",
+		Message: "type",
+		// The failed sign-ins this feed records: sso_login_failed and
+		// magic_link_login_failed name their own outcome in the type, and
+		// the rest of the feed happened or it would not be there.
+		Outcome: "type",
+		Failed:  []string{"sso_login_failed", "magic_link_login_failed"},
+		Observables: map[telemetry.ObservableKind]string{
+			telemetry.ObservableIP:        "actor.ip_address",
+			telemetry.ObservableUserAgent: "actor.user_agent",
+			telemetry.ObservableEmail:     "actor.email_address",
+		},
+		Require: []string{"created_at", "id", "type"},
+		Keep: []string{"id", "type", "organization_id", "actor_kind",
+			"actor.ip_address", "actor.user_agent",
+			"unauthenticated_email", "acting_api_key", "acting_admin_key",
+			"acting_service_account", "anthropic_service", "api_key_id",
+			"admin_api_key_id", "target_user", "target_user_email",
+			"role_now", "role_was", "invite", "auth_method", "mfa_method"},
+		// Activities are queryable within a minute of occurring; the read
+		// is scheduled, so two minutes covers it.
+		Lateness: 2 * time.Minute,
 	}
 }

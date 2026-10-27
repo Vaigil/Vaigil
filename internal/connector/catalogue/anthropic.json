@@ -1,0 +1,99 @@
+{
+  "tool": "Anthropic",
+  "about": "The Compliance API's activity feed: the audit trail of a Claude organisation — SSO sign-ins that worked and failed, API and administration key creation, role and capability changes, member invites, chat and file activity names, and calls made on the Compliance API itself. It carries actor, address and user agent; it never carries conversation content. Enterprise and eligible Console organisations, enabled by the organisation's owner.",
+  "default": "anthropic",
+  "regions": {
+    "anthropic": {
+      "host": "api.anthropic.com"
+    }
+  },
+  "credentials": {
+    "anthropic-compliance-key": "A Compliance Access Key (sk-ant-api01-…) with the read:compliance_activities scope, or an Admin API key (sk-ant-admin01-…) that carries it, made by the organisation's owner. It is sent as the x-api-key header to api.anthropic.com only."
+  },
+  "manifest": {
+    "name": "anthropic",
+    "tool": "Anthropic",
+    "host": "",
+    "auth": {
+      "kind": "header",
+      "header": "x-api-key",
+      "secret": "anthropic-compliance-key"
+    },
+    "rate": {
+      "per_minute": 60
+    },
+    "note": "Read from where the last read stopped. The feed answers newest first and the created_at[gte] filter the checkpoint rides in bounds how far back each run walks, so the cursor (after_id, from a page's last_id) runs until has_more is false inside that window and no further; duplicates inside the overlap window are dropped downstream by digest. anthropic-version is the one constant header the API demands of every call. Anthropic publishes no per-endpoint rate figure for the Compliance API; this pace is deliberately modest and a 429 backs off on its own.",
+    "endpoints": [
+      {
+        "name": "audit",
+        "path": "/v1/compliance/activities",
+        "query": {
+          "limit": "100"
+        },
+        "produces": "event",
+        "records": "data",
+        "headers": {
+          "anthropic-version": "2023-06-01"
+        },
+        "page": {
+          "kind": "cursor",
+          "from": "last_id",
+          "param": "after_id",
+          "more": "has_more"
+        },
+        "since": "created_at.gte",
+        "watermark": "created_at",
+        "reads": [
+          "id",
+          "type",
+          "created_at",
+          "organization_id",
+          "actor.type",
+          "actor.email_address",
+          "actor.user_id",
+          "actor.ip_address",
+          "actor.user_agent",
+          "actor.unauthenticated_email_address",
+          "actor.api_key_id",
+          "actor.admin_api_key_id",
+          "actor.service_account_id",
+          "actor.service",
+          "api_key_id",
+          "admin_api_key_id",
+          "user_id",
+          "user_email",
+          "current_role",
+          "previous_role",
+          "invite_id",
+          "auth_method",
+          "mfa_method"
+        ],
+        "map": {
+          "id": "id",
+          "type": "type",
+          "created_at": "created_at",
+          "organization_id": "organization_id",
+          "actor_kind": "actor.type",
+          "actor.email_address": "actor.email_address",
+          "actor.user_id": "actor.user_id",
+          "actor.ip_address": "actor.ip_address",
+          "actor.user_agent": "actor.user_agent",
+          "unauthenticated_email": "actor.unauthenticated_email_address",
+          "acting_api_key": "actor.api_key_id",
+          "acting_admin_key": "actor.admin_api_key_id",
+          "acting_service_account": "actor.service_account_id",
+          "anthropic_service": "actor.service",
+          "api_key_id": "api_key_id",
+          "admin_api_key_id": "admin_api_key_id",
+          "target_user": "user_id",
+          "target_user_email": "user_email",
+          "role_now": "current_role",
+          "role_was": "previous_role",
+          "invite": "invite_id",
+          "auth_method": "auth_method",
+          "mfa_method": "mfa_method"
+        }
+      }
+    ]
+  }
+}

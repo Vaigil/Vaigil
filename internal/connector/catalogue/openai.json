@@ -1,0 +1,98 @@
+{
+  "tool": "OpenAI",
+  "about": "The API Platform organisation's audit log: sign-ins and sign-outs, API key creation, update and deletion, invites, member and role changes, service accounts, projects, rate limits and IP allowlists, with who did it and the address they did it from. It records administration and use of the keys, not the content of any model call. A separate audit API exists for ChatGPT Enterprise workspaces; this one reads api.openai.com with an administration key.",
+  "default": "openai",
+  "regions": {
+    "openai": {
+      "host": "api.openai.com"
+    }
+  },
+  "credentials": {
+    "openai-audit-token": "An API Platform key of the organisation with the administration read it needs (Console, API keys, an Administration role rather than a project one). It is sent as a bearer token to api.openai.com only."
+  },
+  "manifest": {
+    "name": "openai",
+    "tool": "OpenAI",
+    "host": "",
+    "auth": {
+      "kind": "bearer",
+      "secret": "openai-audit-token"
+    },
+    "rate": {
+      "per_minute": 60
+    },
+    "note": "Read from where the last read stopped. OpenAI writes effective_at as seconds since the epoch and takes them back in the effective_at[gte] filter, so the watermark is converted rather than echoed; the cursor is the record id of the last entry of a page, and has_more says whether another page follows. The shape is the one the openai-python admin types are generated from: an actor union (session or api_key) and one type-specific payload under a key that is the event type itself, with dots in it.",
+    "endpoints": [
+      {
+        "name": "audit",
+        "path": "/v1/organization/audit_logs",
+        "query": {
+          "limit": "100"
+        },
+        "produces": "event",
+        "records": "data",
+        "page": {
+          "kind": "cursor",
+          "from": "last_id",
+          "param": "after",
+          "more": "has_more"
+        },
+        "since": "effective_at[gte]",
+        "watermark": "effective_at",
+        "watermark_layout": "epoch-s",
+        "reads": [
+          "id",
+          "type",
+          "effective_at",
+          "actor.type",
+          "actor.session.user.id",
+          "actor.session.user.email",
+          "actor.session.ip_address",
+          "actor.api_key.id",
+          "actor.api_key.user.id",
+          "actor.api_key.user.email",
+          "actor.api_key.service_account.id",
+          "project.id",
+          "project.name",
+          "api_key\\.created.id",
+          "api_key\\.updated.id",
+          "api_key\\.deleted.id",
+          "invite\\.sent.data.email",
+          "invite\\.sent.data.role",
+          "role\\.assignment\\.created.principal_id",
+          "role\\.assignment\\.created.resource_id",
+          "user\\.added.id",
+          "user\\.added.data.role",
+          "service_account\\.created.id",
+          "login\\.failed.error_code"
+        ],
+        "map": {
+          "id": "id",
+          "type": "type",
+          "effective_at": "effective_at",
+          "actor.type": "actor.type",
+          "actor.session.user.id": "actor.session.user.id",
+          "actor.session.user.email": "actor.session.user.email",
+          "actor.session.ip_address": "actor.session.ip_address",
+          "acting_key": "actor.api_key.id",
+          "key_owner": "actor.api_key.user.id",
+          "key_owner_email": "actor.api_key.user.email",
+          "key_service_account": "actor.api_key.service_account.id",
+          "project": "project.id",
+          "project_name": "project.name",
+          "created_key": "api_key\\.created.id",
+          "updated_key": "api_key\\.updated.id",
+          "deleted_key": "api_key\\.deleted.id",
+          "invite_email": "invite\\.sent.data.email",
+          "invite_role": "invite\\.sent.data.role",
+          "role_principal": "role\\.assignment\\.created.principal_id",
+          "role_resource": "role\\.assignment\\.created.resource_id",
+          "added_user": "user\\.added.id",
+          "added_role": "user\\.added.data.role",
+          "service_account": "service_account\\.created.id",
+          "login_error": "login\\.failed.error_code"
+        }
+      }
+    ]
+  }
+}

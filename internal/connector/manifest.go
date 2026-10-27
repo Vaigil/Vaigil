@@ -369,6 +369,17 @@ type Endpoint struct {
 	// for application/softwareInfo.v1+json. Empty is application/json.
 	Accept string `json:"accept,omitempty"`
 
+	// Headers are constant headers every request to this endpoint carries.
+	//
+	// For the tools that demand a version header on every call and nothing
+	// else: Anthropic names the API a request was written for with
+	// anthropic-version, and refuses a request without it. A constant is all
+	// this is — not a credential (Authorization is refused here, because the
+	// one place a credential may go is Auth) and not a media type (Accept has
+	// its own field) — so a review of what a connector can send still has two
+	// places to look and not four.
+	Headers map[string]string `json:"headers,omitempty"`
+
 	// Reads names every source path this endpoint may touch.
 	//
 	// The reviewable answer to "what does this have access to". Map may not
@@ -388,8 +399,9 @@ type Endpoint struct {
 	// for the checkpoint, for a tool that takes a filter and not a bare
 	// time: "createdDateTime ge {since}". Empty means the checkpoint itself.
 	SinceAs string `json:"since_as,omitempty"`
-	// WatermarkLayout says the watermark is "epoch-ms" and is sent back as
-	// a time. Empty means it is sent as it was read.
+	// WatermarkLayout says the watermark is a number of milliseconds or of
+	// seconds since the epoch, so it can be converted for a tool that takes
+	// a time or a different unit back. Empty means it is sent as it was read.
 	WatermarkLayout string `json:"watermark_layout,omitempty"`
 
 	// Each, when set, reads this endpoint once per record of another.
@@ -838,6 +850,37 @@ func (e Endpoint) validate(tool string) error {
 		return fmt.Errorf("%s: %q is not a media type to ask for", where,
 			e.Accept)
 	}
+	for k, v := range e.Headers {
+		if !reHeader.MatchString(k) {
+			return fmt.Errorf("%s: %q is not a header name. A name with a "+
+				"line break in it ends the header and starts another", where,
+				k)
+		}
+		if strings.EqualFold(k, "Authorization") {
+			return fmt.Errorf(
+				"%s declares an Authorization header. A credential goes in "+
+					"exactly one place — auth — so the answer to what this "+
+					"connector can send has one place to look", where)
+		}
+		if strings.EqualFold(k, "Accept") {
+			return fmt.Errorf(
+				"%s declares an Accept header, and has a field for the media "+
+					"type it asks for", where)
+		}
+		if why := looksSecret(v); why != "" {
+			return fmt.Errorf(
+				"%s declares the %s header and its value appears to hold a "+
+					"credential rather than a constant (%s). A constant "+
+					"header that carried a secret would be a credential "+
+					"outside the one place credentials are named", where, k,
+				why)
+		}
+		if strings.TrimSpace(v) == "" || strings.ContainsAny(v, "\r\n") ||
+			len(v) > 256 {
+			return fmt.Errorf("%s: the %s header is one constant, not "+
+				"several and not an empty one", where, k)
+		}
+	}
 	if e.Rate.PerSecond < 0 || e.Rate.PerMinute < 0 || e.Rate.PerDay != 0 {
 		return fmt.Errorf("%s: an endpoint's rate is a pace, per second or "+
 			"per minute; the day's budget belongs to the tool", where)
@@ -896,9 +939,10 @@ func (e Endpoint) validate(tool string) error {
 				"in it once, and needs since to say which parameter", where)
 		}
 	}
-	if e.WatermarkLayout != "" && e.WatermarkLayout != "epoch-ms" {
-		return fmt.Errorf("%s: a watermark layout is epoch-ms or nothing",
-			where)
+	if e.WatermarkLayout != "" && e.WatermarkLayout != "epoch-ms" &&
+		e.WatermarkLayout != "epoch-s" {
+		return fmt.Errorf(
+			"%s: a watermark layout is epoch-ms, epoch-s or nothing", where)
 	}
 	if e.Since != "" && e.Watermark == "" {
 		return fmt.Errorf(

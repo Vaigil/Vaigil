@@ -540,3 +540,189 @@ func TestTheSlowestSourceDecidesTheWindow(t *testing.T) {
 		}
 	}
 }
+
+// TestTheGenAISpanMapping: a record in the shape internal/otlp builds from
+// a span, carrying the closed fields a detection needs and the length of
+// content that never crossed the boundary.
+func TestTheGenAISpanMapping(t *testing.T) {
+	s, ok := Find("otel", "genai")
+	if !ok {
+		t.Fatal("no otel/genai source")
+	}
+	e, missed := s.Map(doc(t, `{"time":"2026-10-23T03:20:00.512Z",
+		"agent":"agent-7","operation":"execute_tool",
+		"tool":"filesystem.write","model":"claude-sonnet-4-5",
+		"tokens_in":"1520","tokens_out":"344",
+		"conversation":"conv-0192","trace_id":"5b8efff798038103d269b633813fc60c",
+		"span_id":"eee19b7ec3c1b175","span_name":"execute_tool",
+		"status":"error","service":"billing-agent","duration_ms":"2123",
+		"prompt_bytes":"96","content_events":"2"}`))
+	if len(missed) != 0 {
+		t.Fatalf("missed %+v", missed)
+	}
+	if e.Source != "otel/genai" || e.Class != telemetry.ClassAPIActivity {
+		t.Fatalf("%s %v", e.Source, e.Class)
+	}
+	if e.Actor.Issuer != "otel" || e.Actor.Value != "agent-7" {
+		t.Fatalf("actor = %+v", e.Actor)
+	}
+	if e.Target.Value != "claude-sonnet-4-5" {
+		t.Fatalf("target = %+v", e.Target)
+	}
+	if e.Disposition != telemetry.DispositionFailed {
+		t.Fatalf("an errored span read as %v", e.Disposition)
+	}
+	for field, want := range map[string]string{
+		"operation": "execute_tool", "tool": "filesystem.write",
+		"model": "claude-sonnet-4-5", "tokens_in": "1520",
+		"tokens_out": "344", "conversation": "conv-0192",
+		"trace_id": "5b8efff798038103d269b633813fc60c",
+		"span_id":  "eee19b7ec3c1b175", "status": "error",
+		"duration_ms": "2123", "prompt_bytes": "96",
+		"content_events": "2",
+	} {
+		if e.Raw[field] != want {
+			t.Errorf("raw %s = %q, want %q", field, e.Raw[field], want)
+		}
+	}
+	// A span that attributes its actions to nobody is a miss rather than an
+	// event with a hole where the actor is.
+	_, missed = s.Map(doc(t, `{"time":"2026-10-23T03:20:00Z",
+		"operation":"execute_tool","trace_id":"t","status":"ok"}`))
+	if len(missed) != 1 || missed[0].Path != "agent" {
+		t.Fatalf("missed %+v", missed)
+	}
+}
+
+// TestTheOpenAIAuditMapping: a connector's record — the session actor
+// nested as the API nests it, the type-specific payloads flattened to their
+// own names — and the failures that name themselves in the type.
+func TestTheOpenAIAuditMapping(t *testing.T) {
+	s, ok := Find("openai", "audit")
+	if !ok {
+		t.Fatal("no openai/audit source")
+	}
+	failed, missed := s.Map(doc(t, `{"id":"audit_log-4",
+		"type":"login.failed","effective_at":1711040700,
+		"actor":{"type":"session","session":{"user":{"id":"user-99",
+		"email":"mallory@acme.test"},"ip_address":"198.51.100.7"}},
+		"login_error":"invalid_credentials"}`))
+	if len(missed) != 0 {
+		t.Fatalf("missed %+v", missed)
+	}
+	if !failed.Time.Equal(time.Unix(1711040700, 0).UTC()) {
+		t.Fatalf("time = %s", failed.Time)
+	}
+	if failed.Actor.Issuer != "openai" || failed.Actor.Value != "user-99" {
+		t.Fatalf("actor = %+v", failed.Actor)
+	}
+	if failed.Raw[PersonField] != "mallory@acme.test" {
+		t.Fatalf("person = %q", failed.Raw[PersonField])
+	}
+	if failed.Disposition != telemetry.DispositionFailed ||
+		failed.Severity != telemetry.SeverityMedium {
+		t.Fatalf("a failed sign-in read as %v/%v", failed.Disposition,
+			failed.Severity)
+	}
+	if failed.Message != "login.failed" {
+		t.Fatalf("message = %q", failed.Message)
+	}
+	var sawIP bool
+	for _, o := range failed.Observables {
+		if o.Kind == telemetry.ObservableIP && o.Value == "198.51.100.7" {
+			sawIP = true
+		}
+	}
+	if !sawIP {
+		t.Fatalf("observables = %+v", failed.Observables)
+	}
+
+	key, missed := s.Map(doc(t, `{"id":"audit_log-2",
+		"type":"api_key.created","effective_at":1711040500,
+		"actor":{"type":"session","session":{"user":{"id":"user-77",
+		"email":"ada@acme.test"},"ip_address":"203.0.113.9"}},
+		"project":"proj_1","created_key":"key-A1"}`))
+	if len(missed) != 0 {
+		t.Fatalf("missed %+v", missed)
+	}
+	if key.Disposition != telemetry.DispositionAllowed {
+		t.Fatalf("a key creation read as %v", key.Disposition)
+	}
+	if key.Raw["created_key"] != "key-A1" || key.Target.Value != "proj_1" {
+		t.Fatalf("raw = %v, target = %+v", key.Raw, key.Target)
+	}
+	// A record without the type that carries everything is a miss.
+	_, missed = s.Map(doc(t, `{"id":"audit_log-9",
+		"effective_at":1711040900}`))
+	if len(missed) != 1 || missed[0].Path != "type" {
+		t.Fatalf("missed %+v", missed)
+	}
+}
+
+// TestTheAnthropicAuditMapping: the Compliance API's activity feed, whose
+// actors are a union — a person here, an admin key there — and whose failed
+// sign-ins name their outcome in the type.
+func TestTheAnthropicAuditMapping(t *testing.T) {
+	s, ok := Find("anthropic", "audit")
+	if !ok {
+		t.Fatal("no anthropic/audit source")
+	}
+	login, missed := s.Map(doc(t, `{"id":"activity_01A",
+		"created_at":"2026-04-10T08:09:10.123456Z",
+		"organization_id":null,
+		"actor":{"type":"user_actor","email_address":"ada@acme.test",
+		"user_id":"user_01A","ip_address":"192.0.2.34",
+		"user_agent":"Mozilla/5.0"},
+		"type":"sso_login_failed","auth_method":"sso"}`))
+	if len(missed) != 0 {
+		t.Fatalf("missed %+v", missed)
+	}
+	if login.Actor.Issuer != "anthropic" || login.Actor.Value != "user_01A" {
+		t.Fatalf("actor = %+v", login.Actor)
+	}
+	if login.Raw[PersonField] != "ada@acme.test" {
+		t.Fatalf("person = %q", login.Raw[PersonField])
+	}
+	if login.Disposition != telemetry.DispositionFailed {
+		t.Fatalf("a failed sign-in read as %v", login.Disposition)
+	}
+	if login.Raw["auth_method"] != "sso" {
+		t.Fatalf("raw = %v", login.Raw)
+	}
+
+	// An admin key changing a role: no person in the actor, and the event
+	// is still usable — the machine actors are kept under their own names.
+	// (The record is the connector's, so actor.type has already become
+	// actor_kind and the key that acted is under its own name.)
+	role, missed := s.Map(doc(t, `{"id":"activity_01B",
+		"created_at":"2026-04-10T08:10:00Z","organization_id":"org_01Wv",
+		"actor_kind":"admin_api_key_actor",
+		"acting_admin_key":"adminkey-1",
+		"actor":{"ip_address":"192.0.2.35",
+		"user_agent":"vaigil-connector/1"},
+		"type":"claude_user_role_updated","target_user":"user_01C",
+		"role_now":"admin","role_was":"member"}`))
+	if len(missed) != 0 {
+		t.Fatalf("missed %+v", missed)
+	}
+	if !role.Actor.Zero() {
+		t.Fatalf("actor = %+v, want none: an api key actor has no person", role.Actor)
+	}
+	for field, want := range map[string]string{
+		"actor_kind": "admin_api_key_actor", "organization_id": "org_01Wv",
+		"target_user": "user_01C", "role_now": "admin", "role_was": "member",
+	} {
+		if role.Raw[field] != want {
+			t.Errorf("raw %s = %q, want %q", field, role.Raw[field], want)
+		}
+	}
+	if role.Disposition != telemetry.DispositionAllowed {
+		t.Fatalf("a role change read as %v", role.Disposition)
+	}
+	// A record without its own time is a miss: it cannot be windowed.
+	_, missed = s.Map(doc(t, `{"id":"activity_01Z","type":"sso_login_failed",
+		"actor":{"user_id":"user_01A"}}`))
+	if len(missed) == 0 || missed[0].Path != "created_at" {
+		t.Fatalf("missed %+v", missed)
+	}
+}
