@@ -1,0 +1,157 @@
+{
+  "id": "otel.untrusted-read",
+  "title": "An agent read untrusted content",
+  "why": "the first leg of the lethal trifecta (catalogue B2): a tool call that returned text nobody in the organisation wrote — a fetched page, a search result, an issue body, inbound mail. The label is declared, not inferred: it arrived at the ingest boundary from the tool-label table, which names this tool as one that reads the open web. Quiet on purpose — one untrusted read is an agent doing its job; what the correlation over this leg and the two beside it counts is the sequence",
+  "blind": "every tool the table does not name — an unlabelled fetcher joins nothing, and the table is a declaration that can lag a tool rename; the content itself, which the boundary drops keeping only lengths; and the call's arguments, which are never carried at all",
+  "sources": [
+    "otel/genai"
+  ],
+  "severity": 2,
+  "when": {
+    "all": [
+      {
+        "match": {
+          "field": "message",
+          "op": "equals",
+          "values": [
+            "execute_tool"
+          ]
+        }
+      },
+      {
+        "match": {
+          "field": "raw.labels",
+          "op": "contains",
+          "values": [
+            "untrusted-content"
+          ]
+        }
+      }
+    ]
+  },
+  "technique": [
+    "AML.T0051.001",
+    "ASI01"
+  ],
+  "quiet": true,
+  "fixtures": [
+    {
+      "name": "a call to the table's fetch tool",
+      "match": true,
+      "event": {
+        "source": "otel/genai",
+        "time": "2026-10-27T03:20:00Z",
+        "received": "2026-10-27T03:20:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "otel",
+          "value": "refunder"
+        },
+        "message": "execute_tool",
+        "raw": {
+          "operation": "execute_tool",
+          "tool": "fetch",
+          "status": "ok",
+          "trace_id": "5b8efff798038103d269b633813fc60c",
+          "labels": "untrusted-content"
+        }
+      }
+    },
+    {
+      "name": "a mail read, which carries two labels",
+      "match": true,
+      "event": {
+        "source": "otel/genai",
+        "time": "2026-10-27T03:21:00Z",
+        "received": "2026-10-27T03:21:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "otel",
+          "value": "refunder"
+        },
+        "message": "execute_tool",
+        "raw": {
+          "operation": "execute_tool",
+          "tool": "read_mail",
+          "status": "ok",
+          "trace_id": "5b8efff798038103d269b633813fc60c",
+          "labels": "sensitive-data,untrusted-content"
+        }
+      }
+    },
+    {
+      "name": "a call to a tool the table does not name",
+      "match": false,
+      "event": {
+        "source": "otel/genai",
+        "time": "2026-10-27T03:22:00Z",
+        "received": "2026-10-27T03:22:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "otel",
+          "value": "refunder"
+        },
+        "message": "execute_tool",
+        "raw": {
+          "operation": "execute_tool",
+          "tool": "filesystem.write",
+          "status": "ok",
+          "trace_id": "5b8efff798038103d269b633813fc60c"
+        }
+      }
+    },
+    {
+      "name": "a labelled tool call that carries only the other label",
+      "match": false,
+      "event": {
+        "source": "otel/genai",
+        "time": "2026-10-27T03:23:00Z",
+        "received": "2026-10-27T03:23:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "otel",
+          "value": "refunder"
+        },
+        "message": "execute_tool",
+        "raw": {
+          "operation": "execute_tool",
+          "tool": "sql_query",
+          "status": "ok",
+          "trace_id": "5b8efff798038103d269b633813fc60c",
+          "labels": "sensitive-data"
+        }
+      }
+    },
+    {
+      "name": "a model call, which is not a tool call",
+      "match": false,
+      "event": {
+        "source": "otel/genai",
+        "time": "2026-10-27T03:24:00Z",
+        "received": "2026-10-27T03:24:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "otel",
+          "value": "refunder"
+        },
+        "target": {
+          "issuer": "otel",
+          "value": "claude-sonnet-4-5"
+        },
+        "message": "invoke_chat_model",
+        "raw": {
+          "operation": "invoke_chat_model",
+          "model": "claude-sonnet-4-5",
+          "status": "ok",
+          "trace_id": "5b8efff798038103d269b633813fc60c",
+          "labels": "untrusted-content"
+        }
+      }
+    }
+  ]
+}

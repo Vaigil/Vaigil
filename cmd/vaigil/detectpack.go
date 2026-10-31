@@ -41,6 +41,13 @@ func detectPack(root string, args []string) error {
 			if !strings.HasSuffix(f.Name, ".json") {
 				continue
 			}
+			// The tool-label table ships with the pack and installs with it,
+			// but it is data the ingest boundary reads, not a rule; listing
+			// it here would show a row that raises nothing and counts for
+			// nothing. Its own count is beside the list below.
+			if f.Name == detect.ToolLabelsFile {
+				continue
+			}
 			var r detect.Rule
 			if err := json.Unmarshal(f.Body, &r); err != nil {
 				return fmt.Errorf("%s: %w", f.Name, err)

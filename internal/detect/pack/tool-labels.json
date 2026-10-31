@@ -1,0 +1,75 @@
+{
+  "tools": [
+    {
+      "tool": "fetch",
+      "labels": [
+        "untrusted-content"
+      ],
+      "why": "a URL fetcher: whatever the page it returns says, anybody on the internet could have written it, including whoever left instructions in it"
+    },
+    {
+      "tool": "http_post",
+      "labels": [
+        "egress"
+      ],
+      "why": "sends a body to a URL: data leaves through whatever destination the call's arguments named, and the destination is not in the span"
+    },
+    {
+      "tool": "post_webhook",
+      "labels": [
+        "egress"
+      ],
+      "why": "a webhook call: a push of data to whoever registered the endpoint, which is a destination the organisation stopped controlling at registration"
+    },
+    {
+      "tool": "read_issue",
+      "labels": [
+        "untrusted-content"
+      ],
+      "why": "an issue tracker ticket: an outside collaborator can write the body, and issue text reaching a coding agent is the shape of the GitHub-MCP incident"
+    },
+    {
+      "tool": "read_mail",
+      "labels": [
+        "sensitive-data",
+        "untrusted-content"
+      ],
+      "why": "a mailbox: anybody can send to it, and it holds the organisation's private correspondence — both labels at once, honestly"
+    },
+    {
+      "tool": "read_secret",
+      "labels": [
+        "sensitive-data"
+      ],
+      "why": "a read from a secret store: credentials, tokens and keys, the highest-value leg of any sensitive read"
+    },
+    {
+      "tool": "search_docs",
+      "labels": [
+        "sensitive-data"
+      ],
+      "why": "the organisation's own documents: internal text no outside reader was meant to see"
+    },
+    {
+      "tool": "sql_query",
+      "labels": [
+        "sensitive-data"
+      ],
+      "why": "a query against the tenant's own data store: whatever it returns is private data, whatever the query asked for"
+    },
+    {
+      "tool": "send_mail",
+      "labels": [
+        "egress"
+      ],
+      "why": "mail leaving the organisation: a send tool carries data out in its own fields, the shape the postmark-mcp BCC exploited"
+    },
+    {
+      "tool": "web_search",
+      "labels": [
+        "untrusted-content"
+      ],
+      "why": "search results: the open web's own text, ranked by nobody in the organisation"
+    }
+  ]
+}

@@ -484,8 +484,15 @@ func linuxAuditd() Source {
 			telemetry.ObservableHostname: "host",
 		},
 		Require: []string{"@timestamp", "host", "type"},
+		// A connect's syscall name and its decoded address and port are kept
+		// beside the rest: the vaigil-collector decodes SOCKADDR into exactly
+		// these fields (internal/collector/auditd.go) and ships them in the
+		// record, and a mapping that drops them stores a connect as a bare
+		// SYSCALL — evidence recorded on the endpoint and lost at the door.
+		// execve records carry none of the three, so the fields are empty for
+		// them and a rule that never reads them is unaffected.
 		Keep: []string{"type", "exe", "auid", "uid", "res", "key",
-			"comm", "tty"},
+			"comm", "tty", "syscall", "addr", "port"},
 		Lateness: time.Minute,
 	}
 }

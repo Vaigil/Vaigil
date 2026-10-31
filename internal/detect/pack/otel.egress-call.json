@@ -1,0 +1,157 @@
+{
+  "id": "otel.egress-call",
+  "title": "An agent sent data outward",
+  "why": "the last leg of the lethal trifecta (catalogue B2): a tool call that sends data out — an HTTP POST, a mail send, a webhook. The label is declared at the ingest boundary from the tool-label table, which names this tool as one whose whole job is to carry data to a destination. Quiet on purpose — sending data outward is what reporting and integration agents do all day; the correlation counts it only as the consequence of the two reads before it",
+  "blind": "every tool the table does not name — an unlabelled sender joins nothing; the destination, which the span does not carry and the arguments never enter the store; and the volume, which no field here measures — this leg says data left, never how much",
+  "sources": [
+    "otel/genai"
+  ],
+  "severity": 2,
+  "when": {
+    "all": [
+      {
+        "match": {
+          "field": "message",
+          "op": "equals",
+          "values": [
+            "execute_tool"
+          ]
+        }
+      },
+      {
+        "match": {
+          "field": "raw.labels",
+          "op": "contains",
+          "values": [
+            "egress"
+          ]
+        }
+      }
+    ]
+  },
+  "technique": [
+    "T1567",
+    "ASI02"
+  ],
+  "quiet": true,
+  "fixtures": [
+    {
+      "name": "a call to the table's POST tool",
+      "match": true,
+      "event": {
+        "source": "otel/genai",
+        "time": "2026-10-27T03:20:00Z",
+        "received": "2026-10-27T03:20:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "otel",
+          "value": "refunder"
+        },
+        "message": "execute_tool",
+        "raw": {
+          "operation": "execute_tool",
+          "tool": "http_post",
+          "status": "ok",
+          "trace_id": "5b8efff798038103d269b633813fc60c",
+          "labels": "egress"
+        }
+      }
+    },
+    {
+      "name": "a webhook call",
+      "match": true,
+      "event": {
+        "source": "otel/genai",
+        "time": "2026-10-27T03:21:00Z",
+        "received": "2026-10-27T03:21:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "otel",
+          "value": "refunder"
+        },
+        "message": "execute_tool",
+        "raw": {
+          "operation": "execute_tool",
+          "tool": "post_webhook",
+          "status": "ok",
+          "trace_id": "5b8efff798038103d269b633813fc60c",
+          "labels": "egress"
+        }
+      }
+    },
+    {
+      "name": "a call to a tool the table does not name",
+      "match": false,
+      "event": {
+        "source": "otel/genai",
+        "time": "2026-10-27T03:22:00Z",
+        "received": "2026-10-27T03:22:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "otel",
+          "value": "refunder"
+        },
+        "message": "execute_tool",
+        "raw": {
+          "operation": "execute_tool",
+          "tool": "filesystem.write",
+          "status": "ok",
+          "trace_id": "5b8efff798038103d269b633813fc60c"
+        }
+      }
+    },
+    {
+      "name": "a labelled tool call that carries only a read label",
+      "match": false,
+      "event": {
+        "source": "otel/genai",
+        "time": "2026-10-27T03:23:00Z",
+        "received": "2026-10-27T03:23:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "otel",
+          "value": "refunder"
+        },
+        "message": "execute_tool",
+        "raw": {
+          "operation": "execute_tool",
+          "tool": "sql_query",
+          "status": "ok",
+          "trace_id": "5b8efff798038103d269b633813fc60c",
+          "labels": "sensitive-data"
+        }
+      }
+    },
+    {
+      "name": "a model call, which is not a tool call",
+      "match": false,
+      "event": {
+        "source": "otel/genai",
+        "time": "2026-10-27T03:24:00Z",
+        "received": "2026-10-27T03:24:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "otel",
+          "value": "refunder"
+        },
+        "target": {
+          "issuer": "otel",
+          "value": "claude-sonnet-4-5"
+        },
+        "message": "invoke_chat_model",
+        "raw": {
+          "operation": "invoke_chat_model",
+          "model": "claude-sonnet-4-5",
+          "status": "ok",
+          "trace_id": "5b8efff798038103d269b633813fc60c",
+          "labels": "egress"
+        }
+      }
+    }
+  ]
+}

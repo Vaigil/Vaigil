@@ -25,6 +25,7 @@ import (
 	"github.com/vaigil/vaigil/internal/audit"
 	"github.com/vaigil/vaigil/internal/automate"
 	"github.com/vaigil/vaigil/internal/collector"
+	"github.com/vaigil/vaigil/internal/detect"
 	"github.com/vaigil/vaigil/internal/fetch"
 	"github.com/vaigil/vaigil/internal/inbound"
 	"github.com/vaigil/vaigil/internal/oidc"
@@ -883,6 +884,85 @@ func feedNames(m map[string]inbound.Feed) []string {
 
 // -- OpenTelemetry traces -----------------------------------------------------
 
+// otelCarriesTheToolLabels stamps each GenAI tool call with the labels the
+// tool-label table declares for its tool — the same boundary, the same
+// honesty, as the join name above: declared data renamed onto the event,
+// never a judgement the program made.
+//
+// The table is the declaration the lethal trifecta stands on (catalogue B2:
+// untrusted read → sensitive read → egress, one session). What a tool reads
+// and whether it sends outward are facts about the tool, not about any one
+// call's arguments — arguments are attacker-influenced text and never enter
+// the store — so the label arrives the way the recorder-host mapping's names
+// do: looked up from a file somebody wrote, stamped at ingest, and read by
+// rules as data. Three honesty rules, and they are the whole design:
+//
+// Declared, not inferred. A tool listed in the table carries its labels and
+// a tool nothing lists carries nothing at all — no empty list, no guess from
+// the tool's name, no fallback. An unlabelled fetcher joins no chain, which
+// is the honest miss: the table can lag a tool rename, and a leg that
+// quietly disappears is recoverable in triage where a fabricated label
+// would not be.
+//
+// The event's own word wins. A raw.labels the deployment's mapping already
+// wrote is left alone, exactly as the span's own raw.agent is above — the
+// mapping is the deployment's, and this boundary renames what was declared
+// elsewhere rather than overwriting it.
+//
+// Read per push, never cached. The table is loaded for each delivery, so an
+// edit reaches the next push and never rewrites what was stored before it —
+// the same reach the recorder-host mapping has, for the same reason.
+func otelCarriesTheToolLabels(events []telemetry.Event, labels detect.ToolLabels) {
+	for i := range events {
+		e := &events[i]
+		if e.Source != "otel/genai" {
+			continue
+		}
+		tool := e.Raw["tool"]
+		if tool == "" {
+			continue
+		}
+		if _, said := e.Raw["labels"]; said {
+			continue
+		}
+		declared := labels.DeclaredFor(tool)
+		if declared == "" {
+			continue
+		}
+		if e.Raw == nil {
+			e.Raw = map[string]string{}
+		}
+		e.Raw["labels"] = declared
+	}
+}
+
+// loadToolLabels reads the deployment's tool-label table from the rules
+// directory, where the pack installed it and the organisation tunes it.
+//
+// An absent table is an empty one — nothing declared, nothing stamped, no
+// chain that needs a label can fire — which is the fail-closed answer to
+// "nobody said what this tool reads" and exactly the absent-file line the
+// recorder-host mapping draws. A table that is there and cannot be read is
+// an error, not an empty table: storing the push as though nobody had
+// declared anything would silently undo every declaration in the file, and
+// the honest failure is the loud one that refuses the push.
+func loadToolLabels(root string) (detect.ToolLabels, error) {
+	b, err := os.ReadFile(filepath.Join(rulesDir(root, ""), detect.ToolLabelsFile))
+	if os.IsNotExist(err) {
+		return detect.ToolLabels{}, nil
+	}
+	if err != nil {
+		return detect.ToolLabels{}, err
+	}
+	labels, perr := detect.ParseToolLabels(b)
+	if perr != nil {
+		return detect.ToolLabels{}, fmt.Errorf(
+			"the tool-label table cannot be read, so no GenAI evidence can "+
+				"be labelled against it: %w", perr)
+	}
+	return labels, nil
+}
+
 // otelCarriesTheJoinName copies each GenAI span's actor into the raw field
 // the recorder-side declaration writes — the way every cross-source
 // correlation in the pack joins, on one named field both sides carry
@@ -925,6 +1005,9 @@ func otelCarriesTheJoinName(events []telemetry.Event) {
 // before the answer says it was, then read by the rules at once like every
 // other delivery. GenAI spans carry prompt and completion content; that is
 // dropped at the boundary and only its length survives (internal/otlp).
+// What is added at the boundary is declared, never inferred: the span's
+// actor into the join field, and the tool-label table's labels into
+// raw.labels for the tool the span names (both below).
 func mountOTLP(mux *http.ServeMux, root string) {
 	mux.Handle("/v1/traces", &otlp.Handler{
 		Token: func() (string, error) {
@@ -939,6 +1022,16 @@ func mountOTLP(mux *http.ServeMux, root string) {
 		},
 		Store: func(events []telemetry.Event) error {
 			otelCarriesTheJoinName(events)
+			// The labels are read per push and a broken table refuses it:
+			// the spans go back to the exporter as unstored rather than in
+			// as unlabelled, because a chain that quietly lost its legs is
+			// recoverable in triage and a table nobody was told was broken
+			// is not.
+			labels, err := loadToolLabels(root)
+			if err != nil {
+				return err
+			}
+			otelCarriesTheToolLabels(events, labels)
 			return withSpool(root, func(sp *spool.Spool) error {
 				if _, err := sp.AppendBatch(events); err != nil {
 					return err

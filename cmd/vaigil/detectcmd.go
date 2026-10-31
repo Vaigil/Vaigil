@@ -84,6 +84,14 @@ func rulesIn(path string) ([]detect.Rule, error) {
 			if err != nil || d.IsDir() || !strings.HasSuffix(p, ".json") {
 				return err
 			}
+			// The pack's tool-label table lives in the rules directory
+			// because that is where the pack is installed and tuned, and it
+			// is data the ingest boundary reads — not a rule, and loading it
+			// here would refuse the run over a file that never claimed to be
+			// one.
+			if filepath.Base(p) == detect.ToolLabelsFile {
+				return nil
+			}
 			files = append(files, p)
 			return nil
 		})

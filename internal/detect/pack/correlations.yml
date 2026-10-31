@@ -225,3 +225,39 @@ level: medium
 # baseline state), token-spend thresholds (the store keeps per-call token
 # strings, never a session total; the tool-burst rule above is the honest
 # rate proxy), and tool-argument content (nothing ships it).
+---
+# The lethal trifecta (catalogue B2): an agent session that read untrusted
+# content, then read private data, then sent data outward — in that order.
+# The sequence is the pattern the GitHub-MCP incident (a public issue's
+# instructions steering private repositories out through a tool) and the
+# Supabase MCP leak (root on the database, same shape) were later formalised
+# from, and the ordering is what buys the precision: a session that fetched
+# after it read, or sent before it read, is a different shape of work, and
+# only untrusted-before-sensitive-before-egress is the hijack in order.
+#
+# What this is not: proof of exfiltration. A research assistant that
+# legitimately reads the web, reads the repository and posts a summary does
+# all three in order, and so does a report that quotes a ticket — the
+# sequence is why it is high and not critical, and triage reads the session:
+# which tools, what order, how many times, and whether the egress tool was
+# one the agent's owner can explain.
+#
+# The join is the trace the events themselves carry (raw.trace_id, the OTel
+# trace the SDK emitted — the session as the telemetry knows it, not a name
+# the program chose), and the labels are declarations: stamped at the ingest
+# boundary from the tool-label table that ships with this pack, so a tool
+# the table does not name joins nothing and a table that lags a tool rename
+# quietly loses a leg — the honest failure, because the alternative is
+# inferring sensitivity from arguments the model treats as hostile text.
+title: An agent read untrusted content, then private data, then sent data out
+id: corr.lethal-trifecta
+correlation:
+    type: temporal_ordered
+    rules:
+        - otel.untrusted-read
+        - otel.sensitive-read
+        - otel.egress-call
+    group-by:
+        - raw.trace_id
+    timespan: 1h
+level: high
