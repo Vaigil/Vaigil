@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/vaigil/vaigil/internal/detect"
 )
 
 // The shipped mapping is the document an assessor is handed, and the document
@@ -75,6 +77,10 @@ func TestEveryDetectionNamesARuleThatShips(t *testing.T) {
 	}
 	rules := map[string]rule{}
 	for _, f := range files {
+		if filepath.Base(f) == detect.ToolLabelsFile {
+			// The sensitivity table ships beside the rules and is not one.
+			continue
+		}
 		body, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatal(err)

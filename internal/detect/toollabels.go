@@ -120,30 +120,30 @@ func ParseToolLabels(body []byte) (ToolLabels, error) {
 	// skipped quietly and the entry would declare less than it says.
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&f); err != nil {
-		return ToolLabels{}, fmt.Errorf("the tool-label table is not " +
+		return ToolLabels{}, fmt.Errorf("the tool-label table is not "+
 			"readable: %w", err)
 	}
 	t := ToolLabels{declared: map[string]string{}}
 	for i, e := range f.Tools {
 		name := strings.TrimSpace(e.Tool)
 		if name == "" {
-			return ToolLabels{}, fmt.Errorf("tool entry %d names no tool. " +
-				"An entry is the OTel gen_ai.tool.name value, spelled the " +
+			return ToolLabels{}, fmt.Errorf("tool entry %d names no tool. "+
+				"An entry is the OTel gen_ai.tool.name value, spelled the "+
 				"way the SDK writes it", i+1)
 		}
 		if name != e.Tool || strings.ContainsAny(e.Tool, " \t") {
-			return ToolLabels{}, fmt.Errorf("%q is not a tool name the " +
-				"boundary could match: gen_ai.tool.name is one token with " +
+			return ToolLabels{}, fmt.Errorf("%q is not a tool name the "+
+				"boundary could match: gen_ai.tool.name is one token with "+
 				"nothing around it", e.Tool)
 		}
 		if strings.TrimSpace(e.Why) == "" {
-			return ToolLabels{}, fmt.Errorf("%s carries no why. A label " +
-				"with no reason is a decision nobody can review, and the " +
-				"reviewer it belongs to is whoever reads the finding it " +
+			return ToolLabels{}, fmt.Errorf("%s carries no why. A label "+
+				"with no reason is a decision nobody can review, and the "+
+				"reviewer it belongs to is whoever reads the finding it "+
 				"feeds", name)
 		}
 		if len(e.Labels) == 0 {
-			return ToolLabels{}, fmt.Errorf("%s declares no labels, which " +
+			return ToolLabels{}, fmt.Errorf("%s declares no labels, which "+
 				"declares nothing. Remove the entry, or give it one of %s",
 				name, strings.Join(ToolLabelsSet(), ", "))
 		}
@@ -152,21 +152,21 @@ func ParseToolLabels(body []byte) (ToolLabels, error) {
 			l = strings.TrimSpace(l)
 			if !knownToolLabel(l) {
 				return ToolLabels{}, fmt.Errorf(
-					"%s carries the label %q, which is not one of the " +
-						"closed set %s. A label nobody defined is a label " +
+					"%s carries the label %q, which is not one of the "+
+						"closed set %s. A label nobody defined is a label "+
 						"nobody can triage", name, l,
 					strings.Join(ToolLabelsSet(), ", "))
 			}
 			if seen[l] {
-				return ToolLabels{}, fmt.Errorf("%s carries %s twice; the " +
+				return ToolLabels{}, fmt.Errorf("%s carries %s twice; the "+
 					"second one declares nothing the first did not", name, l)
 			}
 			seen[l] = true
 		}
 		key := strings.ToLower(name)
 		if _, dup := t.declared[key]; dup {
-			return ToolLabels{}, fmt.Errorf("%s is declared twice. The " +
-				"table is a declaration, and a declaration that disagrees " +
+			return ToolLabels{}, fmt.Errorf("%s is declared twice. The "+
+				"table is a declaration, and a declaration that disagrees "+
 				"with itself cannot be diffed, reviewed or trusted", name)
 		}
 		labels := append([]string(nil), e.Labels...)
