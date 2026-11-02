@@ -243,6 +243,17 @@ func EgressScan(sp *spool.Spool, now time.Time) (EgressReport, error) {
 				return nil
 			}
 			out.Connects++
+			// The window's own denominators, counted where the connect is
+			// classified rather than only on the row it lands in: a socket
+			// path and a missing destination are gaps on a host this board
+			// shows and on one it counts away alike, and a header that said
+			// zero while rows held counts would understate what the board
+			// left out.
+			if e.Raw["addr"] == "" {
+				out.NoDest++
+			} else if e.Raw["port"] == "" {
+				out.Unix++
+			}
 			if e.Device.Value == "" {
 				// The auditd mapping requires a host, so this is a store
 				// that predates it or an event built by hand; counted as
