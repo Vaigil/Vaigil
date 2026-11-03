@@ -1007,6 +1007,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/security/hunt", s.handleHunt)
 	mux.HandleFunc("/security/agents", s.handleAgents)
 	mux.HandleFunc("/security/agents/", s.handleAgent)
+	mux.HandleFunc("/security/egress", s.handleEgress)
 	mux.HandleFunc("/security/feeds", s.handleFeeds)
 	mux.HandleFunc("/security/feeds/act", s.handleFeedsAct)
 	mux.HandleFunc("/security/entity/", s.handleEntity)

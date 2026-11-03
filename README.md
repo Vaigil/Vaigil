@@ -1,10 +1,21 @@
 # Vaigil
 
-**Open-source AI security operations: SIEM, SOAR and vulnerability management
-in one self-hosted binary.** Vaigil collects what happens on the platforms your
-organisation runs, detects what is wrong, lets an AI analyst take the first
-pass without letting it decide anything, and keeps a tamper-evident record of
-every action a person took about it.
+**The AI-agent wind tunnel: breach-and-attack simulation for deployed agent
+stacks, on a complete detection engine.** Vaigil replays scripted malicious
+agent sessions — tool poisoning, config rug-pulls, the read-then-exfiltrate
+chain, over-scoped credentials — through your own telemetry, measures
+honestly whether your controls caught them, and signs the scorecard a third
+party can verify. Everything underneath still stands: it collects what
+happens on the platforms your organisation runs, detects what is wrong, lets
+an AI analyst take the first pass without letting it decide anything, and
+keeps a tamper-evident record of every action a person took about it.
+
+The simulation is replay-first: a scenario splices into a recorded stream
+and cannot touch a production system, because there is nothing live to
+touch. The scenarios are data — closed sets, fixtures, no interpreters —
+the same discipline the detection pack ships under. A run is measured the
+way nothing on the market measures: miss rate first, with bounds, from an
+instrument whose own calibration is published.
 
 <p>
   <a href="https://github.com/Vaigil/Vaigil/actions/workflows/ci.yml"><img src="https://github.com/Vaigil/Vaigil/actions/workflows/ci.yml/badge.svg" alt="ci"></a>

@@ -1,0 +1,144 @@
+{{template "head" .}}
+<h1>Agent egress</h1>
+{{/*
+  Where the machines that run agents talked to, over the same seven days the
+  Agents board beside this counts. Every fact here is one of the recorder's
+  own records — an auditd connect record's address and port, a heartbeat's
+  host and declared agent names — and the page holds itself to the three
+  honesty rules the scan is held to. A host's connects belong to the host:
+  where more than one agent is declared on it, every name is shown and the
+  connects are attributed to none of them. A host no declaration arrived for
+  shows under the recorder's own hostname with the mapping's silence, never
+  as a host running none. And nothing is named that the records do not
+  carry: an address is an address, with no resolution to a domain, no
+  reverse DNS and no ASN, because none of those would be evidence about the
+  connection — only somebody else's claim about the address.
+*/}}
+<div>
+  <form method="get" action="/security/egress">
+    <button type="submit" class="btn-text">Refresh</button>
+  </form>
+</div>
+{{if .Unavailable}}<p class="notice bad">{{.Unavailable}}</p>{{else}}
+
+<p class="lead">Every host a recorder spoke for in the last seven days, the
+destinations its <code>auditd/events</code> connect records named, and the
+agents the operator declared on it. A row exists because a heartbeat or a
+watch event claimed the host, and never otherwise.</p>
+
+<dl class="stats-row">
+  <div><dt>Hosts shown</dt><dd>{{len .Report.Hosts}}</dd></div>
+  <div><dt>Connect events read</dt><dd>{{.Report.Connects}}</dd></div>
+  <div><dt>Heartbeats read</dt><dd>{{.Report.Beats}}</dd></div>
+  <div><dt>Events in the store</dt><dd>{{.Report.Stored}}</dd></div>
+</dl>
+<p class="hint">Counted now, from events that arrived in the last seven
+  days{{if .Report.Short}} — only what arrived since
+  {{.Report.From.Format "2 Jan 15:04 UTC"}}, because this page load stayed
+  inside its byte budget{{end}}. The store's own event count sits beside the
+  connect count because "no connects observed" and "nothing collected" are
+  different facts.</p>
+{{/*
+  The honest-gaps line. What the board cannot say, it counts: connects from
+  hosts no recorder named belong to no row, because nothing can say a
+  recorder ever spoke for that machine; a socket path never left the host
+  and a missing destination names nowhere, so neither is a destination. The
+  counts are the denominators the rows below sit inside, printed whether
+  they are zero or not, so the table can be reconciled against what was
+  read rather than trusted.
+*/}}
+<p class="hint">Counted rather than shown:
+  {{plural .Report.Away "connect event was" "connect events were"}} from
+  {{plural .Report.AwayHost "host" "hosts"}} no recorder named in the window,
+  {{plural .Report.Unix "connect event was" "connect events were"}} to
+  AF_UNIX socket paths, which stay on the host, and
+  {{plural .Report.NoDest "connect event named" "connect events named"}} no
+  destination at all.
+  {{plural .Report.BeatsNoHost "heartbeat" "heartbeats"}} of
+  {{.Report.Beats}} named no host to join anything to.</p>
+
+{{if not .Report.Hosts}}
+  {{/*
+    The two silences, said differently — the distinction the Agents board
+    beside this holds too. Events having arrived from other sources means
+    the estate is unwatched by these streams, not that its machines connect
+    nowhere; an empty store is nobody watching anything.
+  */}}
+  {{if .Report.Stored}}<div class="notice warn">
+    <p><strong>No recorder host has been observed.</strong> Events have
+      arrived from other sources — none of them a heartbeat or watch event
+      claiming a machine — so an empty board here would be silence rather
+      than an estate of machines that connect nowhere. Recorder facts arrive
+      with the collector's own records (<code>collector/heartbeat</code>,
+      <code>collector/watch</code>), connects with the auditd tail
+      (<code>auditd/events</code>).</p></div>
+  {{else}}<div class="notice warn">
+    <p><strong>No recorder host has been observed.</strong> Nothing is in
+      the store at all yet, which is not a quiet estate of machines — it is
+      one nothing is watching.</p></div>
+  {{end}}
+{{else}}
+<div class="table-wrap">
+<table>
+  <caption class="visually-hidden">Recorder hosts, the most recently
+    connecting first, with the destinations their connect records named</caption>
+  <thead><tr>
+    <th scope="col">Host</th>
+    <th scope="col">Agents declared</th>
+    <th scope="col">First seen</th><th scope="col">Last seen</th>
+    <th scope="col">Connects</th><th scope="col">Failed</th>
+    <th scope="col">Non-web ports</th>
+    <th scope="col">Destinations, busiest first</th>
+  </tr></thead>
+  <tbody>
+  {{range .Report.Hosts}}
+  <tr>
+    {{/*
+      The host is the recorder's own hostname, the auditd record's spelling,
+      with the liveness fact beside it: a host whose recorder went quiet is a
+      host whose connects stopped being recorded, and the row must not read
+      as the machine having stopped connecting.
+    */}}
+    <th scope="row"><code>{{.Host}}</code>
+      {{if .Recorder}}<div class="hint">recorder {{.Recorder}}{{if not .LastBeat.IsZero}},
+        last beat {{.LastBeat.Format "2 Jan 15:04"}} UTC{{end}}</div>
+      {{else}}<div class="hint">no enrolment name arrived</div>{{end}}
+    </th>
+    {{if .Agents}}<td>{{.AgentList}}
+      <div class="hint">declared in this window</div></td>
+    {{else}}
+    {{/* The mapping's silence, said as that. Never "none", which would read
+         as the host running no agents. */}}
+    <td><span class="dim">no declaration arrived</span></td>
+    {{end}}
+    <td class="when">{{if .First.IsZero}}<span class="dim">no connect arrived</span>{{else}}{{.First.Format "2 Jan 15:04"}}{{end}}</td>
+    <td class="when">{{.LastAgo}}</td>
+    <td class="num">{{.Connects}}
+      {{if or .Unix .Undecoded}}<div class="hint">{{if .Unix}}{{plural .Unix "socket path" "socket paths"}} counted, not shown{{end}}{{if and .Unix .Undecoded}}; {{end}}{{if .Undecoded}}{{plural .Undecoded "connect named" "connects named"}} no destination{{end}}</div>{{end}}
+    </td>
+    <td class="num">{{.Failed}} of {{.Connects}}</td>
+    <td class="num">{{.NonWeb}} of {{.Connects}}</td>
+    <td>
+      {{range .DestShown}}<div><code>{{.Addr}}:{{.Port}}</code>
+        ×{{.N}}{{if .Failed}}, <span class="warn">{{.Failed}}</span> failed{{end}}
+        <span class="hint">first {{.First.Format "2 Jan 15:04"}} · last {{.Last.Format "2 Jan 15:04"}}</span></div>{{end}}
+      {{if .DestMore}}<div class="hint">{{.DestMore}} more, cut from the busiest slice</div>{{end}}
+      {{if not .DestShown}}<span class="dim">no destination arrived</span>{{end}}
+    </td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+<p class="hint">Most recently connecting host first. Connects are the events
+  that carried an address and a port — the row's own socket paths and
+  undecoded connects are counted beside its total, and the window's
+  denominators are in the line above the table. A destination is the
+  record's own address and port, busiest first, and nothing resolves it: no
+  domain, no reverse DNS, no ASN, because no record here says any of that.
+  Where more than one agent is declared on a host the connects are
+  attributed to none of them — the declaration says who runs there, and no
+  event says who held the socket.</p>
+{{end}}
+{{end}}
+{{template "foot" .}}

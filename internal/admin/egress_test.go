@@ -371,7 +371,7 @@ func TestEgressShowsTheBusiestSliceAndNamesTheRest(t *testing.T) {
 // store is read.
 func TestTheEgressBoardRefusesThoseWhoCannotTriage(t *testing.T) {
 	srv, _ := setup(t)
-	req := httptest.NewRequest(http.MethodGet, "/security/agents/egress", nil)
+	req := httptest.NewRequest(http.MethodGet, "/security/egress", nil)
 	w := httptest.NewRecorder()
 	srv.handleEgress(w, req)
 	if w.Code != http.StatusUnauthorized {
@@ -380,7 +380,7 @@ func TestTheEgressBoardRefusesThoseWhoCannotTriage(t *testing.T) {
 	}
 	// A signed-in viewer: on the console, but not in security triage.
 	srv, token := asRole(t, auth.RoleViewer)
-	req = httptest.NewRequest(http.MethodGet, "/security/agents/egress", nil)
+	req = httptest.NewRequest(http.MethodGet, "/security/egress", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w = httptest.NewRecorder()
 	srv.handleEgress(w, req)
@@ -406,7 +406,7 @@ func TestTheEgressBoardAnswersAnAllowedReader(t *testing.T) {
 	srv.Events, _ = spoolWith(t, spool.Options{},
 		beatOn("inbound-build01", "build01", "watcher", now.Add(-30*time.Minute)),
 		connectOn("build01", "203.0.113.9", "443", false, now.Add(-20*time.Minute)))
-	req := httptest.NewRequest(http.MethodGet, "/security/agents/egress", nil)
+	req := httptest.NewRequest(http.MethodGet, "/security/egress", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	srv.handleEgress(w, req)

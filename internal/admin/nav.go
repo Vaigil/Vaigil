@@ -79,6 +79,11 @@ var destinations = []destination{
 	// telemetry. Triage rather than view because, like Events and Hunt, it
 	// reads raw telemetry — which names people's activity, pseudonymised.
 	{"agents", "Agents", "/security/agents", "Investigation", "mcp", auth.ActTriage},
+	// Beside Agents, under its address: where the machines that run agents
+	// talked to, from the recorder's own auditd tail. The same triage gate
+	// as the board it sits under, because it reads the same raw telemetry —
+	// addresses, and hostnames that name people's machines.
+	{"egress", "Egress", "/security/egress", "Investigation", "mcp", auth.ActTriage},
 	{"events", "Events", "/security/events", "Investigation", "events", auth.ActTriage},
 	{"hunt", "Hunt", "/security/hunt", "Investigation", "events", auth.ActTriage},
 	{"indicators", "Indicators", "/security/indicators", "Investigation", "intelligence", auth.ActView},
@@ -410,7 +415,7 @@ func groupOf(key string) string {
 var screenAreas = map[string]string{
 	"findings": auth.AreaSecurity, "risk": auth.AreaSecurity, "cases": auth.AreaSecurity,
 	"events": auth.AreaSecurity, "hunt": auth.AreaSecurity, "detections": auth.AreaSecurity,
-	"agents":     auth.AreaSecurity,
+	"agents": auth.AreaSecurity, "egress": auth.AreaSecurity,
 	"indicators": auth.AreaSecurity, "vulns": auth.AreaSecurity, "workforce": auth.AreaSecurity,
 	"automations": auth.AreaSecurity, "signins": auth.AreaSecurity, "feeds": auth.AreaSecurity,
 	"logs": auth.AreaLog,
@@ -475,6 +480,7 @@ func Screens() []find.Destination {
 		"events":       {"log", "telemetry", "raw"},
 		"hunt":         {"search", "query", "baseline", "stack"},
 		"agents":       {"ai", "bot", "mcp", "llm", "genai", "tool call", "sidecar"},
+		"egress":       {"outbound", "network", "connect", "destination", "traffic", "socket"},
 		"indicators":   {"ioc", "intelligence", "threat", "hash", "domain"},
 		"detections":   {"rule", "sigma", "tuning", "suppression", "ring"},
 		"automations":  {"soar", "playbook", "rule", "response"},

@@ -416,7 +416,7 @@ func (s *Server) handleEgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	data := map[string]any{"Nav": "agents", "Title": "Agent egress",
+	data := map[string]any{"Nav": "egress", "Title": "Agent egress",
 		"Principal": p}
 	if s.Events == nil || s.Events.Open == nil {
 		data["Unavailable"] = "This build was started without a telemetry " +
