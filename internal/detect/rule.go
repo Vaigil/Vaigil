@@ -56,7 +56,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // Op is how a field is compared. A closed set, because a predicate is data

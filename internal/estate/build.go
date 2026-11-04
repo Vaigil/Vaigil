@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/telemetry"
-	"github.com/aeroprove/aeroprove/internal/workforce"
+	"github.com/aertun/aertun/internal/telemetry"
+	"github.com/aertun/aertun/internal/workforce"
 )
 
 // Individual is one person as every tool that knows them describes them.

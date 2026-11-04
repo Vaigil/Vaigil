@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/audit"
+	"github.com/aertun/aertun/internal/audit"
 )
 
 // A finding's state is the fold of an append-only log, not an editable field.

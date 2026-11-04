@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aertun/aertun/internal/auth"
 )
 
 type feedsFake struct {

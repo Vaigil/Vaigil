@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/xmldsig"
+	"github.com/aertun/aertun/internal/xmldsig"
 )
 
 // The JDK-signed fixtures live with the package that verifies signatures.

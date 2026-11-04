@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/config"
-	"github.com/aeroprove/aeroprove/internal/dual"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/config"
+	"github.com/aertun/aertun/internal/dual"
 )
 
 // Configuration in the admin.

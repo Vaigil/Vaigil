@@ -17,7 +17,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/aeroprove/aeroprove/internal/fetch"
+	"github.com/aertun/aertun/internal/fetch"
 	"os"
 	"path/filepath"
 	"sort"
@@ -26,7 +26,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/atomicfile"
+	"github.com/aertun/aertun/internal/atomicfile"
 )
 
 // Shipping: evidence leaves the endpoint in signed batches.
@@ -71,10 +71,10 @@ type Batch struct {
 
 // The headers both halves of the wire agree on.
 const (
-	HeaderToken     = "X-AeroProve-Token"     // the credential's name server-side
-	HeaderBatch     = "X-AeroProve-Batch"     // the batch id, for dedup
-	HeaderTime      = "X-AeroProve-Time"      // unix seconds, for replay refusal
-	HeaderSignature = "X-AeroProve-Signature" // hex HMAC-SHA256
+	HeaderToken     = "X-aertun-Token"     // the credential's name server-side
+	HeaderBatch     = "X-aertun-Batch"     // the batch id, for dedup
+	HeaderTime      = "X-aertun-Time"      // unix seconds, for replay refusal
+	HeaderSignature = "X-aertun-Signature" // hex HMAC-SHA256
 	// CollectorPath is the endpoint the batches POST to and the config is
 	// fetched from.
 	CollectorPath = "/v1/collector"

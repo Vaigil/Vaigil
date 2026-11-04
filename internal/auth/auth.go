@@ -386,7 +386,7 @@ func (p *Policy) Evaluate(principal string, action Action, resource string) Deci
 		}
 		if b.Role != RoleAdmin && !IsArea(b.Resource) && guarded(target) {
 			trail = append(trail, fmt.Sprintf(
-				"skip %s on %s — only an administrator over all of AeroProve reaches %s",
+				"skip %s on %s — only an administrator over all of it reaches %s",
 				b.Role, normalise(b.Resource), target))
 			continue
 		}
@@ -575,7 +575,7 @@ func roleList() string {
 
 // -- API tokens ---------------------------------------------------------------
 
-// TokenPrefix marks a aeroprove token in logs, repositories and paste sites.
+// TokenPrefix marks a aertun token in logs, repositories and paste sites.
 //
 // GitHub's `ghp_` convention exists so secret scanners can spot a leaked
 // credential without knowing what it belongs to. It costs six characters and it
@@ -1120,7 +1120,7 @@ func (ts *TokenStore) ExchangeProved(parentSecret string, role Role, resource st
 		// The parent's scope, carried. Leaving it off meant every exchanged
 		// session was unrestricted: a credential issued --read-only, or
 		// --types article, produced a session with the zero Scope — which
-		// CheckCredential reads as no restriction at all. So `aeroprove token
+		// CheckCredential reads as no restriction at all. So `aertun token
 		// exchange` turned a read-only CI credential into one that publishes,
 		// which is the opposite of what a session is for.
 		//
@@ -1444,7 +1444,7 @@ var ErrStepUp = errors.New("this session must confirm it is its person first: si
 // lock rather than deadlocking on a re-entrant call.
 func (ts *TokenStore) authenticate(secret string, now time.Time) (*Token, error) {
 	if !strings.HasPrefix(secret, TokenPrefix) {
-		return nil, fmt.Errorf("that is not a aeroprove token (they start with %s)%w", TokenPrefix, silent{errUnknown})
+		return nil, fmt.Errorf("that is not a aertun token (they start with %s)%w", TokenPrefix, silent{errUnknown})
 	}
 	want := []byte(hashToken(secret))
 

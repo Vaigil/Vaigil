@@ -6,9 +6,9 @@ package model
 import (
 	"context"
 
-	"github.com/aeroprove/aeroprove/internal/pii"
-	"github.com/aeroprove/aeroprove/internal/plaintext"
-	"github.com/aeroprove/aeroprove/internal/secret"
+	"github.com/aertun/aertun/internal/pii"
+	"github.com/aertun/aertun/internal/plaintext"
+	"github.com/aertun/aertun/internal/secret"
 )
 
 // Guarded is a model behind a privacy guard: what may not leave is masked

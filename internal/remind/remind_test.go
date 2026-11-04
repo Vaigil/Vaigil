@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/estate"
+	"github.com/aertun/aertun/internal/estate"
 )
 
 // Wednesday, mid-morning in London.

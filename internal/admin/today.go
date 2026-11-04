@@ -8,7 +8,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/incident"
+	"github.com/aertun/aertun/internal/incident"
 )
 
 // Today: the first screen after signing in.

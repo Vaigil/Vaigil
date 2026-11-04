@@ -54,8 +54,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/audit"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/audit"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // MinThought is how long a decision has to take to be one.

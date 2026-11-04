@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/xmldsig"
+	"github.com/aertun/aertun/internal/xmldsig"
 )
 
 // Responses shaped as Okta, Entra ID, Keycloak and Google shape theirs,

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "name": "aeroprovebench-v0",
+  "name": "aertunbench-v0",
   "cases": [
     {
       "name": "bruteforce-privileged-record",

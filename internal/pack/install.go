@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/atomicfile"
+	"github.com/aertun/aertun/internal/atomicfile"
 )
 
 // Install, rollback and the state both read.
@@ -36,7 +36,7 @@ import (
 //	               to restore to
 //
 // Content itself is not kept in a parallel tree: it is placed where the
-// engines already read (the rules directory `aeroprove detect run` loads), as
+// engines already read (the rules directory `aertun detect run` loads), as
 // plain files, because the whole argument of the content plane is that it
 // ships around files that already exist. A pack's files are the
 // organisation's the moment they land, exactly like the starter pack's —

@@ -78,12 +78,12 @@ func TestThePayloadIsSignedAndVerifiesWithTheSharedScheme(t *testing.T) {
 	}
 	got := p.got[0]
 	// The receiver verifies it with Verify.
-	if err := Verify("shhh", got.headers["AeroProve-Signature"], now,
+	if err := Verify("shhh", got.headers["aertun-Signature"], now,
 		got.body, now); err != nil {
 		t.Fatalf("the signature does not verify under the shared scheme: %v",
 			err)
 	}
-	if got.headers["AeroProve-Delivery"] != "delivery-key" {
+	if got.headers["aertun-Delivery"] != "delivery-key" {
 		t.Error("the receiver cannot deduplicate a retry")
 	}
 }

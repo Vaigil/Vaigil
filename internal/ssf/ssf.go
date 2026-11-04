@@ -42,7 +42,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/oidc"
+	"github.com/aertun/aertun/internal/oidc"
 )
 
 // Event type URIs.

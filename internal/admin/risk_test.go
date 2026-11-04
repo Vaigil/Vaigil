@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/finding"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/finding"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // riskEstate is a register where one person has three medium findings from

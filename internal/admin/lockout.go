@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/lockout"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/lockout"
 )
 
 // Smart lockout at the admin's door (internal/lockout).
@@ -169,7 +169,7 @@ func (s *Server) handleSignInsUnlock(w http.ResponseWriter, r *http.Request) {
 		return
 	case s.Policy != nil && s.Policy.Evaluate(who, auth.ActGrant, "/").Allowed &&
 		!s.Policy.Evaluate(p.Name, auth.ActGrant, "/").Allowed:
-		back("e", who+" administers all of AeroProve; only somebody who does too can unlock them.")
+		back("e", who+" administers all of aertun; only somebody who does too can unlock them.")
 		return
 	}
 	found, err := s.Lockout.Unlock(who, time.Now())

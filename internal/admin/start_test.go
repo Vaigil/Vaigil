@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aertun/aertun/internal/auth"
 )
 
 // Signing in for the first time lands on the getting started screen.

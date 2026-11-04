@@ -10,13 +10,13 @@ import (
 	"sort"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/atomicfile"
+	"github.com/aertun/aertun/internal/atomicfile"
 )
 
 // The register, kept between runs.
 //
 // A register only in memory is a queue that exists for the length of one
-// command. `aeroprove triage` built one from the events it was handed, printed
+// command. `aertun triage` built one from the events it was handed, printed
 // the top twenty and threw it away, so there was nothing for a screen to show,
 // nothing for an agent to read and nothing for a decision to apply to — the
 // decisions were written to the audit log about findings that no longer

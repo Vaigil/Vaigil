@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aeroprove/aeroprove/internal/analyst"
-	"github.com/aeroprove/aeroprove/internal/untrusted"
+	"github.com/aertun/aertun/internal/analyst"
+	"github.com/aertun/aertun/internal/untrusted"
 )
 
 // The injection red-team suite: instructions planted in every place a log's

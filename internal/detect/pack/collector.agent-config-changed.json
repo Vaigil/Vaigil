@@ -2,7 +2,7 @@
   "id": "collector.agent-config-changed",
   "title": "An agent's configuration file changed",
   "why": "an agent's config is its grant list and its instructions: .mcp.json names the MCP servers its tools run through, and CLAUDE.md, .cursorrules and the settings files are text the model obeys — postmark-mcp and the rules-file backdoors both shipped as edits to exactly these files (catalogue B10/B11). A developer editing a config is the common case, so this is severity 3 while the removal has its own, louder rule",
-  "blind": "who changed it and what changed — the recorder watches files, not processes, and ships a hash rather than content — and, on a host nobody has mapped to an agent, the chain to the otel/genai calls the same agent then made: the mapping (aeroprove agent maps) is what attributes the change to a name, and this rule fires without it",
+  "blind": "who changed it and what changed — the recorder watches files, not processes, and ships a hash rather than content — and, on a host nobody has mapped to an agent, the chain to the otel/genai calls the same agent then made: the mapping (aertun agent maps) is what attributes the change to a name, and this rule fires without it",
   "sources": [
     "collector/watch"
   ],

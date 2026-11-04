@@ -5,7 +5,7 @@
 package bench
 
 import (
-	"github.com/aeroprove/aeroprove/internal/analyst"
+	"github.com/aertun/aertun/internal/analyst"
 )
 
 // The corpus is generated, not hand-typed: this file is the catalogue every
@@ -23,7 +23,7 @@ const (
 )
 
 // The corpus's name, stamped into every results document.
-const corpusName = "aeroprovebench-v0"
+const corpusName = "aertunbench-v0"
 
 // Generate builds the corpus from the catalogue below. Nothing reads the
 // clock, the environment or the network: two runs of the program produce

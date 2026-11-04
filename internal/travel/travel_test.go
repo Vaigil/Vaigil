@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/geo"
+	"github.com/aertun/aertun/internal/geo"
 )
 
 var (

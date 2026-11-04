@@ -16,7 +16,7 @@ import (
 // The scorecard: the document a run writes, seals, and (when a key was
 // supplied) signs; the file a third party verifies offline.
 //
-// Shaped like AeroProveBench's Results (internal/bench/run.go): it names what
+// Shaped like aertunbench's Results (internal/bench/run.go): it names what
 // ran — corpus, digests, pack, mode, engine — before how it went, because a
 // number without those names is a claim rather than a measurement. And it
 // carries what the results document honestly says it lacks: dual signatures
@@ -24,7 +24,7 @@ import (
 const (
 	// DocSchema is the document's versioned schema name. A document from
 	// another schema is refused rather than best-effort rendered.
-	DocSchema = "aeroprove/windtunnel-scorecard/v1"
+	DocSchema = "aertun/windtunnel-scorecard/v1"
 	// Engine is the wind tunnel engine's own version: bumped when the
 	// splicing or scoring semantics change, because a scorecard's numbers
 	// are only comparable against the engine that produced them.

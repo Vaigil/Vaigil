@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/finding"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
-	"github.com/aeroprove/aeroprove/internal/vuln"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/finding"
+	"github.com/aertun/aertun/internal/telemetry"
+	"github.com/aertun/aertun/internal/vuln"
 )
 
 // One account or one machine, and everything held about it.

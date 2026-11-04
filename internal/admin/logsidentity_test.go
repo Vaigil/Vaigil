@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aeroprove/aeroprove/internal/audit"
+	"github.com/aertun/aertun/internal/audit"
 )
 
 // TestTheLogNamesPeopleInDetailsItKnows. Details naming a person are stored

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aertun/aertun/internal/auth"
 )
 
 // Each job opens its own screens and no others.

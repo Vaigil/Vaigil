@@ -228,7 +228,7 @@ func TestAnthropicAgainstItsDocumentedResponses(t *testing.T) {
 		{"id":"activity_01B","created_at":"2026-04-10T08:10:00Z",
 		 "organization_id":"org_01Wv","organization_uuid":"abcdef01-2345-6789-abcd-ef0123456789",
 		 "actor":{"type":"admin_api_key_actor","admin_api_key_id":"adminkey-1",
-		 "ip_address":"192.0.2.35","user_agent":"aeroprove-connector/1"},
+		 "ip_address":"192.0.2.35","user_agent":"aertun-connector/1"},
 		 "type":"claude_user_role_updated","user_id":"user_01C",
 		 "user_email":"bo@acme.test","current_role":"admin","previous_role":"member"},
 		{"id":"activity_01C","created_at":"2026-04-10T08:11:00Z",

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aeroprove/aeroprove/internal/detect"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/detect"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // A rule in the shape SigmaHQ actually publishes them.

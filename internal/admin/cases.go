@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/finding"
-	"github.com/aeroprove/aeroprove/internal/incident"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/finding"
+	"github.com/aertun/aertun/internal/incident"
 )
 
 // Cases: an incident, the findings it gathers, and its clocks.

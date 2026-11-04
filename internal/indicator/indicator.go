@@ -40,7 +40,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // Kind is what an indicator is.

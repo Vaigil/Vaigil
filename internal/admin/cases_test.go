@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/incident"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/incident"
 )
 
 // wireCases keeps incidents in memory, through the same Apply the store

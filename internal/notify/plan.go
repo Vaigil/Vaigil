@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/audit"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/audit"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // Deciding who gets a notice, showing the decision, and only then sending.

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/audit"
+	"github.com/aertun/aertun/internal/audit"
 )
 
 func signer(t *testing.T) *audit.HeadSigner {

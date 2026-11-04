@@ -4,7 +4,7 @@
 package admin
 
 import (
-	"github.com/aeroprove/aeroprove/internal/enrol"
+	"github.com/aertun/aertun/internal/enrol"
 
 	"path/filepath"
 	"sort"
@@ -21,7 +21,7 @@ import (
 // the assertion that later satisfies the Article 50 gate, so the one whose
 // authorship somebody asking questions most needs — recorded nothing.
 //
-// Every other surface already did. `aeroprove add` writes content.add, the agent
+// Every other surface already did. `aertun add` writes content.add, the agent
 // interface writes mcp.write_page, and the content API writes through
 // OnWrite. This interface recorded deleting a
 // page, editing its sections and removing a selection of them, so the gap did

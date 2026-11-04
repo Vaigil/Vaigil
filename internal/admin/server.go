@@ -12,7 +12,7 @@
 // app reimplements each one and usually gets at least one wrong — focus after
 // navigation, the back button, find-in-page across virtualised lists.
 //
-// The other reasons point the same way. aeroprove is one static binary in a
+// The other reasons point the same way. aertun is one static binary in a
 // scratch image with no dependencies; adding a JavaScript build would bring a
 // node toolchain, several hundred transitive packages, and a bundle larger than
 // the entire program. For a security console, shipping a framework to render
@@ -54,14 +54,14 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/aeroprove/aeroprove/internal/audit"
-	"github.com/aeroprove/aeroprove/internal/clientip"
-	"github.com/aeroprove/aeroprove/internal/dpop"
-	"github.com/aeroprove/aeroprove/internal/enrol"
-	"github.com/aeroprove/aeroprove/internal/icons"
-	"github.com/aeroprove/aeroprove/internal/lockout"
-	"github.com/aeroprove/aeroprove/internal/oauthas"
-	"github.com/aeroprove/aeroprove/internal/throttle"
+	"github.com/aertun/aertun/internal/audit"
+	"github.com/aertun/aertun/internal/clientip"
+	"github.com/aertun/aertun/internal/dpop"
+	"github.com/aertun/aertun/internal/enrol"
+	"github.com/aertun/aertun/internal/icons"
+	"github.com/aertun/aertun/internal/lockout"
+	"github.com/aertun/aertun/internal/oauthas"
+	"github.com/aertun/aertun/internal/throttle"
 	"html/template"
 	"math"
 	"net/http"
@@ -74,7 +74,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aertun/aertun/internal/auth"
 )
 
 //go:embed assets/*
@@ -230,7 +230,7 @@ type Server struct {
 	// nothing, which is only right in a test.
 	AuditAgent func(action, resource, agent string, detail map[string]string)
 	// RunKey returns the store's caveat-minting key (the file beside the
-	// registry, cmd/aeroprove's agents.key), for the exchange to verify the run
+	// registry, cmd/aertun's agents.key), for the exchange to verify the run
 	// credential an agent presents and to mint the caveats of the token it
 	// issues. Nil means no on-behalf-of token can be minted, which the
 	// exchange says rather than resolving to issue one without caveats.
@@ -285,8 +285,8 @@ func (s *Server) refresh() {
 
 // New builds the server and parses the admin templates once.
 //
-// html/template rather than aeroprove's own engine, and the distinction matters.
-// aeroprove's language is deliberately powerless because *users* write in it and
+// html/template rather than aertun's own engine, and the distinction matters.
+// aertun's language is deliberately powerless because *users* write in it and
 // user templates are an injection surface. These templates are ours, shipped in
 // the binary, and never author-supplied — so the stdlib's contextual escaping is
 // exactly right and there is no surface to remove.
@@ -369,7 +369,7 @@ type fixWords struct {
 	Note []fixPart
 }
 
-// fixParts splits "aeroprove auditlog anchor  # or `auditlog head --save`"
+// fixParts splits "aertun auditlog anchor  # or `auditlog head --save`"
 // into the command and a note of words and commands, the backticks gone.
 func fixParts(fix string) fixWords {
 	cmd, note, ok := strings.Cut(fix, " # ")
@@ -484,7 +484,7 @@ func (s *Server) authenticate(r *http.Request) (principal, error) {
 	raw := strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
 	bearer := raw != ""
 	if raw == "" {
-		if c, err := r.Cookie("aeroprove_token"); err == nil {
+		if c, err := r.Cookie("aertun_token"); err == nil {
 			raw = c.Value
 		}
 	}
@@ -627,7 +627,7 @@ func (s *Server) allows(p principal, act auth.Action, resource string) bool {
 // "/". A principal holding admin on "/" and denied author on /about was
 // refused by the command line and permitted here:
 //
-//	aeroprove note add about "…"                  denied author on /about
+//	aertun note add about "…"                  denied author on /about
 //	POST /notes/add page=about text=…          200, and the note was written
 //
 // The browser is the surface where the deny is *displayed*, which makes this
@@ -1064,7 +1064,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/nav/order", s.handleNavOrder)
 	mux.HandleFunc("/style.css", s.handleCSS)
 	mux.HandleFunc("/admin.js", s.handleJS)
-	mux.HandleFunc("/fonts/aeroprove-ui.woff2", s.handleFont)
+	mux.HandleFunc("/fonts/aertun-ui.woff2", s.handleFont)
 	mux.HandleFunc("/icon.svg", s.handleIcon)
 	// The live stream over the audit log (live.go). A page resource with the
 	// rest of the furniture, not an agent API: it is opened by the console's
@@ -1168,7 +1168,7 @@ func (s *Server) handleSignIn(w http.ResponseWriter, r *http.Request) {
 	// Somebody signed in, and the log says so.
 	//
 	// It did not. OnSignIn exists and is assigned only inside the OIDC block
-	// in cmd/aeroprove, so on the ordinary deployment — a token, or a passkey,
+	// in cmd/aertun, so on the ordinary deployment — a token, or a passkey,
 	// and no identity provider — the log held content changes with no record
 	// of anybody ever signing in at all. AU-2 asks for the session, not only
 	// for what was done inside it.
@@ -1242,7 +1242,7 @@ func (s *Server) handleSignIn(w http.ResponseWriter, r *http.Request) {
 	// secureCookie, and admin.behind_tls_proxy, which is how a deployment says
 	// which it is.
 	http.SetCookie(w, &http.Cookie{
-		Name: "aeroprove_token", Value: cookie, Path: "/",
+		Name: "aertun_token", Value: cookie, Path: "/",
 		HttpOnly: true,                    // unreadable by script; there is none, but the header outlives that
 		SameSite: http.SameSiteStrictMode, // the primary CSRF defence
 		Secure:   r.TLS != nil || s.behindTLSProxy(),
@@ -1279,7 +1279,7 @@ func (s *Server) handleSignIn(w http.ResponseWriter, r *http.Request) {
 // revoked, deliberately: the API answers both the same way, because telling
 // them apart is how an enumeration oracle gets built by accident.
 var signInReasons = map[string]string{
-	"format": "That is not a AeroProve token. They start with " +
+	"format": "That is not a aertun token. They start with " +
 		auth.TokenPrefix + " — check the whole of it was pasted.",
 	"reported": "Thank you. That session is ended, and your security team " +
 		"will look at it. If your token or passkey may have been taken, tell " +
@@ -1288,7 +1288,7 @@ var signInReasons = map[string]string{
 		"recorded, so it was refused. Try again; if it keeps happening, an " +
 		"administrator can look at the audit log for session.stepup-unrecorded.",
 	"refused": "That token was not accepted. It may be mistyped, expired " +
-		"or revoked; an administrator can issue a new one with aeroprove " +
+		"or revoked; an administrator can issue a new one with aertun " +
 		"token issue.",
 	"sso": "Your organisation requires signing in through its identity " +
 		"provider, so a token or a passkey is not accepted here for your " +
@@ -1356,7 +1356,7 @@ func (s *Server) handleSignOut(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	http.SetCookie(w, &http.Cookie{
-		Name: "aeroprove_token", Value: "", Path: "/", MaxAge: -1,
+		Name: "aertun_token", Value: "", Path: "/", MaxAge: -1,
 		HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: r.TLS != nil || s.behindTLSProxy(),
 	})
 	http.Redirect(w, r, "/signin", http.StatusSeeOther)
@@ -1376,7 +1376,7 @@ func (s *Server) handleCSS(w http.ResponseWriter, r *http.Request) {
 // handleFont serves the interface's typeface. See assets/fonts/README.md.
 // Immutable: a new version of the font is a new file name.
 func (s *Server) handleFont(w http.ResponseWriter, r *http.Request) {
-	b, err := assets.ReadFile("assets/fonts/aeroprove-ui.woff2")
+	b, err := assets.ReadFile("assets/fonts/aertun-ui.woff2")
 	if err != nil {
 		http.Error(w, "missing font", http.StatusInternalServerError)
 		return
@@ -1485,7 +1485,7 @@ func (s *Server) requireAuth(w http.ResponseWriter, r *http.Request) (principal,
 		!hasMethod(p.Methods, auth.MethodSSOOneFactor) {
 		s.audit("session.refused", "/", map[string]string{"by": p.Name, "session": p.TokenID,
 			"why": "single sign-on is required"})
-		s.clearCookie(w, r, "aeroprove_token")
+		s.clearCookie(w, r, "aertun_token")
 		w.WriteHeader(http.StatusUnauthorized)
 		s.render(w, r, "signin.html", map[string]any{"Title": "Sign in", "OIDC": s.OIDC != nil,
 			"OIDCLabel": s.oidcLabel(), "SSO": s.ssoChoices(),

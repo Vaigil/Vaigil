@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // Risk by entity: what several small findings about one person add up to.

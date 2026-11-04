@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/audit"
+	"github.com/aertun/aertun/internal/audit"
 )
 
 // Saying a vulnerability does not apply, in a way somebody can check.

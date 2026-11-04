@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Rashik Adhikari
 // SPDX-License-Identifier: Apache-2.0
 
-// Package scim lets a company's identity provider keep AeroProve's people in
+// Package scim lets a company's identity provider keep aertun's people in
 // step with its own: SCIM 2.0 (RFC 7643, RFC 7644), as Okta and Microsoft
 // Entra speak it.
 //
@@ -46,7 +46,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/atomicfile"
+	"github.com/aertun/aertun/internal/atomicfile"
 )
 
 // Schema identifiers, from RFC 7643 and RFC 7644.

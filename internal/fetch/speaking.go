@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/egress"
+	"github.com/aertun/aertun/internal/egress"
 )
 
 // Clients for the callers that speak their own protocol.

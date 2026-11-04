@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // linearRange is the read as it was before sidecar indexes: every segment

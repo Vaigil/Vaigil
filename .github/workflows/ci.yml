@@ -34,7 +34,7 @@ jobs:
             os="${pair%/*}"; arch="${pair#*/}"
             echo "--- $os/$arch"
             GOOS="$os" GOARCH="$arch" go vet ./... || exit 1
-            GOOS="$os" GOARCH="$arch" go build -o /dev/null ./cmd/aeroprove || exit 1
+            GOOS="$os" GOARCH="$arch" go build -o /dev/null ./cmd/aertun || exit 1
           done
       # The standard library is the only dependency, which makes the Go release
       # the whole supply chain. govulncheck reports what this code can reach.
@@ -43,4 +43,4 @@ jobs:
       - name: The whole suite
         run: go test -count=1 ./...
       - name: The image must build and stay static
-        run: docker build -t aeroprove:ci .
+        run: docker build -t aertun:ci .

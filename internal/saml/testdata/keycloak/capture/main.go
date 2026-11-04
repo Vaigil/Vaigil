@@ -13,7 +13,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/saml"
+	"github.com/aertun/aertun/internal/saml"
 )
 
 func main() {

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/scim"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/scim"
 )
 
 // The Provisioning screen: the identity provider's connection, and what

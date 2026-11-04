@@ -57,8 +57,8 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/aeroprove/aeroprove/internal/atomicfile"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/atomicfile"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // sidecarMagic identifies the format. A version bump means "rebuild

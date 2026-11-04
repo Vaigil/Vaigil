@@ -17,7 +17,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/atomicfile"
+	"github.com/aertun/aertun/internal/atomicfile"
 )
 
 // Signing pack metadata, twice, with algorithms that fail differently.
@@ -40,7 +40,7 @@ import (
 // signatureContext is the domain every pack-metadata signature is made and
 // checked in. Versioned, so a change to what gets signed cannot be confused
 // with the thing it replaced.
-const signatureContext = "aeroprove/pack-metadata/v1"
+const signatureContext = "aertun/pack-metadata/v1"
 
 // SeedSize is the length of each half of a key's seeds.
 const SeedSize = 32
@@ -175,7 +175,7 @@ func metadataMessage(body any) ([]byte, error) {
 //
 // The context is the whole point: a domain that is not pack metadata signs
 // in its own — internal/windtunnel signs its scorecards in
-// aeroprove/windtunnel-scorecard/v1 — so a signature made for one purpose can
+// aertun/windtunnel-scorecard/v1 — so a signature made for one purpose can
 // never be presented as one for another, the same separation this file's
 // own context provides, lent to a second signer holding the same key
 // material. Deterministic on both algorithms, so the same bytes sign to the

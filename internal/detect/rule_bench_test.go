@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // benchSink keeps a match from being optimised away.

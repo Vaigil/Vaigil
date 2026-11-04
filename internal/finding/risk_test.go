@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 var riskNow = time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC)

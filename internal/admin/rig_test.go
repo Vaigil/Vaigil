@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/config"
-	"github.com/aeroprove/aeroprove/internal/dual"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/config"
+	"github.com/aertun/aertun/internal/dual"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // The rig every console test starts from.
@@ -185,7 +185,7 @@ func firstLines(s string, n int) string {
 // cookieFrom returns the session cookie a response set.
 func cookieFrom(w *httptest.ResponseRecorder) string {
 	for _, c := range w.Result().Cookies() {
-		if c.Name == "aeroprove_token" {
+		if c.Name == "aertun_token" {
 			return c.Value
 		}
 	}

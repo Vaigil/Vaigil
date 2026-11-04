@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aeroprove/aeroprove/internal/webauthn"
+	"github.com/aertun/aertun/internal/webauthn"
 )
 
 // A YubiKey 5 series identifier, as an example of the shape.

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/scim"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/scim"
 )
 
 type scimCalls struct {

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/finding"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/finding"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // What the join is for: the questions no single system can answer.

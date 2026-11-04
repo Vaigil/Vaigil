@@ -1,17 +1,17 @@
-# AeroProve
+# aertun
 
 **The wind tunnel for AI agents: breach-and-attack simulation for deployed
-agent stacks, on a complete detection engine.** AeroProve replays scripted
+agent stacks, on a complete detection engine.** aertun replays scripted
 malicious agent sessions — tool poisoning, config rug-pulls, the
 read-then-exfiltrate chain, over-scoped credentials — through your own
 telemetry, measures honestly whether your controls caught them, and signs
 the scorecard a third party can verify with nothing but a public key.
 
 <p>
-  <a href="https://github.com/AeroProve/AeroProve/actions/workflows/ci.yml"><img src="https://github.com/AeroProve/AeroProve/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
+  <a href="https://github.com/aertun/aertun/actions/workflows/ci.yml"><img src="https://github.com/aertun/aertun/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-Apache--2.0-blue" alt="licence: Apache-2.0"></a>
   <a href="go.mod"><img src="https://img.shields.io/badge/dependencies-0-brightgreen" alt="dependencies: 0"></a>
-  <a href="https://aeroprove.github.io/"><img src="https://img.shields.io/badge/manual-aeroprove.github.io-informational" alt="manual"></a>
+  <a href="https://aertun.github.io/"><img src="https://img.shields.io/badge/manual-aertun.github.io-informational" alt="manual"></a>
 </p>
 
 [Quickstart](#quickstart) · [Why a wind tunnel](#why-a-wind-tunnel) ·
@@ -19,7 +19,7 @@ the scorecard a third party can verify with nothing but a public key.
 [AI that cannot be talked into anything](#ai-that-cannot-be-talked-into-anything) ·
 [Integrations](#integrations) · [Roles](#roles) · [Three ways in](#three-ways-in) ·
 [Its own record](#its-own-record) · [Install](#install) ·
-[Manual](https://aeroprove.github.io/)
+[Manual](https://aertun.github.io/)
 
 One static binary written in Go, using the standard library only, with no
 third-party dependencies. The few third-party assets it carries (a typeface,
@@ -28,15 +28,15 @@ icons, public data sets) are credited in [NOTICE](NOTICE).
 ## Quickstart
 
 ```bash
-git clone https://github.com/AeroProve/AeroProve aeroprove && cd aeroprove
-go build -o aeroprove ./cmd/aeroprove      # Go 1.27 or later, nothing to fetch
+git clone https://github.com/aertun/aertun aertun && cd aertun
+go build -o aertun ./cmd/aertun      # Go 1.27 or later, nothing to fetch
 
-./aeroprove init --admin you@example.com   # a store, and the link that adds your passkey
-./aeroprove serve                          # the console, on http://localhost:8080
+./aertun init --admin you@example.com   # a store, and the link that adds your passkey
+./aertun serve                          # the console, on http://localhost:8080
 ```
 
 The binary answers to **`apv`** as well — the short form, the way nobody types
-the long name twice: `ln -s aeroprove apv` (or `make install`, which installs
+the long name twice: `ln -s aertun apv` (or `make install`, which installs
 both names) and then it is `apv serve`, `apv windtunnel run`, `apv anything`.
 
 Open the link `init` printed and add a passkey, and you are signed in. There
@@ -51,7 +51,7 @@ it** — and the numbers that exist are inflated: the best independent
 detector catches about half of agent attacks at a two-percent false-positive
 rate, while vendors market 99.83%.
 
-AeroProve is the honest instrument. A scenario is data, never code — a
+aertun is the honest instrument. A scenario is data, never code — a
 malicious agent session as the security operations centre would see it,
 shipped with a benign twin that must raise nothing. Replayed through a
 recorded stream in a scratch store, nothing live is touched, because there
@@ -82,7 +82,7 @@ the four things that make it useful.
 ## AI that cannot be talked into anything
 
 A security tool that puts a language model in front of log data hands the
-model text written by attackers. AeroProve is built so that the worst an AI can
+model text written by attackers. aertun is built so that the worst an AI can
 do is be wrong in a suggestion:
 
 - **The AI analyst's plan is fixed in code before anything untrusted is
@@ -98,10 +98,10 @@ do is be wrong in a suggestion:
   credentials are masked before the prompt leaves and restored in the answer,
   and invisible characters are removed first.
 - **It works with any OpenAI-compatible endpoint**, hosted or local
-  (`AEROPROVE_MODEL_URL`, `AEROPROVE_MODEL_KEY`, `AEROPROVE_MODEL`), and with none: the
+  (`AERTUN_MODEL_URL`, `AERTUN_MODEL_KEY`, `AERTUN_MODEL`), and with none: the
   model is an aid, never a dependency.
 
-AI agents reach AeroProve through its **MCP server**: eight operations behind three
+AI agents reach aertun through its **MCP server**: eight operations behind three
 tools, which an agent loads only as it searches for them. They list and read
 findings, cases, detection statistics, the vulnerability plan and the estate in
 numbers, and propose a decision on a finding for a person to make. They cannot
@@ -111,7 +111,7 @@ did reaches the same detection engine as every other platform's events.
 
 ## Integrations
 
-**Connectors** (read through each tool's API, credentials kept in AeroProve's
+**Connectors** (read through each tool's API, credentials kept in aertun's
 vault): Okta, Microsoft Entra ID, GitHub, EVM smart contracts through a
 Blockscout explorer, KnowBe4, ManageEngine Endpoint Central, ManageEngine MDM
 Plus, Vanta, and the OpenAI and Anthropic organisation audit logs.
@@ -130,7 +130,7 @@ SCIM 2.0 and WebAuthn passkeys.
 ## Roles
 
 A security team separates watching, deciding, acting and administering, and
-so does AeroProve. Each role includes the ones before it:
+so does aertun. Each role includes the ones before it:
 
 | Role | May |
 |---|---|
@@ -143,7 +143,7 @@ Beside the ladder are jobs, for different kinds of work rather than more of
 it: an `engineer` tunes detections and automation rules, a `vuln-manager`
 decides vulnerabilities, and an `auditor` reads the queue and the audit log
 for a set time, after which the grant ends by itself. Each job is a set of
-bindings anybody can read in full (`aeroprove auth roles`).
+bindings anybody can read in full (`aertun auth roles`).
 
 What stops one person acting alone is not a setting:
 
@@ -163,7 +163,7 @@ What stops one person acting alone is not a setting:
 ## Three ways in
 
 Everything is reachable from the console, from the command line
-(`aeroprove help`), and from AI agents over MCP (`aeroprove mcp --list`). A test
+(`aertun help`), and from AI agents over MCP (`aertun mcp --list`). A test
 fails when a command has no screen and no written reason, or no MCP operation
 and no written reason.
 
@@ -171,8 +171,8 @@ and no written reason.
 
 Every change is written to an append-only audit log: a hash chain, a Merkle
 tree over it, tree heads signed with Ed25519 and ML-DSA (post-quantum), and the
-head committed to Bitcoin through OpenTimestamps (`aeroprove auditlog anchor`).
-The log writer can run as its own account (`aeroprove logd`), so the console
+head committed to Bitcoin through OpenTimestamps (`aertun auditlog anchor`).
+The log writer can run as its own account (`aertun logd`), so the console
 cannot rewrite what it recorded.
 
 The log can also be sent to another SIEM as it is written (`siem.stream.url`):
@@ -184,14 +184,14 @@ dropped or changed.
 
 From source, as above, or with `make install`. Each release publishes static
 binaries for Linux, macOS and Windows with build provenance, and a container
-image, `ghcr.io/aeroprove/aeroprove`: the binary alone on
+image, `ghcr.io/aertun/aertun`: the binary alone on
 `gcr.io/distroless/static-debian12:nonroot`, with no shell. See
 [INSTALL](INSTALL).
 
 ```bash
-docker build -t aeroprove .
-docker run --rm -v aeroprove:/srv aeroprove --root /srv/store init --admin you@example.com
-docker run -p 8080:8080 -v aeroprove:/srv aeroprove
+docker build -t aertun .
+docker run --rm -v aertun:/srv aertun --root /srv/store init --admin you@example.com
+docker run -p 8080:8080 -v aertun:/srv aertun
 ```
 
 Behind a reverse proxy, set `admin.behind_tls_proxy` and `admin.base_url`;

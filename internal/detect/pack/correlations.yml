@@ -114,7 +114,7 @@ id: corr.agent-refusal-burst
 correlation:
     type: event_count
     rules:
-        - aeroprove.agent-call-denied
+        - aertun.agent-call-denied
     group-by:
         - actor.value
     timespan: 15m
@@ -129,7 +129,7 @@ id: corr.agent-proposal-burst
 correlation:
     type: event_count
     rules:
-        - aeroprove.agent-proposed
+        - aertun.agent-proposed
     group-by:
         - actor.value
     timespan: 1h
@@ -180,7 +180,7 @@ level: medium
 ---
 # The chain this file refused for a long time (see the end of this file),
 # now that the join is a declaration rather than an inference: an operator
-# has mapped the recorder's host to one registered agent (aeroprove agent
+# has mapped the recorder's host to one registered agent (aertun agent
 # maps), the watch events from that host carry the declared name, and the
 # otel/genai spans carry their actor in the same field. Watch then call, in
 # that order, joined on the name both halves state. Coincident, not causal
@@ -212,7 +212,7 @@ level: medium
 # source, would correlate any config change on any host with any agent's
 # calls anywhere, which is false precision rather than a detection. What
 # changed is that the join key now exists as a declaration: an operator
-# maps recorder hosts to registered agents (aeroprove agent maps,
+# maps recorder hosts to registered agents (aertun agent maps,
 # internal/agentreg), the collector's ingest carries the declared names on
 # each watch and heartbeat event, and the corridor above joins on the one
 # field both legs then carry. Its honesty is the mapping's: a host mapped

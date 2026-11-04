@@ -16,7 +16,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aeroprove/aeroprove/internal/webauthn"
+	"github.com/aertun/aertun/internal/webauthn"
 )
 
 const (

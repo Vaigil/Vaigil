@@ -51,8 +51,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/connector"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/connector"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // Source is how one platform's records become events.

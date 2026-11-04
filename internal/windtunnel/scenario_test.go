@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // writeLines writes a JSONL fixture the tests splice over.
@@ -213,7 +213,7 @@ func TestScenarioCorpusValidatesAgainstTheShippedPack(t *testing.T) {
 			"deciding", len(corpus))
 	}
 	want := map[string]string{
-		"agent.trifecta-mailroom-exfil":     FamilyTrifecta,
+		"agent.trifecta-mailroom-exfil":    FamilyTrifecta,
 		"agent.mcp-rug-pull":               FamilyConfigRugPull,
 		"agent.injection-hijack-via-issue": FamilyInjection,
 		"agent.slopsquat-install":          FamilySlopsquat,
@@ -263,8 +263,8 @@ func TestScenarioCorpusRefusesAnUnknownField(t *testing.T) {
 	dec := json.NewDecoder(strings.NewReader(body))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&sc); err == nil {
-		t.Fatal("a scenario carrying an executor field parsed; the loader "+
-			"must refuse fields this schema does not know, and an executor "+
+		t.Fatal("a scenario carrying an executor field parsed; the loader " +
+			"must refuse fields this schema does not know, and an executor " +
 			"is the one field this format exists to refuse")
 	}
 }

@@ -11,7 +11,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/aeroprove/aeroprove/internal/fetch"
+	"github.com/aertun/aertun/internal/fetch"
 )
 
 // Asking a transmitter for a stream.

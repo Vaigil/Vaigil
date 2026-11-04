@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/oidc"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/oidc"
 )
 
 // The admin is checked by the same engine it uses on your content.

@@ -49,7 +49,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/atomicfile"
+	"github.com/aertun/aertun/internal/atomicfile"
 )
 
 // Event is something that happened, as automation sees it.

@@ -1,26 +1,26 @@
 # The console, the feeds other systems push to, and the scheduled work.
 #
-#   sudo cp deploy/aeroprove.service /etc/systemd/system/
-#   sudo systemctl enable --now aeroprove
+#   sudo cp deploy/aertun.service /etc/systemd/system/
+#   sudo systemctl enable --now aertun
 #
 # A key for the keyring, when one is enabled, comes from outside the store:
-# put AEROPROVE_KEY_FILE (or AEROPROVE_KEY_COMMAND) in /etc/aeroprove/env, readable
+# put AERTUN_KEY_FILE (or AERTUN_KEY_COMMAND) in /etc/aertun/env, readable
 # by root alone.
 
 [Unit]
-Description=AeroProve security operations console
-Documentation=https://aeroprove.github.io/
+Description=aertun security operations console
+Documentation=https://aertun.github.io/
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=aeroprove
-Group=aeroprove
-WorkingDirectory=/srv/aeroprove
-EnvironmentFile=-/etc/aeroprove/env
+User=aertun
+Group=aertun
+WorkingDirectory=/srv/aertun
+EnvironmentFile=-/etc/aertun/env
 
-ExecStart=/usr/local/bin/aeroprove --root /srv/aeroprove/store serve --addr 127.0.0.1:8080
+ExecStart=/usr/local/bin/aertun --root /srv/aertun/store serve --addr 127.0.0.1:8080
 
 Restart=on-failure
 RestartSec=5s
@@ -45,7 +45,7 @@ SystemCallFilter=@system-service
 SystemCallFilter=~@privileged @resources @obsolete
 
 # The store is the only place it writes.
-ReadWritePaths=/srv/aeroprove/store
+ReadWritePaths=/srv/aertun/store
 
 [Install]
 WantedBy=multi-user.target

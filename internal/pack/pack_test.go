@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/spool"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/spool"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // A rule the shipping validators accept: one it must match, one it must
@@ -22,7 +22,7 @@ import (
 // tests use, because the point of content validation is that this is the
 // same rule the run would load.
 const testRule = `{
-  "id": "aeroprove.test-privileged-failed",
+  "id": "aertun.test-privileged-failed",
   "title": "Failed sign-in to a privileged account",
   "why": "a guessed or sprayed administrator password",
   "sources": ["okta/system"],
@@ -48,7 +48,7 @@ const testRule = `{
 // testRuleTuned is v2 of the same rule: a different match, so an install
 // over v1 and a rollback back are distinguishable by bytes on disk.
 const testRuleTuned = `{
-  "id": "aeroprove.test-privileged-failed",
+  "id": "aertun.test-privileged-failed",
   "title": "Failed sign-in to a privileged account",
   "why": "a guessed or sprayed administrator password, narrowed to two failures",
   "sources": ["okta/system"],
@@ -76,7 +76,7 @@ id: corr.test-privileged-failures
 correlation:
     type: event_count
     rules:
-        - aeroprove.test-privileged-failed
+        - aertun.test-privileged-failed
     group-by:
         - actor.value
     timespan: 15m
@@ -96,7 +96,7 @@ func writePack(t *testing.T, rule string) string {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, TypeDetection,
-		"aeroprove.test-privileged-failed.json"), []byte(rule), 0o600); err != nil {
+		"aertun.test-privileged-failed.json"), []byte(rule), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, TypeCorrelation,
@@ -208,7 +208,7 @@ func everyCheckPassed(t *testing.T, v *Verified) {
 func TestSignVerifyRoundtrip(t *testing.T) {
 	s := keygenStore(t)
 	dir := writePack(t, testRule)
-	meta := s.buildAndSign(t, dir, "aeroprove.test", "2026.11.0")
+	meta := s.buildAndSign(t, dir, "aertun.test", "2026.11.0")
 	if meta != 1 {
 		t.Fatalf("the first signing is metadata version 1, not %d", meta)
 	}
@@ -217,7 +217,7 @@ func TestSignVerifyRoundtrip(t *testing.T) {
 		t.Fatalf("a pack this store signed itself must verify: %v", err)
 	}
 	everyCheckPassed(t, v)
-	if v.Manifest.ID != "aeroprove.test" || v.Manifest.Version != "2026.11.0" {
+	if v.Manifest.ID != "aertun.test" || v.Manifest.Version != "2026.11.0" {
 		t.Fatalf("wrong pack came back: %s %s", v.Manifest.ID, v.Manifest.Version)
 	}
 	// Both algorithms really are on every role: a signature block missing
@@ -239,8 +239,8 @@ func TestSignVerifyRoundtrip(t *testing.T) {
 func TestTamperedContentFailsNamingTheDigest(t *testing.T) {
 	s := keygenStore(t)
 	dir := writePack(t, testRule)
-	s.buildAndSign(t, dir, "aeroprove.test", "2026.11.0")
-	rulePath := filepath.Join(dir, TypeDetection, "aeroprove.test-privileged-failed.json")
+	s.buildAndSign(t, dir, "aertun.test", "2026.11.0")
+	rulePath := filepath.Join(dir, TypeDetection, "aertun.test-privileged-failed.json")
 	if err := os.WriteFile(rulePath,
 		[]byte(strings.Replace(testRule, "admin-dana", "admin-mallory", -1)),
 		0o600); err != nil {
@@ -263,7 +263,7 @@ func TestTamperedContentFailsNamingTheDigest(t *testing.T) {
 func TestTamperedManifestFails(t *testing.T) {
 	s := keygenStore(t)
 	dir := writePack(t, testRule)
-	s.buildAndSign(t, dir, "aeroprove.test", "2026.11.0")
+	s.buildAndSign(t, dir, "aertun.test", "2026.11.0")
 	mpath := filepath.Join(dir, ManifestName)
 	body, err := os.ReadFile(mpath)
 	if err != nil {
@@ -289,7 +289,7 @@ func TestTamperedManifestFails(t *testing.T) {
 func TestMissingSecondSignatureFails(t *testing.T) {
 	s := keygenStore(t)
 	dir := writePack(t, testRule)
-	s.buildAndSign(t, dir, "aeroprove.test", "2026.11.0")
+	s.buildAndSign(t, dir, "aertun.test", "2026.11.0")
 
 	tpath := filepath.Join(dir, TargetsName)
 	body, err := os.ReadFile(tpath)
@@ -352,7 +352,7 @@ func TestVersionRollbackRefused(t *testing.T) {
 	rules := t.TempDir()
 
 	v2dir := writePack(t, testRuleTuned)
-	v2 := s.buildAndSign(t, v2dir, "aeroprove.test", "2026.11.1")
+	v2 := s.buildAndSign(t, v2dir, "aertun.test", "2026.11.1")
 	ver, err := s.verify(t, v2dir, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
@@ -364,15 +364,15 @@ func TestVersionRollbackRefused(t *testing.T) {
 	// v1, signed after v2 by the same honest producer (metadata version 2)
 	// but presented as an update to a store on 2.
 	v1dir := writePack(t, testRule)
-	s.buildAndSign(t, v1dir, "aeroprove.test", "2026.11.0")
+	s.buildAndSign(t, v1dir, "aertun.test", "2026.11.0")
 	// Re-sign at metadata version 1 by hand: rewind the producer's counter,
 	// which is what a mirror serving the old release back looks like.
 	produced, err := LoadProduced(s.root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	produced.Last["aeroprove.test"] = 0
-	if err := produced.RecordEmitted(s.root, "aeroprove.test", 1); err != nil {
+	produced.Last["aertun.test"] = 0
+	if err := produced.RecordEmitted(s.root, "aertun.test", 1); err != nil {
 		t.Fatal(err)
 	}
 	p, err := Read(v1dir)
@@ -413,7 +413,7 @@ func TestExpiryRefusesUpdatesNeverDisablesContent(t *testing.T) {
 	now := time.Now().UTC()
 
 	dir := writePack(t, testRule)
-	s.buildAndSign(t, dir, "aeroprove.test", "2026.11.0")
+	s.buildAndSign(t, dir, "aertun.test", "2026.11.0")
 	v, err := s.verify(t, dir, now)
 	if err != nil {
 		t.Fatal(err)
@@ -427,7 +427,7 @@ func TestExpiryRefusesUpdatesNeverDisablesContent(t *testing.T) {
 	// targets (90 days) have both expired, and the update refuses: expiry
 	// is the freeze defence, on the update path only.
 	d2 := writePack(t, testRuleTuned)
-	s.buildAndSign(t, d2, "aeroprove.test", "2026.11.1")
+	s.buildAndSign(t, d2, "aertun.test", "2026.11.1")
 	if _, err := s.verify(t, d2, now.Add(100*24*time.Hour)); err == nil {
 		t.Fatal("an expired pack verified as an update")
 	} else if !strings.Contains(err.Error(), "expired") ||
@@ -441,7 +441,7 @@ func TestExpiryRefusesUpdatesNeverDisablesContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rec, ok := st.Packs["aeroprove.test"]
+	rec, ok := st.Packs["aertun.test"]
 	if !ok {
 		t.Fatal("the expired installed pack vanished from the record; " +
 			"expiry must never uninstall content")
@@ -473,13 +473,13 @@ func TestExpiryRefusesUpdatesNeverDisablesContent(t *testing.T) {
 func TestInstallPlacesWhatTheRunLoadsAndRollsBack(t *testing.T) {
 	s := keygenStore(t)
 	rules := t.TempDir()
-	unowned := filepath.Join(rules, "aeroprove.orgs-own-rule.json")
+	unowned := filepath.Join(rules, "aertun.orgs-own-rule.json")
 	if err := os.WriteFile(unowned, []byte(testRule), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
 	d1 := writePack(t, testRule)
-	s.buildAndSign(t, d1, "aeroprove.test", "2026.11.0")
+	s.buildAndSign(t, d1, "aertun.test", "2026.11.0")
 	v1, err := s.verify(t, d1, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
@@ -487,7 +487,7 @@ func TestInstallPlacesWhatTheRunLoadsAndRollsBack(t *testing.T) {
 	if _, err := Install(v1, s.root, rules, nil, OverridesRefuse); err != nil {
 		t.Fatal(err)
 	}
-	rulePath := filepath.Join(rules, "aeroprove.test-privileged-failed.json")
+	rulePath := filepath.Join(rules, "aertun.test-privileged-failed.json")
 	got, err := os.ReadFile(rulePath)
 	if err != nil || string(got) != testRule {
 		t.Fatalf("the rule was not placed where the run loads it: %v", err)
@@ -495,7 +495,7 @@ func TestInstallPlacesWhatTheRunLoadsAndRollsBack(t *testing.T) {
 
 	// v2 over v1.
 	d2 := writePack(t, testRuleTuned)
-	s.buildAndSign(t, d2, "aeroprove.test", "2026.11.1")
+	s.buildAndSign(t, d2, "aertun.test", "2026.11.1")
 	v2, err := s.verify(t, d2, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
@@ -533,10 +533,10 @@ func TestInstallPlacesWhatTheRunLoadsAndRollsBack(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.Packs["aeroprove.test"].Version != "2026.11.0" ||
-		st.Packs["aeroprove.test"].MetaVersion != 1 {
+	if st.Packs["aertun.test"].Version != "2026.11.0" ||
+		st.Packs["aertun.test"].MetaVersion != 1 {
 		t.Fatalf("the state pointer did not move back: %+v",
-			st.Packs["aeroprove.test"])
+			st.Packs["aertun.test"])
 	}
 
 	// And rolling back again undoes the rollback, because the set being
@@ -555,7 +555,7 @@ func TestFirstInstallRollbackRemovesAdditions(t *testing.T) {
 	s := keygenStore(t)
 	rules := t.TempDir()
 	dir := writePack(t, testRule)
-	s.buildAndSign(t, dir, "aeroprove.test", "2026.11.0")
+	s.buildAndSign(t, dir, "aertun.test", "2026.11.0")
 	v, err := s.verify(t, dir, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
@@ -575,14 +575,14 @@ func TestFirstInstallRollbackRemovesAdditions(t *testing.T) {
 			len(v.Manifest.Files))
 	}
 	if _, err := os.Stat(filepath.Join(rules,
-		"aeroprove.test-privileged-failed.json")); !os.IsNotExist(err) {
+		"aertun.test-privileged-failed.json")); !os.IsNotExist(err) {
 		t.Fatal("the first install's rule is still on disk after rollback")
 	}
 	st, err := LoadInstalled(s.root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, still := st.Packs["aeroprove.test"]; still {
+	if _, still := st.Packs["aertun.test"]; still {
 		t.Fatal("the rolled-back first install is still in the record")
 	}
 }
@@ -627,14 +627,14 @@ func TestKeygenPermissionsAndRefusal(t *testing.T) {
 func TestBuildRefusesInvalidContent(t *testing.T) {
 	dir := writePack(t, testRule)
 	if err := os.WriteFile(filepath.Join(dir, TypeDetection,
-		"aeroprove.broken.json"), []byte(`{
-      "id": "aeroprove.broken", "title": "Broken", "sources": ["okta/system"],
+		"aertun.broken.json"), []byte(`{
+      "id": "aertun.broken", "title": "Broken", "sources": ["okta/system"],
       "severity": 4, "when": {"all": [
         {"match": {"field": "class", "op": "equals", "values": ["3002"]}}]},
       "fixtures": []}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	_, err := Build(dir, BuildOptions{ID: "aeroprove.test", Version: "2026.11.0",
+	_, err := Build(dir, BuildOptions{ID: "aertun.test", Version: "2026.11.0",
 		Channel: Stable})
 	if err == nil {
 		t.Fatal("a rule with no fixtures was signed")
@@ -653,7 +653,7 @@ func TestBuildRefusesNonContent(t *testing.T) {
 		[]byte("#!/bin/sh\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	_, err := Build(dir, BuildOptions{ID: "aeroprove.test", Version: "2026.11.0",
+	_, err := Build(dir, BuildOptions{ID: "aertun.test", Version: "2026.11.0",
 		Channel: Stable})
 	if err == nil {
 		t.Fatal("a pack carrying a script was built")
@@ -668,23 +668,23 @@ func TestBuildRefusesNonContent(t *testing.T) {
 func TestExtraFileRefusedAfterSigning(t *testing.T) {
 	s := keygenStore(t)
 	dir := writePack(t, testRule)
-	s.buildAndSign(t, dir, "aeroprove.test", "2026.11.0")
+	s.buildAndSign(t, dir, "aertun.test", "2026.11.0")
 	if err := os.WriteFile(filepath.Join(dir, TypeDetection,
-		"aeroprove.snuck-in.json"), []byte(testRule), 0o600); err != nil {
+		"aertun.snuck-in.json"), []byte(testRule), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	_, err := s.verify(t, dir, time.Now().UTC())
 	if err == nil {
 		t.Fatal("a pack with an unlisted file verified")
 	}
-	if !strings.Contains(err.Error(), "aeroprove.snuck-in.json") {
+	if !strings.Contains(err.Error(), "aertun.snuck-in.json") {
 		t.Fatalf("the refusal must name the file, and said: %v", err)
 	}
 }
 
 // TestManifestValidation: the claims a manifest makes about itself.
 func TestManifestValidation(t *testing.T) {
-	base := Manifest{ID: "aeroprove.test", Version: "1.2.3", Channel: Stable,
+	base := Manifest{ID: "aertun.test", Version: "1.2.3", Channel: Stable,
 		Files: []File{{Path: "detections/a.json", Type: TypeDetection,
 			SHA256: strings.Repeat("a", 64), Size: 10}}}
 	cases := []struct {
@@ -692,7 +692,7 @@ func TestManifestValidation(t *testing.T) {
 		mut  func(*Manifest)
 		want string
 	}{
-		{"bad id", func(m *Manifest) { m.ID = "AeroProve Test!" }, "pack id"},
+		{"bad id", func(m *Manifest) { m.ID = "aertun Test!" }, "pack id"},
 		{"bad version", func(m *Manifest) { m.Version = "november" }, "version"},
 		{"bad channel", func(m *Manifest) { m.Channel = "nightly" }, "channel"},
 		{"traversal", func(m *Manifest) {
@@ -752,7 +752,7 @@ func TestVersionsOrder(t *testing.T) {
 func TestMinimumBinaryFloor(t *testing.T) {
 	s := keygenStore(t)
 	dir := writePack(t, testRule)
-	p, err := Build(dir, BuildOptions{ID: "aeroprove.test", Version: "2026.11.0",
+	p, err := Build(dir, BuildOptions{ID: "aertun.test", Version: "2026.11.0",
 		Channel: Stable, MinBinary: "0.10.0"})
 	if err != nil {
 		t.Fatal(err)
@@ -782,7 +782,7 @@ func TestMinimumBinaryFloor(t *testing.T) {
 func TestWrongAnchorRefused(t *testing.T) {
 	s := keygenStore(t)
 	dir := writePack(t, testRule)
-	s.buildAndSign(t, dir, "aeroprove.test", "2026.11.0")
+	s.buildAndSign(t, dir, "aertun.test", "2026.11.0")
 
 	other := keygenStore(t)
 	_, err := other.verify(t, dir, time.Now().UTC())
@@ -891,7 +891,7 @@ func shadowRow(t *testing.T, res *ShadowResult, id string) ShadowCount {
 func TestShadowRefusesAFloodNamingCountsWindowAndFlags(t *testing.T) {
 	s := keygenStore(t)
 	dir := writePack(t, testRule)
-	s.buildAndSign(t, dir, "aeroprove.test", "2026.11.0")
+	s.buildAndSign(t, dir, "aertun.test", "2026.11.0")
 	v, err := s.verify(t, dir, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
@@ -909,7 +909,7 @@ func TestShadowRefusesAFloodNamingCountsWindowAndFlags(t *testing.T) {
 		t.Fatal("a rule that would fire thirty times in a week this quiet " +
 			"passed a floor of twenty")
 	}
-	row := shadowRow(t, res, "aeroprove.test-privileged-failed")
+	row := shadowRow(t, res, "aertun.test-privileged-failed")
 	if row.Fired != 30 || row.Installed != 0 || row.Cap != 20 || !row.Over {
 		t.Fatalf("the rule's row is %+v; want 30 fired, 0 installed, cap 20, "+
 			"over", row)
@@ -928,7 +928,7 @@ func TestShadowRefusesAFloodNamingCountsWindowAndFlags(t *testing.T) {
 		t.Fatalf("%d refusal(s), want exactly the rule's:\n%s",
 			len(res.Refused), refusal)
 	}
-	for _, want := range []string{"aeroprove.test-privileged-failed",
+	for _, want := range []string{"aertun.test-privileged-failed",
 		"would fire 30 time(s)", "over the last 7 day(s)",
 		"the budget for it is", "--max-fires-per-rule"} {
 		if !strings.Contains(refusal, want) {
@@ -954,7 +954,7 @@ func TestShadowRefusesAFloodNamingCountsWindowAndFlags(t *testing.T) {
 func TestShadowOverrideIsAbsoluteNotAFloor(t *testing.T) {
 	s := keygenStore(t)
 	dir := writePack(t, testRule)
-	s.buildAndSign(t, dir, "aeroprove.test", "2026.11.0")
+	s.buildAndSign(t, dir, "aertun.test", "2026.11.0")
 	v, err := s.verify(t, dir, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
@@ -971,7 +971,7 @@ func TestShadowOverrideIsAbsoluteNotAFloor(t *testing.T) {
 		t.Fatalf("an operator who named forty was refused anyway: %v",
 			res.Refused)
 	}
-	if row := shadowRow(t, res, "aeroprove.test-privileged-failed"); row.Cap != 40 {
+	if row := shadowRow(t, res, "aertun.test-privileged-failed"); row.Cap != 40 {
 		t.Fatalf("the cap is %d, not the operator's 40", row.Cap)
 	}
 	if !res.OverDefaultBudget() {
@@ -1016,7 +1016,7 @@ func TestShadowBudgetIsTheDeltaAgainstTheInstalledEquivalent(t *testing.T) {
 	// The installed rule is the tuned one: ops accounts only.
 	rules := t.TempDir()
 	if err := os.WriteFile(filepath.Join(rules,
-		"aeroprove.test-privileged-failed.json"), []byte(testRuleTuned),
+		"aertun.test-privileged-failed.json"), []byte(testRuleTuned),
 		0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -1036,7 +1036,7 @@ func TestShadowBudgetIsTheDeltaAgainstTheInstalledEquivalent(t *testing.T) {
 		// two stores can.
 		cs := keygenStore(t)
 		dir := writePack(t, testRule)
-		cs.buildAndSign(t, dir, "aeroprove.test", "2026.11.0")
+		cs.buildAndSign(t, dir, "aertun.test", "2026.11.0")
 		v, err := cs.verify(t, dir, now)
 		if err != nil {
 			t.Fatal(err)
@@ -1051,7 +1051,7 @@ func TestShadowBudgetIsTheDeltaAgainstTheInstalledEquivalent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		row := shadowRow(t, res, "aeroprove.test-privileged-failed")
+		row := shadowRow(t, res, "aertun.test-privileged-failed")
 		wantFired := 50 + extra
 		if row.Fired != wantFired || row.Installed != 50 {
 			t.Fatalf("the row is %+v; want %d fired against the installed 50",
@@ -1080,7 +1080,7 @@ func TestShadowBudgetIsTheDeltaAgainstTheInstalledEquivalent(t *testing.T) {
 func TestShadowQuietPackPassesNotingTheUnexercised(t *testing.T) {
 	s := keygenStore(t)
 	dir := writePack(t, testRule)
-	s.buildAndSign(t, dir, "aeroprove.test", "2026.11.0")
+	s.buildAndSign(t, dir, "aertun.test", "2026.11.0")
 	v, err := s.verify(t, dir, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
@@ -1107,7 +1107,7 @@ func TestShadowQuietPackPassesNotingTheUnexercised(t *testing.T) {
 	if res.Events != 5 {
 		t.Fatalf("the window held %d event(s), not the five stored", res.Events)
 	}
-	if row := shadowRow(t, res, "aeroprove.test-privileged-failed"); row.Fired != 0 {
+	if row := shadowRow(t, res, "aertun.test-privileged-failed"); row.Fired != 0 {
 		t.Fatalf("the rule counted %d on events it does not read", row.Fired)
 	}
 	if res.Unexercised != 1 {
@@ -1127,7 +1127,7 @@ func TestShadowCountsACorrelationTheQueueWouldSee(t *testing.T) {
 	s := keygenStore(t)
 	dir := writePack(t, strings.Replace(testRule,
 		`"sources": ["okta/system"],`, `"sources": ["okta/system"], "quiet": true,`, 1))
-	s.buildAndSign(t, dir, "aeroprove.test", "2026.11.0")
+	s.buildAndSign(t, dir, "aertun.test", "2026.11.0")
 	v, err := s.verify(t, dir, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
@@ -1140,7 +1140,7 @@ func TestShadowCountsACorrelationTheQueueWouldSee(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if row := shadowRow(t, res, "aeroprove.test-privileged-failed"); row.Fired != 0 {
+	if row := shadowRow(t, res, "aertun.test-privileged-failed"); row.Fired != 0 {
 		t.Fatalf("a quiet rule would fire %d time(s) on its own", row.Fired)
 	}
 	corr := shadowRow(t, res, "corr.test-privileged-failures")
@@ -1168,7 +1168,7 @@ func TestShadowCountsACorrelationTheQueueWouldSee(t *testing.T) {
 func TestShadowNeedsTheEstateTelemetry(t *testing.T) {
 	s := keygenStore(t)
 	dir := writePack(t, testRule)
-	s.buildAndSign(t, dir, "aeroprove.test", "2026.11.0")
+	s.buildAndSign(t, dir, "aertun.test", "2026.11.0")
 	v, err := s.verify(t, dir, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
@@ -1204,7 +1204,7 @@ func TestShadowNeedsTheEstateTelemetry(t *testing.T) {
 func TestShadowRecordsNothingOnEitherOutcome(t *testing.T) {
 	s := keygenStore(t)
 	dir := writePack(t, testRule)
-	s.buildAndSign(t, dir, "aeroprove.test", "2026.11.0")
+	s.buildAndSign(t, dir, "aertun.test", "2026.11.0")
 	v, err := s.verify(t, dir, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
@@ -1293,24 +1293,24 @@ func TestShadowRefusesAnInstallThatWouldBreakTheRun(t *testing.T) {
 	// The pack's x.json replaces the installed rule of the same file name
 	// with one of a different id.
 	if err := os.WriteFile(filepath.Join(dir, TypeDetection, "x.json"),
-		[]byte(strings.Replace(testRule, "aeroprove.test-privileged-failed",
-			"aeroprove.replacement", -1)), 0o600); err != nil {
+		[]byte(strings.Replace(testRule, "aertun.test-privileged-failed",
+			"aertun.replacement", -1)), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	s.buildAndSign(t, dir, "aeroprove.test", "2026.11.0")
+	s.buildAndSign(t, dir, "aertun.test", "2026.11.0")
 	v, err := s.verify(t, dir, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
 	}
 	rules := t.TempDir()
 	if err := os.WriteFile(filepath.Join(rules, "x.json"),
-		[]byte(strings.Replace(testRule, "aeroprove.test-privileged-failed",
-			"aeroprove.installed-rule", -1)), 0o600); err != nil {
+		[]byte(strings.Replace(testRule, "aertun.test-privileged-failed",
+			"aertun.installed-rule", -1)), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(rules, "keep.yml"),
-		[]byte(strings.Replace(testCorrelation, "aeroprove.test-privileged-failed",
-			"aeroprove.installed-rule", 1)), 0o600); err != nil {
+		[]byte(strings.Replace(testCorrelation, "aertun.test-privileged-failed",
+			"aertun.installed-rule", 1)), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	sp := seededSpool(t, t.TempDir(),
@@ -1322,7 +1322,7 @@ func TestShadowRefusesAnInstallThatWouldBreakTheRun(t *testing.T) {
 		t.Fatal("a pack whose install strands an installed correlation was " +
 			"replayed without a word")
 	}
-	for _, want := range []string{"aeroprove.installed-rule", "survives this " +
+	for _, want := range []string{"aertun.installed-rule", "survives this " +
 		"install", "refuse to start"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("the refusal must mention %q, and said: %v", want, err)
@@ -1337,7 +1337,7 @@ func TestShadowRefusesAnInstallThatWouldBreakTheRun(t *testing.T) {
 func TestInstallCarriesTheShadowRecord(t *testing.T) {
 	s := keygenStore(t)
 	dir := writePack(t, testRule)
-	s.buildAndSign(t, dir, "aeroprove.test", "2026.11.0")
+	s.buildAndSign(t, dir, "aertun.test", "2026.11.0")
 	v, err := s.verify(t, dir, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
@@ -1352,7 +1352,7 @@ func TestInstallCarriesTheShadowRecord(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := st.Packs["aeroprove.test"].Shadow
+	got := st.Packs["aertun.test"].Shadow
 	if got == nil {
 		t.Fatal("the installed record carries no shadow verdict; the gate " +
 			"ran for nothing")
@@ -1363,7 +1363,7 @@ func TestInstallCarriesTheShadowRecord(t *testing.T) {
 	// A nil record (a caller that ran no gate, the tests' direct use)
 	// leaves the field absent, not half-written.
 	dir2 := writePack(t, testRuleTuned)
-	s.buildAndSign(t, dir2, "aeroprove.test", "2026.11.1")
+	s.buildAndSign(t, dir2, "aertun.test", "2026.11.1")
 	v2, err := s.verify(t, dir2, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
@@ -1375,15 +1375,15 @@ func TestInstallCarriesTheShadowRecord(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.Packs["aeroprove.test"].Shadow != nil {
-		t.Fatalf("a nil record left %+v behind", st.Packs["aeroprove.test"].Shadow)
+	if st.Packs["aertun.test"].Shadow != nil {
+		t.Fatalf("a nil record left %+v behind", st.Packs["aertun.test"].Shadow)
 	}
 }
 
 // testRuleLockedOut is the second half of an ordered sequence: the account
 // the failures belonged to was locked out after them.
 const testRuleLockedOut = `{
-  "id": "aeroprove.test-locked-out",
+  "id": "aertun.test-locked-out",
   "title": "A privileged account was locked out",
   "why": "the identity provider gave up on this account",
   "sources": ["okta/system"],
@@ -1412,8 +1412,8 @@ id: corr.test-sequence
 correlation:
     type: temporal_ordered
     rules:
-        - aeroprove.test-privileged-failed
-        - aeroprove.test-locked-out
+        - aertun.test-privileged-failed
+        - aertun.test-locked-out
     group-by:
         - actor.value
     timespan: 15m
@@ -1429,10 +1429,10 @@ func TestShadowCountsAnOrderedSequence(t *testing.T) {
 	s := keygenStore(t)
 	dir := t.TempDir()
 	for sub, body := range map[string]string{
-		TypeDetection + "/aeroprove.test-privileged-failed.json": strings.Replace(testRule,
+		TypeDetection + "/aertun.test-privileged-failed.json": strings.Replace(testRule,
 			`"sources": ["okta/system"],`, `"sources": ["okta/system"], "quiet": true,`, 1),
-		TypeDetection + "/aeroprove.test-locked-out.json": testRuleLockedOut,
-		TypeCorrelation + "/seq.yml":                      testSequence,
+		TypeDetection + "/aertun.test-locked-out.json": testRuleLockedOut,
+		TypeCorrelation + "/seq.yml":                   testSequence,
 	} {
 		if err := os.MkdirAll(filepath.Join(dir, filepath.Dir(sub)), 0o700); err != nil {
 			t.Fatal(err)
@@ -1441,7 +1441,7 @@ func TestShadowCountsAnOrderedSequence(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	s.buildAndSign(t, dir, "aeroprove.test", "2026.11.0")
+	s.buildAndSign(t, dir, "aertun.test", "2026.11.0")
 	v, err := s.verify(t, dir, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
@@ -1464,8 +1464,8 @@ func TestShadowCountsAnOrderedSequence(t *testing.T) {
 		t.Fatalf("the sequence would fire %d time(s), want the one the two "+
 			"events make", corr.Fired)
 	}
-	for _, id := range []string{"aeroprove.test-privileged-failed",
-		"aeroprove.test-locked-out"} {
+	for _, id := range []string{"aertun.test-privileged-failed",
+		"aertun.test-locked-out"} {
 		if row := shadowRow(t, res, id); row.Fired != 0 {
 			t.Fatalf("the quiet %s would raise %d finding(s) of its own", id,
 				row.Fired)
@@ -1490,7 +1490,7 @@ func TestRootRotationEndToEnd(t *testing.T) {
 
 	// A pack under root v1, signed before any rotation exists.
 	v1pack := writePack(t, testRule)
-	s.buildAndSign(t, v1pack, "aeroprove.test", "2026.11.0")
+	s.buildAndSign(t, v1pack, "aertun.test", "2026.11.0")
 	v1anchor, err := LoadAnchor(s.root)
 	if err != nil {
 		t.Fatal(err)
@@ -1532,7 +1532,7 @@ func TestRootRotationEndToEnd(t *testing.T) {
 	// the store's own anchor is the rotated one, and the packs it signs
 	// carry it.
 	v2pack := writePack(t, testRuleTuned)
-	s.buildAndSign(t, v2pack, "aeroprove.test", "2026.11.1")
+	s.buildAndSign(t, v2pack, "aertun.test", "2026.11.1")
 	carried, err := LoadRoot(v2pack)
 	if err != nil || carried.Signed.Version != 2 {
 		t.Fatalf("the pack does not carry the rotated root: %v", err)
@@ -1604,7 +1604,7 @@ func TestRootRotationEndToEnd(t *testing.T) {
 func TestRotationRefusals(t *testing.T) {
 	s := keygenStore(t)
 	v1pack := writePack(t, testRule)
-	s.buildAndSign(t, v1pack, "aeroprove.test", "2026.11.0")
+	s.buildAndSign(t, v1pack, "aertun.test", "2026.11.0")
 	v1anchor, err := LoadAnchor(s.root)
 	if err != nil {
 		t.Fatal(err)
@@ -1616,7 +1616,7 @@ func TestRotationRefusals(t *testing.T) {
 		t.Fatal(err)
 	}
 	v2pack := writePack(t, testRuleTuned)
-	s.buildAndSign(t, v2pack, "aeroprove.test", "2026.11.1")
+	s.buildAndSign(t, v2pack, "aertun.test", "2026.11.1")
 
 	opts := VerifyOptions{Anchor: v1anchor, Installed: map[string]int{},
 		Now: time.Now().UTC(), BinaryVersion: "0.9.0"}
@@ -1662,7 +1662,7 @@ func TestRotationRefusals(t *testing.T) {
 		t.Fatal(err)
 	}
 	v3pack := writePack(t, testRule)
-	s.buildAndSign(t, v3pack, "aeroprove.test", "2026.11.2")
+	s.buildAndSign(t, v3pack, "aertun.test", "2026.11.2")
 	_, err = Verify(v3pack, opts)
 	if err == nil || !strings.Contains(err.Error(), "one version at a time") {
 		t.Fatalf("a skipped root version must refuse, and said: %v", err)
@@ -1714,7 +1714,7 @@ func overrideSite(t *testing.T) (s *signedStore, rules, ruleAt,
 	s = keygenStore(t)
 	rules = t.TempDir()
 	d1 := writePack(t, testRule)
-	s.buildAndSign(t, d1, "aeroprove.test", "2026.11.0")
+	s.buildAndSign(t, d1, "aertun.test", "2026.11.0")
 	v1, err := s.verify(t, d1, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
@@ -1722,7 +1722,7 @@ func overrideSite(t *testing.T) (s *signedStore, rules, ruleAt,
 	if _, err := Install(v1, s.root, rules, nil, OverridesRefuse); err != nil {
 		t.Fatal(err)
 	}
-	ruleAt = filepath.Join(rules, "aeroprove.test-privileged-failed.json")
+	ruleAt = filepath.Join(rules, "aertun.test-privileged-failed.json")
 	editedBody = strings.Replace(testRule, "admin-dana", "admin-reshma", -1)
 	if err := os.WriteFile(ruleAt, []byte(editedBody), 0o600); err != nil {
 		t.Fatal(err)
@@ -1740,7 +1740,7 @@ func overrideSite(t *testing.T) (s *signedStore, rules, ruleAt,
 }
 
 // overrideRel is the pack path of the rule file every override test edits.
-const overrideRel = "detections/aeroprove.test-privileged-failed.json"
+const overrideRel = "detections/aertun.test-privileged-failed.json"
 
 // TestInstallRefusesALocallyEditedFile: the default answer to a local
 // edit — stop, name the file, name the flags — with nothing moved.
@@ -1748,7 +1748,7 @@ func TestInstallRefusesALocallyEditedFile(t *testing.T) {
 	s, rules, ruleAt, edited, v2 := overrideSite(t)
 
 	d2 := v2()
-	s.buildAndSign(t, d2, "aeroprove.test", "2026.11.1")
+	s.buildAndSign(t, d2, "aertun.test", "2026.11.1")
 	ver, err := s.verify(t, d2, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
@@ -1777,9 +1777,9 @@ func TestInstallRefusesALocallyEditedFile(t *testing.T) {
 	if lerr != nil {
 		t.Fatal(lerr)
 	}
-	if st.Packs["aeroprove.test"].Version != "2026.11.0" {
+	if st.Packs["aertun.test"].Version != "2026.11.0" {
 		t.Fatalf("a refused install moved the record: %+v",
-			st.Packs["aeroprove.test"])
+			st.Packs["aertun.test"])
 	}
 }
 
@@ -1792,7 +1792,7 @@ func TestKeepOverridesInstallsAroundTheEdit(t *testing.T) {
 	s, rules, ruleAt, edited, v2 := overrideSite(t)
 
 	d2 := v2()
-	s.buildAndSign(t, d2, "aeroprove.test", "2026.11.1")
+	s.buildAndSign(t, d2, "aertun.test", "2026.11.1")
 	ver, err := s.verify(t, d2, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
@@ -1821,7 +1821,7 @@ func TestKeepOverridesInstallsAroundTheEdit(t *testing.T) {
 	if lerr != nil {
 		t.Fatal(lerr)
 	}
-	rec := st.Packs["aeroprove.test"]
+	rec := st.Packs["aertun.test"]
 	if len(rec.Overrides) != 1 || rec.Overrides[0] != overrideRel {
 		t.Fatalf("the record does not show the kept override: %+v", rec)
 	}
@@ -1851,7 +1851,7 @@ func TestKeepOverridesInstallsAroundTheEdit(t *testing.T) {
 	if lerr != nil {
 		t.Fatal(lerr)
 	}
-	if back := st.Packs["aeroprove.test"]; back.Version != "2026.11.0" ||
+	if back := st.Packs["aertun.test"]; back.Version != "2026.11.0" ||
 		len(back.Overrides) != 0 {
 		t.Fatalf("the record did not move back to v1's: %+v", back)
 	}
@@ -1859,7 +1859,7 @@ func TestKeepOverridesInstallsAroundTheEdit(t *testing.T) {
 	// Which means the edit is still the person's decision: the next
 	// install asks again.
 	d3 := v2()
-	s.buildAndSign(t, d3, "aeroprove.test", "2026.11.2")
+	s.buildAndSign(t, d3, "aertun.test", "2026.11.2")
 	ver3, err := s.verify(t, d3, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
@@ -1878,7 +1878,7 @@ func TestAdoptOverridesTakesThePacksVersion(t *testing.T) {
 	s, rules, ruleAt, _, v2 := overrideSite(t)
 
 	d2 := v2()
-	s.buildAndSign(t, d2, "aeroprove.test", "2026.11.1")
+	s.buildAndSign(t, d2, "aertun.test", "2026.11.1")
 	ver, err := s.verify(t, d2, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
@@ -1899,7 +1899,7 @@ func TestAdoptOverridesTakesThePacksVersion(t *testing.T) {
 	if lerr != nil {
 		t.Fatal(lerr)
 	}
-	rec := st.Packs["aeroprove.test"]
+	rec := st.Packs["aertun.test"]
 	if len(rec.Overrides) != 0 {
 		t.Fatalf("an adopted override lingers on the record: %+v", rec)
 	}
@@ -1911,7 +1911,7 @@ func TestAdoptOverridesTakesThePacksVersion(t *testing.T) {
 	// Resolved is resolved: the same content installs again without a
 	// flag and without a word.
 	d3 := v2()
-	s.buildAndSign(t, d3, "aeroprove.test", "2026.11.2")
+	s.buildAndSign(t, d3, "aertun.test", "2026.11.2")
 	ver3, err := s.verify(t, d3, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
@@ -1935,7 +1935,7 @@ func TestAFreshFileIsNotAnOverride(t *testing.T) {
 	rules := t.TempDir()
 
 	d1 := writePack(t, testRule)
-	s.buildAndSign(t, d1, "aeroprove.test", "2026.11.0")
+	s.buildAndSign(t, d1, "aertun.test", "2026.11.0")
 	v1, err := s.verify(t, d1, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
@@ -1951,16 +1951,16 @@ func TestAFreshFileIsNotAnOverride(t *testing.T) {
 	second := strings.Replace(testRuleLockedOut, `"quiet": true,`, "", 1)
 	d2 := writePack(t, testRuleTuned)
 	if err := os.WriteFile(filepath.Join(d2, TypeDetection,
-		"aeroprove.test-locked-out.json"), []byte(second), 0o600); err != nil {
+		"aertun.test-locked-out.json"), []byte(second), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	s.buildAndSign(t, d2, "aeroprove.test", "2026.11.1")
+	s.buildAndSign(t, d2, "aertun.test", "2026.11.1")
 	ver, err := s.verify(t, d2, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
 	}
 	squatter := strings.Replace(second, "admin-dana", "admin-hippolyta", -1)
-	if err := os.WriteFile(filepath.Join(rules, "aeroprove.test-locked-out.json"),
+	if err := os.WriteFile(filepath.Join(rules, "aertun.test-locked-out.json"),
 		[]byte(squatter), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -1976,8 +1976,8 @@ func TestAFreshFileIsNotAnOverride(t *testing.T) {
 	// Both of v2's rules landed, and the hand-written squatter was
 	// replaced by the pack's version — the phase-one rule, unchanged, for
 	// a file the pack never placed.
-	for _, name := range []string{"aeroprove.test-privileged-failed.json",
-		"aeroprove.test-locked-out.json"} {
+	for _, name := range []string{"aertun.test-privileged-failed.json",
+		"aertun.test-locked-out.json"} {
 		if got, rerr := os.ReadFile(filepath.Join(rules, name)); rerr != nil ||
 			strings.Contains(string(got), "hippolyta") {
 			t.Fatalf("%s did not land as the pack's bytes", name)

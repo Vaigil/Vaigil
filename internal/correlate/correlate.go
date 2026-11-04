@@ -54,8 +54,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/sigma"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/sigma"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // Type is which of the four correlations this is.

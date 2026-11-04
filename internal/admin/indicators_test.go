@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/indicator"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/indicator"
 )
 
 // wireIndicators keeps a set in memory, built the way the store builds it.

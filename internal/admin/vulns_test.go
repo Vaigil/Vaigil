@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
-	"github.com/aeroprove/aeroprove/internal/vuln"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/telemetry"
+	"github.com/aertun/aertun/internal/vuln"
 )
 
 // wireVulns gives the server three advisories against one library on two

@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/enrol"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/enrol"
 )
 
 // enrol runs the ceremony an enrolment page runs, with the link's secret.

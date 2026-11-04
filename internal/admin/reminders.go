@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/remind"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/remind"
 )
 
 // Reminders is the reminder programme: what would be sent, what was, and

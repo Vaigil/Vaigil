@@ -78,7 +78,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // marshalPostings writes one field's section from its value→ordinals map:

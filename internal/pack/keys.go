@@ -141,7 +141,7 @@ func RotateStoreRoot(root, oldKeyPath, newKeyPath string, now time.Time) (*Rotat
 	anchor, err := LoadAnchor(root)
 	if err != nil {
 		return nil, fmt.Errorf("this store has no trusted root to rotate: %w\n"+
-			"  aeroprove content keygen makes the first one", err)
+			"  aertun content keygen makes the first one", err)
 	}
 	oldKey, err := LoadKey(oldKeyPath)
 	if err != nil {

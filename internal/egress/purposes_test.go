@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aeroprove/aeroprove/internal/egress"
+	"github.com/aertun/aertun/internal/egress"
 )
 
 // Every purpose the program uses is declared, and every declared purpose is

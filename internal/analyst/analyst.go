@@ -36,10 +36,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/decide"
-	"github.com/aeroprove/aeroprove/internal/finding"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
-	"github.com/aeroprove/aeroprove/internal/untrusted"
+	"github.com/aertun/aertun/internal/decide"
+	"github.com/aertun/aertun/internal/finding"
+	"github.com/aertun/aertun/internal/telemetry"
+	"github.com/aertun/aertun/internal/untrusted"
 )
 
 // Step is one thing the plan reads.

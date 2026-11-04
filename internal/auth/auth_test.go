@@ -498,7 +498,7 @@ func TestUnknownTellsAGuessFromALateCredential(t *testing.T) {
 	if !Unknown(err) || err.Error() != "no such token" {
 		t.Fatalf("a guess: %v", err)
 	}
-	if _, err = ts.Authenticate("hunter2", now); !Unknown(err) || err.Error() != "that is not a aeroprove token (they start with vg_)" {
+	if _, err = ts.Authenticate("hunter2", now); !Unknown(err) || err.Error() != "that is not a aertun token (they start with vg_)" {
 		t.Fatalf("not a token: %v", err)
 	}
 	if _, err = ts.Authenticate(secret, time.Now().Add(2*time.Hour)); err == nil || Unknown(err) {
@@ -570,8 +570,8 @@ func TestAnAudienceBoundTokenWorksOnlyAtItsResource(t *testing.T) {
 	if _, _, err := ts.Exchange(secret, RoleViewer, "/", time.Minute, now); !errors.Is(err, ErrAudience) {
 		t.Fatalf("exchanged for a session: %v", err)
 	}
-	// An ordinary token is accepted at the resource too: AeroProve issued it
-	// for AeroProve.
+	// An ordinary token is accepted at the resource too: aertun issued it
+	// for aertun.
 	plain, _, _ := ts.Issue("cli", "dana", RoleAdmin, "/", time.Hour, RoleAdmin)
 	if _, err := ts.AuthenticateFor(plain, mcp, now); err != nil {
 		t.Fatalf("an ordinary token at the interface: %v", err)

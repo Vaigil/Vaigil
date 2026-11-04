@@ -30,7 +30,7 @@ credited.
 
 ## What counts
 
-AeroProve makes specific structural claims, and a demonstration that any of them
+aertun makes specific structural claims, and a demonstration that any of them
 is false is a vulnerability even without a working exploit:
 
 - **Authorisation is enforced at the action, not the screen.** Any request
@@ -52,7 +52,7 @@ is false is a vulnerability even without a working exploit:
 - **Failures lock out places, not people.** Any way failed sign-ins from
   somewhere else lock a person out of the places they sign in from.
 - **The audit log is append-only and verifiable.** Any way to alter, drop or
-  add a record and still have `aeroprove auditlog verify` pass, a signed tree
+  add a record and still have `aertun auditlog verify` pass, a signed tree
   head verify over a log it does not cover, or a streamed batch be accepted
   by a receiver that checks it with a record changed or missing.
 - **An agent reads and proposes, and does nothing else.** Any way an agent
@@ -73,7 +73,7 @@ is false is a vulnerability even without a working exploit:
 ## What does not count
 
 - Findings against a deployment that has the console on a public interface
-  without TLS in front of it. `aeroprove serve` listens on loopback by default.
+  without TLS in front of it. `aertun serve` listens on loopback by default.
 - Missing hardening headers on a response that carries no content.
 - Denial of service by sending very large or very many requests.
 - Automated scanner output with no demonstrated impact.
@@ -91,7 +91,7 @@ and a report is most useful when it makes one of those tests fail:
 
 - `internal/auth` — roles, jobs, permissions, scopes and sessions
 - `internal/admin/roles_test.go`, `internal/admin/jobs_test.go` — every role and job reaches its own work and no more
-- `cmd/aeroprove/privilege_test.go`, `cmd/aeroprove/coverage_test.go` — every command declares what it needs, and has a screen and an MCP operation or a written reason
+- `cmd/aertun/privilege_test.go`, `cmd/aertun/coverage_test.go` — every command declares what it needs, and has a screen and an MCP operation or a written reason
 - `internal/admin/mfa_test.go`, `internal/admin/stepup_test.go`, `internal/admin/sessions_test.go` — two factors, step-up and session limits
 - `internal/lockout` — smart lockout
 - `internal/dual`, `internal/incident`, `internal/automate` — second people

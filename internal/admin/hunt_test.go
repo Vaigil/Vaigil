@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/detect"
-	"github.com/aeroprove/aeroprove/internal/spool"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/detect"
+	"github.com/aertun/aertun/internal/spool"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // huntStore is a store where one account signs in from the usual address a

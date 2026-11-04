@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/connector"
-	"github.com/aeroprove/aeroprove/internal/finding"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/connector"
+	"github.com/aertun/aertun/internal/finding"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // Comparing the register against the credentials that actually exist.

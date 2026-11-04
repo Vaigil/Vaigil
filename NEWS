@@ -1,10 +1,16 @@
-AeroProve NEWS
+aertun NEWS
 ***********
 
 Unreleased
 ==========
 
-The first version of AeroProve: security operations for the systems an
+The program has its name at last: aertun — aer, the tunnel the wind runs
+through, and it runs: one name for the organisation, the repository, the
+module, the binary and the manual. Renamed throughout, on the pattern the
+earlier renames set; the research record keeps the names it was written
+under and says so where it starts.
+
+The first version of aertun: security operations for the systems an
 organisation runs, in one binary with no dependencies.
 
 * Collecting: connectors that read other tools with sealed credentials,
@@ -13,7 +19,7 @@ organisation runs, in one binary with no dependencies.
   Every event is mapped to one shape and kept append-only before anything
   reads it.
 
-* Quilzo's audit log, as Quilzo writes it: `aeroprove inbound add quilzo NAME
+* Quilzo's audit log, as Quilzo writes it: `aertun inbound add quilzo NAME
   --keys FILE` pins the keys `quilzo siem stream key --json` publishes, and
   Quilzo's siem.stream.url points at the feed.  A batch is taken only when
   it is signed by that key, follows the last record held exactly, and its

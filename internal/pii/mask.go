@@ -15,7 +15,7 @@ const Secret Kind = "secret"
 // Masker takes personal data out of text before it leaves for a model, and
 // puts it back into what the model answers.
 //
-// Each value becomes a placeholder like <aeroprove:email:1>, the same one
+// Each value becomes a placeholder like <aertun:email:1>, the same one
 // every time the same value appears, so the model can still tell "the same
 // customer" from "another customer" and refer to either; the placeholders
 // are swapped back on this side, so the answer reads as if nothing had been
@@ -113,7 +113,7 @@ func (m *Masker) placeholder(kind Kind, value string) string {
 	}
 	m.next[kind]++
 	m.Counts[kind]++
-	p := fmt.Sprintf("<aeroprove:%s:%d>", kind, m.next[kind])
+	p := fmt.Sprintf("<aertun:%s:%d>", kind, m.next[kind])
 	m.byValue[key], m.values[p] = p, value
 	return p
 }

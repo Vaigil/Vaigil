@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aeroprove/aeroprove/internal/throttle"
+	"github.com/aertun/aertun/internal/throttle"
 )
 
 // TestAThrottledSignInLeavesNothingToResubmit.
@@ -96,7 +96,7 @@ func TestSigningInWithTheRightTokenStillWorks(t *testing.T) {
 	}
 	var session bool
 	for _, c := range w.Result().Cookies() {
-		if c.Name == "aeroprove_token" && c.Value != "" {
+		if c.Name == "aertun_token" && c.Value != "" {
 			session = true
 		}
 	}

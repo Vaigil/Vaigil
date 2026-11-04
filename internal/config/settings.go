@@ -12,15 +12,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/clientip"
-	"github.com/aeroprove/aeroprove/internal/throttle"
+	"github.com/aertun/aertun/internal/clientip"
+	"github.com/aertun/aertun/internal/throttle"
 )
 
 // Every setting, in one table.
 //
 // A table rather than scattered constants for the same reason the privilege
 // table is one: a knob nobody can find is a knob nobody can audit, and
-// `aeroprove config list` has to be able to print all of them. Adding a setting
+// `aertun config list` has to be able to print all of them. Adding a setting
 // anywhere else in the program is a setting that does not appear here, and a
 // test refuses that.
 //
@@ -192,7 +192,7 @@ var settings = []Setting{
 	},
 	{
 		Key: "admin.base_url", Kind: Text, Default: "",
-		Summary: "where people and programs reach the console, e.g. https://aeroprove.example.com",
+		Summary: "where people and programs reach the console, e.g. https://aertun.example.com",
 		Why: "The address an enrolment link names, and the one a feed tells " +
 			"the system pushing to it. Taken from each request's Host header " +
 			"instead, anybody could have a link name an address of their " +
@@ -253,7 +253,7 @@ var settings = []Setting{
 			"which is what an isolated deployment needs.\n\nLoopback is " +
 			"still permitted, because a " +
 			"connection that does not leave the host is not egress and a " +
-			"local model or identity provider is normal here. `aeroprove " +
+			"local model or identity provider is normal here. `aertun " +
 			"network` prints every purpose, whether it is permitted, and " +
 			"what stops working without it.",
 	},
@@ -273,7 +273,7 @@ var settings = []Setting{
 			"takes the store over cannot take the record of it too. Batches of " +
 			"OCSF, each following the last, carrying a signed tree head and an " +
 			"HTTP message signature, so the receiver can prove nothing was " +
-			"dropped or changed. Empty sends nothing; aeroprove siem exports by hand.",
+			"dropped or changed. Empty sends nothing; aertun siem exports by hand.",
 	},
 	{
 		Key: "siem.stream.allow_remote", Kind: Bool, Default: "false",

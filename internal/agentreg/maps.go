@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/atomicfile"
+	"github.com/aertun/aertun/internal/atomicfile"
 )
 
 // The recorder-host to agent mapping: which registered agents an operator
@@ -180,7 +180,7 @@ func (s MapStore) Map(host, agent, by string, now time.Time) error {
 		if _, found, err := reg.Get(agent); err != nil {
 			return err
 		} else if !found {
-			return fmt.Errorf("there is no agent %q to map (aeroprove agent "+
+			return fmt.Errorf("there is no agent %q to map (aertun agent "+
 				"list): a mapping may only name registered agents, because "+
 				"evidence attributed to a name nobody registered is "+
 				"attributed to nobody the gates have ever heard of", agent)
@@ -223,7 +223,7 @@ func (s MapStore) Unmap(host, agent, by string, now time.Time) error {
 		i := f.find(strings.TrimSpace(host))
 		if i < 0 || !contains(f.Maps[i].Agents, agent) {
 			return fmt.Errorf("%s is not declared to run on %s, so there is "+
-				"nothing to unmap (aeroprove agent list says what is)", agent,
+				"nothing to unmap (aertun agent list says what is)", agent,
 				strings.TrimSpace(host))
 		}
 		rest := drop(f.Maps[i].Agents, agent)

@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // linearWhere is RangeWhere as it was before the fan-out: every segment the

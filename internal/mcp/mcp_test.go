@@ -11,7 +11,7 @@ import (
 )
 
 func testServer() *Server {
-	s := NewServer("aeroprove", "test")
+	s := NewServer("aertun", "test")
 	s.Authorise = allowAll
 	s.Register(Operation{
 		Name: "list_findings", Summary: "the security finding queue, most urgent first",
@@ -76,8 +76,8 @@ func TestOnlyThreeToolsAreEverPreloaded(t *testing.T) {
 		t.Fatalf("expected 3 tools regardless of operation count, got %d", len(tools))
 	}
 	for _, tool := range tools {
-		if tool.Name == "aeroprove_check" {
-			t.Error("aeroprove_check is offered and no operation answers to it: " +
+		if tool.Name == "aertun_check" {
+			t.Error("aertun_check is offered and no operation answers to it: " +
 				"a dead tool is a definition an agent pays for on every " +
 				"session and plans around for nothing")
 		}
@@ -94,7 +94,7 @@ func TestOnlyThreeToolsAreEverPreloaded(t *testing.T) {
 func TestFindDescribesOnlyWhatWasAskedFor(t *testing.T) {
 	s := testServer()
 	out := text(t, call(t, s, "tools/call", callParams{
-		Name: "aeroprove_find", Arguments: map[string]any{"query": "propose a decision on a finding"}}))
+		Name: "aertun_find", Arguments: map[string]any{"query": "propose a decision on a finding"}}))
 
 	if !strings.Contains(out, "propose_finding_decision") {
 		t.Errorf("the matching operation is missing: %q", out)
@@ -108,7 +108,7 @@ func TestFindDescribesOnlyWhatWasAskedFor(t *testing.T) {
 func TestFindWithNoMatchReturnsTheMenu(t *testing.T) {
 	s := testServer()
 	out := text(t, call(t, s, "tools/call", callParams{
-		Name: "aeroprove_find", Arguments: map[string]any{"query": "xyzzy"}}))
+		Name: "aertun_find", Arguments: map[string]any{"query": "xyzzy"}}))
 
 	// An agent that searched badly should see what exists rather than a dead
 	// end it will guess around.
@@ -124,13 +124,13 @@ func TestFindWithNoMatchReturnsTheMenu(t *testing.T) {
 func TestAReadToolCannotReachAWriteOperation(t *testing.T) {
 	s := testServer()
 	r := call(t, s, "tools/call", callParams{
-		Name:      "aeroprove_read",
+		Name:      "aertun_read",
 		Arguments: map[string]any{"operation": "propose_finding_decision"}})
 
 	if r.Error == nil {
 		t.Fatal("a write operation was reachable through the read tool")
 	}
-	if !strings.Contains(r.Error.Message, "aeroprove_write") {
+	if !strings.Contains(r.Error.Message, "aertun_write") {
 		t.Errorf("the error should name the right tool, got %q", r.Error.Message)
 	}
 }
@@ -138,7 +138,7 @@ func TestAReadToolCannotReachAWriteOperation(t *testing.T) {
 func TestAWriteToolCannotBeUsedForAReadOperation(t *testing.T) {
 	s := testServer()
 	r := call(t, s, "tools/call", callParams{
-		Name:      "aeroprove_write",
+		Name:      "aertun_write",
 		Arguments: map[string]any{"operation": "list_findings"}})
 	if r.Error == nil {
 		t.Error("a read operation should not be invoked through the write tool")
@@ -150,7 +150,7 @@ func TestAWriteToolCannotBeUsedForAReadOperation(t *testing.T) {
 func TestARefusalIsDistinguishableFromAFailure(t *testing.T) {
 	s := testServer()
 	r := call(t, s, "tools/call", callParams{
-		Name:      "aeroprove_write",
+		Name:      "aertun_write",
 		Arguments: map[string]any{"operation": "propose_finding_decision"}})
 
 	if r.Error == nil {
@@ -178,7 +178,7 @@ func TestAnInternalFailureIsNotDressedAsARefusal(t *testing.T) {
 		func(map[string]any) (any, error) { return nil, fmt.Errorf("disk on fire") })
 
 	r := call(t, s, "tools/call", callParams{
-		Name: "aeroprove_write", Arguments: map[string]any{"operation": "broken"}})
+		Name: "aertun_write", Arguments: map[string]any{"operation": "broken"}})
 	if r.Error.Code != CodeInternal {
 		t.Errorf("a genuine failure should be an internal error, got %d", r.Error.Code)
 	}
@@ -188,12 +188,12 @@ func TestUnknownOperationsAndToolsAreRefusedClearly(t *testing.T) {
 	s := testServer()
 
 	r := call(t, s, "tools/call", callParams{
-		Name: "aeroprove_read", Arguments: map[string]any{"operation": "nonsense"}})
-	if r.Error == nil || !strings.Contains(r.Error.Message, "aeroprove_find") {
+		Name: "aertun_read", Arguments: map[string]any{"operation": "nonsense"}})
+	if r.Error == nil || !strings.Contains(r.Error.Message, "aertun_find") {
 		t.Error("an unknown operation should point at how to discover the real ones")
 	}
 
-	r = call(t, s, "tools/call", callParams{Name: "aeroprove_delete_everything"})
+	r = call(t, s, "tools/call", callParams{Name: "aertun_delete_everything"})
 	if r.Error == nil || r.Error.Code != CodeMethodNotFound {
 		t.Error("an unknown tool should be a method-not-found")
 	}
@@ -206,7 +206,7 @@ func TestInitializeAnnouncesTheConstraints(t *testing.T) {
 
 	instructions, _ := m["instructions"].(string)
 	// The two things an agent must know before it calls anything.
-	if !strings.Contains(instructions, "aeroprove_find") {
+	if !strings.Contains(instructions, "aertun_find") {
 		t.Error("initialize should tell the agent to search first")
 	}
 	if !strings.Contains(instructions, "a person decides") {
@@ -279,7 +279,7 @@ func TestToolDescriptionsPromiseOnlyWhatTheOperationsDo(t *testing.T) {
 	}
 	// And the write tool says what the write is: a proposal, never a decision.
 	for _, tool := range tools {
-		if tool.Name == "aeroprove_write" &&
+		if tool.Name == "aertun_write" &&
 			!strings.Contains(strings.ToLower(tool.Description), "propose") {
 			t.Errorf("the write tool does not say it proposes: %q", tool.Description)
 		}

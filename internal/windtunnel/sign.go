@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/aeroprove/aeroprove/internal/pack"
+	"github.com/aertun/aertun/internal/pack"
 )
 
 // Signing a scorecard, twice, with algorithms that fail differently.
@@ -38,7 +38,7 @@ import (
 // ScorecardContext is the domain every windtunnel-scorecard signature is
 // made and checked in. Versioned, so a change to what gets signed cannot be
 // confused with the thing it replaced.
-const ScorecardContext = "aeroprove/windtunnel-scorecard/v1"
+const ScorecardContext = "aertun/windtunnel-scorecard/v1"
 
 // ScorecardSignature is both signatures over one sealed scorecard — the
 // same shape as the content plane's Signature, in this domain.

@@ -1,4 +1,4 @@
-# Contributing to AeroProve
+# Contributing to aertun
 
 This project is looking for maintainers, not just patches. If you want commit
 access, the path is written down in [GOVERNANCE.md](GOVERNANCE.md) and it is
@@ -9,33 +9,33 @@ short.
 You need Go 1.27 or later and nothing else. There are no dependencies to fetch.
 
 ```bash
-git clone https://github.com/aeroprove/aeroprove   # or your fork
-cd aeroprove
-go build -o aeroprove ./cmd/aeroprove
+git clone https://github.com/aertun/aertun   # or your fork
+cd aertun
+go build -o aertun ./cmd/aertun
 
 mkdir /tmp/try && cd /tmp/try
-../aeroprove init --admin you@example.com   # prints the link that adds your passkey
-../aeroprove serve                          # the console, on http://localhost:8080
+../aertun init --admin you@example.com   # prints the link that adds your passkey
+../aertun serve                          # the console, on http://localhost:8080
 ```
 
-AeroProve has no default password and creates no default account. Nothing is
+aertun has no default password and creates no default account. Nothing is
 `admin` until you say so, and there is no state where an unconfigured install
 is reachable with a known credential.
 
 For the command line, issue yourself a token. It is shown once:
 
 ```bash
-../aeroprove token issue laptop --principal you@example.com --role admin
-mkdir -p ~/.aeroprove && umask 077 && printf '%s\n' 'vg_…' > ~/.aeroprove/token
+../aertun token issue laptop --principal you@example.com --role admin
+mkdir -p ~/.aertun && umask 077 && printf '%s\n' 'vg_…' > ~/.aertun/token
 ```
 
-`AEROPROVE_TOKEN` in the environment works too, and is looked at after the file.
+`AERTUN_TOKEN` in the environment works too, and is looked at after the file.
 The file is preferred because every program you start inherits your
 environment, including an agent you are letting drive the command line.
 
 `--role` may be narrower than the principal (a token can carry less than the
 person holding it, never more), `--read-only` refuses every write whatever the
-role, `--ttl` sets expiry, and `aeroprove token revoke ID` ends one immediately.
+role, `--ttl` sets expiry, and `aertun token revoke ID` ends one immediately.
 An administrator's token takes a second administrator's approval when another
 administrator exists.
 

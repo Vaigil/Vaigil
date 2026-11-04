@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/indicator"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/indicator"
 )
 
 // Indicators: what somebody else has said is bad, what each has found, and

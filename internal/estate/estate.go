@@ -38,7 +38,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // Kind is what a record describes: the Produces of the endpoint it came from.
@@ -57,7 +57,7 @@ const (
 	KindControl       Kind = "control"
 )
 
-// Line is one record as `aeroprove connect run` writes it: the mapped fields,
+// Line is one record as `aertun connect run` writes it: the mapped fields,
 // with _source, _endpoint and _produces saying where it came from.
 type Line map[string]string
 

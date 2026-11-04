@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package auditstream pushes the audit log out as it is written, to a SIEM
-// that keeps it where AeroProve cannot reach (NIST SP 800-53 AU-4(1), AU-9(2)).
+// that keeps it where aertun cannot reach (NIST SP 800-53 AU-4(1), AU-9(2)).
 //
-// Pushed, so AeroProve grants nobody a way in. Each batch is a run of records
+// Pushed, so aertun grants nobody a way in. Each batch is a run of records
 // as OCSF (internal/siem), with what lets the receiver prove it lost
 // nothing and nothing was changed on the way:
 //
@@ -37,11 +37,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/atomicfile"
-	"github.com/aeroprove/aeroprove/internal/audit"
-	"github.com/aeroprove/aeroprove/internal/httpsig"
-	"github.com/aeroprove/aeroprove/internal/siem"
-	"github.com/aeroprove/aeroprove/internal/translog"
+	"github.com/aertun/aertun/internal/atomicfile"
+	"github.com/aertun/aertun/internal/audit"
+	"github.com/aertun/aertun/internal/httpsig"
+	"github.com/aertun/aertun/internal/siem"
+	"github.com/aertun/aertun/internal/translog"
 )
 
 // MaxBatch is the most records one batch carries.
@@ -78,7 +78,7 @@ type Cursor struct {
 // KeyID names a stream key by its public half.
 func KeyID(pub ed25519.PublicKey) string {
 	sum := sha256.Sum256(pub)
-	return "aeroprove-stream-" + hex.EncodeToString(sum[:8])
+	return "aertun-stream-" + hex.EncodeToString(sum[:8])
 }
 
 // Sender pushes batches.

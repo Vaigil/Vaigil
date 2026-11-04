@@ -40,8 +40,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/atomicfile"
-	"github.com/aeroprove/aeroprove/internal/geo"
+	"github.com/aertun/aertun/internal/atomicfile"
+	"github.com/aertun/aertun/internal/geo"
 )
 
 // Thresholds, as above.

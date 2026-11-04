@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aertun/aertun/internal/auth"
 )
 
 // A passkey that was only touched signs nobody in, and the person whose key

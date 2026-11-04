@@ -13,9 +13,9 @@ the real WebAuthn implementation with a software key behind it — which is the
 tool this exact situation was built for.
 
 ```
-aeroprove auth grant you admin
-aeroprove token issue you --principal you --role admin   # keep the token
-AEROPROVE_TOKEN=$TOKEN aeroprove serve --addr 127.0.0.1:8802 &
+aertun auth grant you admin
+aertun token issue you --principal you --role admin   # keep the token
+AERTUN_TOKEN=$TOKEN aertun serve --addr 127.0.0.1:8802 &
 
 node scripts/passkey/browsercheck.mjs http://localhost:8802 $TOKEN
 ```

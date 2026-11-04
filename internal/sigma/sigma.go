@@ -44,8 +44,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/aeroprove/aeroprove/internal/detect"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/detect"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // Rule is a Sigma rule as written.

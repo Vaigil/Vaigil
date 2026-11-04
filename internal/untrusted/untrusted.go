@@ -28,7 +28,7 @@ package untrusted
 import (
 	"strings"
 
-	"github.com/aeroprove/aeroprove/internal/plaintext"
+	"github.com/aertun/aertun/internal/plaintext"
 )
 
 // confusable folds characters that imitate the ASCII a fence is made of.

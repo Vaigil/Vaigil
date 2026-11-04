@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2026 Anthropic PBC
 // SPDX-License-Identifier: Apache-2.0
 
-// Package oauthas is AeroProve's authorization server: the smallest OAuth 2.1
+// Package oauthas is aertun's authorization server: the smallest OAuth 2.1
 // server that an AI agent's client can use honestly, and nothing more.
 //
 // # What it is, and what it refuses to be
@@ -17,14 +17,14 @@
 // shapes rather than a silence a client might read as consent:
 //
 //   - no client-credentials grant. The store's own credentials already cover
-//     what that grant is for — `aeroprove token issue` is the machine-to-machine
+//     what that grant is for — `aertun token issue` is the machine-to-machine
 //     path, issued by an administrator to a named principal, revocable by id.
 //     A second issuer of long-lived bearer tokens would be a second thing to
 //     review, and nobody could say which one answered for what.
 //   - no refresh tokens. A code is minutes-short and single-use; the durable
 //     half of the design is the consent (which lives on, so the client asks
 //     again and the person's answer still holds) and the run credential
-//     (`aeroprove agent token`), which is the bounded thing an agent holds for a
+//     (`aertun agent token`), which is the bounded thing an agent holds for a
 //     working stretch. A refresh token would be a bearer credential with a
 //     different name, outliving the very consent it was minted under.
 //
@@ -32,8 +32,8 @@
 //
 // The word "consent" in this package is a row in the register: who
 // authorised which agent for which scope bundle, until when — listable by an
-// administrator and revocable with one command (`aeroprove agent consents
-// revoke` in cmd/aeroprove), and every token minted under it dies with it
+// administrator and revocable with one command (`aertun agent consents
+// revoke` in cmd/aertun), and every token minted under it dies with it
 // (auth.TokenStore.RevokeGrant). The screen the person clicks is how the row
 // is made; the row is what the system enforces.
 //
@@ -67,10 +67,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/agentreg"
-	"github.com/aeroprove/aeroprove/internal/atomicfile"
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/macaroon"
+	"github.com/aertun/aertun/internal/agentreg"
+	"github.com/aertun/aertun/internal/atomicfile"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/macaroon"
 )
 
 // Bundle is one scope this server can grant: a word, the tools the word
@@ -92,7 +92,7 @@ type Bundle struct {
 	Action auth.Action
 	// Role is the least token role the tools need, and ReadOnly whether the
 	// bundle writes nothing — the same pair the run-token mint derives
-	// (cmd/aeroprove, issueRunToken), so a consented token and a run token with
+	// (cmd/aertun, issueRunToken), so a consented token and a run token with
 	// the same word carry the same coarse bounds.
 	Role     auth.Role
 	ReadOnly bool
@@ -105,7 +105,7 @@ type Bundle struct {
 var bundles = []Bundle{
 	{
 		Name: macaroon.PurposeObserve, Action: auth.ActView,
-		Tools: []string{"aeroprove_find", "aeroprove_read"},
+		Tools: []string{"aertun_find", "aertun_read"},
 		Role:  auth.RoleViewer, ReadOnly: true,
 	},
 	{
@@ -170,7 +170,7 @@ func (b Bundle) Covers(allow []string) bool {
 // MaxConsentTTL is how long a consent may run: the same twelve hours a
 // session may last, because a consent is the authorisation a family of
 // short-lived tokens draws on, and nothing in this design should outlive a
-// working day without a person looking at it again (`aeroprove agent consents`
+// working day without a person looking at it again (`aertun agent consents`
 // is the looking).
 const MaxConsentTTL = 12 * time.Hour
 
@@ -268,7 +268,7 @@ func (s Store) Live(id string, now time.Time) (Consent, error) {
 }
 
 // NewID is a consent's identifier: 12 hex of the CSPRNG, enough to name a
-// row in a register and short enough to type into `aeroprove agent consents
+// row in a register and short enough to type into `aertun agent consents
 // revoke`. Minted here so every consent gets it the same way.
 func NewID() (string, error) {
 	raw := make([]byte, 6)

@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/aeroprove/aeroprove/internal/decide"
+	"github.com/aertun/aertun/internal/decide"
 )
 
 // Measuring an agent the way it will be used: many times.

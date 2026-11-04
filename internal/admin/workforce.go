@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/estate"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/estate"
 )
 
 // The workforce screens: people's risk, from what their tools say.

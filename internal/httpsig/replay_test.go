@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/httpsig"
+	"github.com/aertun/aertun/internal/httpsig"
 )
 
 // A timestamp the signature does not cover cannot be used to judge its age.

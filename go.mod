@@ -1,4 +1,4 @@
-module github.com/aeroprove/aeroprove
+module github.com/aertun/aertun
 
 go 1.27
 

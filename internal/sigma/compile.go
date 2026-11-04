@@ -8,8 +8,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/aeroprove/aeroprove/internal/detect"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/detect"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // Pipeline adapts a rule's field names to a deployment's events.

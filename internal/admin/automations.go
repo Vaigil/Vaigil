@@ -5,7 +5,7 @@ package admin
 
 import (
 	"fmt"
-	"github.com/aeroprove/aeroprove/internal/clientip"
+	"github.com/aertun/aertun/internal/clientip"
 	"net/http"
 	"net/url"
 	"sort"
@@ -16,9 +16,9 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/automate"
-	"github.com/aeroprove/aeroprove/internal/travel"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/automate"
+	"github.com/aertun/aertun/internal/travel"
 )
 
 // Automations, and the sign-in check that is their real-time half.
@@ -299,7 +299,7 @@ func (s *Server) handleStepUpReport(w http.ResponseWriter, r *http.Request) {
 	if s.Reported != nil {
 		s.Reported(p.Name, p.TokenID)
 	}
-	s.clearCookie(w, r, "aeroprove_token")
+	s.clearCookie(w, r, "aertun_token")
 	http.Redirect(w, r, "/signin?e=reported", http.StatusSeeOther)
 }
 
@@ -428,11 +428,11 @@ func (s *Server) handleSignInsAct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Vouching for somebody takes at least their standing: an analyst
-	// cannot let an administrator of all of AeroProve past a step-up.
+	// cannot let an administrator of all of aertun past a step-up.
 	if r.FormValue("do") == "letin" && s.Policy != nil &&
 		s.Policy.Evaluate(who, auth.ActGrant, "/").Allowed &&
 		!s.Policy.Evaluate(p.Name, auth.ActGrant, "/").Allowed {
-		back("e", who+" administers all of AeroProve; only somebody who does too can let them in.")
+		back("e", who+" administers all of aertun; only somebody who does too can let them in.")
 		return
 	}
 	var err error
@@ -725,7 +725,7 @@ func (s *Server) handleAutomationsAct(w http.ResponseWriter, r *http.Request) {
 	// the administrators" could lock out everybody above them.
 	siteAdmin := s.Policy != nil && s.Policy.Evaluate(p.Name, auth.ActGrant, "/").Allowed
 	accessRefused := func(what string) {
-		back("e", what+" acts on people's access, which takes an administrator of all of AeroProve.")
+		back("e", what+" acts on people's access, which takes an administrator of all of aertun.")
 	}
 	find := func(id string) (automate.Rule, bool) {
 		rules, _ := e.Rules()

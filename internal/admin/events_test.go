@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/spool"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/spool"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // event is a valid event from src, arriving at recv and claiming at.

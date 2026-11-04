@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/httpsig"
+	"github.com/aertun/aertun/internal/httpsig"
 )
 
 func at() time.Time { return time.Unix(1787000000, 0) }

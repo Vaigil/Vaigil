@@ -33,7 +33,7 @@ func unsigned(loc string) string {
 // server signed it.
 func TestALinkCannotPutWordsOnAScreen(t *testing.T) {
 	srv, token := setup(t)
-	forged := "Your session expired. Sign in again at aeroprove-login.example"
+	forged := "Your session expired. Sign in again at aertun-login.example"
 	for _, path := range []string{
 		"/?e=" + url.QueryEscape(forged),
 		"/today?m=" + url.QueryEscape(forged),
@@ -41,14 +41,14 @@ func TestALinkCannotPutWordsOnAScreen(t *testing.T) {
 		"/findings?e=" + url.QueryEscape(forged),
 		"/people?m=" + url.QueryEscape(forged),
 	} {
-		if body := get(t, srv, path, token).Body.String(); strings.Contains(body, "aeroprove-login.example") {
+		if body := get(t, srv, path, token).Body.String(); strings.Contains(body, "aertun-login.example") {
 			t.Errorf("%s put its words on the screen", path)
 		}
 	}
 	// A signature for one message does not carry another.
 	good := signFlash(srv.flashKey, "/today?m=Published")
 	swapped := strings.Replace(good, "m=Published", "m="+url.QueryEscape(forged), 1)
-	if body := get(t, srv, swapped, token).Body.String(); strings.Contains(body, "aeroprove-login.example") {
+	if body := get(t, srv, swapped, token).Body.String(); strings.Contains(body, "aertun-login.example") {
 		t.Error("a signature was reused for different words")
 	}
 }

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aeroprove/aeroprove/internal/secret"
+	"github.com/aertun/aertun/internal/secret"
 )
 
 func secretsAt(text string) [][2]int {
@@ -34,13 +34,13 @@ func TestWhatLeavesIsMaskedAndWhatComesBackIsRestored(t *testing.T) {
 		t.Errorf("masked what is nobody's: %s", out)
 	}
 	// The same person is the same placeholder both times.
-	if strings.Count(out, "<aeroprove:email:1>") != 2 || strings.Contains(out, "<aeroprove:email:2>") {
+	if strings.Count(out, "<aertun:email:1>") != 2 || strings.Contains(out, "<aertun:email:2>") {
 		t.Errorf("one address, two placeholders: %s", out)
 	}
 	if c := m.Masked(); c["email"] != 1 || c["phone"] != 1 || c["card"] != 1 || c["secret"] != 1 || c["iban"] != 1 {
 		t.Errorf("counted %v", c)
 	}
-	answer := "I have refunded <aeroprove:card:1> and emailed <aeroprove:email:1>."
+	answer := "I have refunded <aertun:card:1> and emailed <aertun:email:1>."
 	if got := m.Restore(answer); got != "I have refunded 5425233430109903 and emailed ana.lopez@mailhost.net." {
 		t.Errorf("restored %q", got)
 	}
@@ -66,7 +66,7 @@ func TestOverlappingFindsAreMaskedOnce(t *testing.T) {
 		return [][2]int{{i, strings.Index(s, ") end") + 1}}
 	}}
 	out := m.Mask(text, false)
-	if out != "creds: <aeroprove:secret:1> end" {
+	if out != "creds: <aertun:secret:1> end" {
 		t.Fatalf("%q", out)
 	}
 	if m.Restore(out) != text {
@@ -90,7 +90,7 @@ func TestABarePemHeaderCannotEraseTheRestOfAPrompt(t *testing.T) {
 			t.Errorf("%q did not survive the mask: %s", keep, out)
 		}
 	}
-	if n := strings.Count(out, "<aeroprove:secret:"); n != 1 {
+	if n := strings.Count(out, "<aertun:secret:"); n != 1 {
 		t.Errorf("%d placeholders for one header: %s", n, out)
 	}
 }
@@ -102,7 +102,7 @@ func TestAClosedPemBlockIsMaskedWholeAndNothingElse(t *testing.T) {
 	block := "-----BEGIN OPENSSH PRIVATE KEY----- b3BlbnNzaC1rZXktdjEAAAAA" +
 		" -----END OPENSSH PRIVATE KEY-----"
 	out := m.Mask("evidence: "+block+" and then the mfa was reset", true)
-	if !strings.Contains(out, "<aeroprove:secret:1>") ||
+	if !strings.Contains(out, "<aertun:secret:1>") ||
 		strings.Contains(out, "b3BlbnNza") {
 		t.Errorf("the key did not leave as one placeholder: %s", out)
 	}

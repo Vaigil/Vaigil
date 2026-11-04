@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/analyst"
+	"github.com/aertun/aertun/internal/analyst"
 )
 
 // fixedNow is the clock every stub run in this file is made on, so a test

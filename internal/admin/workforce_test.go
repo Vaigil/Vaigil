@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/estate"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/estate"
 )
 
 func wfSnapshot(source string, kinds map[string]estate.Kind,

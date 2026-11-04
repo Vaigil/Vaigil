@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/incident"
-	"github.com/aeroprove/aeroprove/internal/spool"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
-	"github.com/aeroprove/aeroprove/internal/vuln"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/incident"
+	"github.com/aertun/aertun/internal/spool"
+	"github.com/aertun/aertun/internal/telemetry"
+	"github.com/aertun/aertun/internal/vuln"
 )
 
 // entityEstate is a store where okta:dana has a finding, an incident about

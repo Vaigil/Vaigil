@@ -48,14 +48,14 @@
 // without those names is a claim rather than a measurement.
 //
 // 6. THREE SCORING MODES, ONE BUILT. Reference mode (this build) scores
-// against AeroProve's own pack as the calibrated instrument. their-Sigma and
+// against aertun's own pack as the calibrated instrument. their-Sigma and
 // their-alerts modes arrive in phase 2 and are refused here with messages
 // that say so, because a mode that half-runs would measure nothing while
 // claiming to measure the org's controls.
 //
 // 7. THE DOCUMENT IS SEALED AND DUAL-SIGNED. sha256 self-digest over the
 // canonical form, then Ed25519 and ML-DSA-65 both, in the context
-// aeroprove/windtunnel-scorecard/v1 — a signature made for one purpose must
+// aertun/windtunnel-scorecard/v1 — a signature made for one purpose must
 // never be presentable as one for another, so a scorecard cannot be
 // promoted to a content-pack signature by whoever holds the file.
 //

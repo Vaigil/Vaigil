@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/source"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/source"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // A push, in the shape the OTLP/HTTP JSON mapping specifies and the

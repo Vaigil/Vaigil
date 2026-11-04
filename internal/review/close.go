@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/finding"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
-	"github.com/aeroprove/aeroprove/internal/workforce"
+	"github.com/aertun/aertun/internal/finding"
+	"github.com/aertun/aertun/internal/telemetry"
+	"github.com/aertun/aertun/internal/workforce"
 )
 
 // Closing a review, and the measure that says whether one happened.

@@ -29,9 +29,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/atomicfile"
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/config"
+	"github.com/aertun/aertun/internal/atomicfile"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/config"
 )
 
 // The kinds of change that wait.

@@ -432,7 +432,7 @@ func (l *Limiter) hash(kind, v string) string {
 	return hex.EncodeToString(m.Sum(nil)[:16])
 }
 
-// Snapshot describes the current state, for `aeroprove auth throttled`.
+// Snapshot describes the current state, for `aertun auth throttled`.
 type Snapshot struct {
 	// Subjects are opaque: the map holds HMACs, so this reports counts and
 	// timings without being able to say who. That is deliberate — the list of

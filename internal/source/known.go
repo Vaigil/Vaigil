@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // Known is the mapping for each platform most estates already have.
@@ -485,7 +485,7 @@ func linuxAuditd() Source {
 		},
 		Require: []string{"@timestamp", "host", "type"},
 		// A connect's syscall name and its decoded address and port are kept
-		// beside the rest: the aeroprove-collector decodes SOCKADDR into exactly
+		// beside the rest: the aertun-collector decodes SOCKADDR into exactly
 		// these fields (internal/collector/auditd.go) and ships them in the
 		// record, and a mapping that drops them stores a connect as a bare
 		// SYSCALL — evidence recorded on the endpoint and lost at the door.

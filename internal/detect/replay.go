@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // Replaying what has already gone wrong.

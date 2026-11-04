@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/automate"
-	"github.com/aeroprove/aeroprove/internal/dual"
-	"github.com/aeroprove/aeroprove/internal/incident"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/automate"
+	"github.com/aertun/aertun/internal/dual"
+	"github.com/aertun/aertun/internal/incident"
 )
 
 // waitingCase is a case with an act on another platform waiting, asked for

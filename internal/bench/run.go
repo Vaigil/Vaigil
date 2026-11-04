@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/analyst"
-	"github.com/aeroprove/aeroprove/internal/decide"
-	"github.com/aeroprove/aeroprove/internal/finding"
+	"github.com/aertun/aertun/internal/analyst"
+	"github.com/aertun/aertun/internal/decide"
+	"github.com/aertun/aertun/internal/finding"
 )
 
 // The runner: every case to a model, the answers to a document.

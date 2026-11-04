@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // The binding generators: Caldera's fact system with the interpreter

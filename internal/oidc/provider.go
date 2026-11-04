@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/fetch"
+	"github.com/aertun/aertun/internal/fetch"
 )
 
 // Discovery is the subset of the provider metadata this needs.

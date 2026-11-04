@@ -8,8 +8,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/aeroprove/aeroprove/internal/appsec"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/appsec"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // Severity boundaries, as the platform publishes them.

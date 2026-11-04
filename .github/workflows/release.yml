@@ -38,39 +38,39 @@ jobs:
       # fetch, and a require in go.mod is a dependency nobody declared.
       - name: Refuse to ship a modified build or a dependency
         run: |
-          if go version -m bin/aeroprove | grep -q 'vcs.modified=true'; then
+          if go version -m bin/aertun | grep -q 'vcs.modified=true'; then
             echo "the working tree was dirty"; exit 1
           fi
-          if go version -m bin/aeroprove | grep -q '^\s*dep\s'; then
+          if go version -m bin/aertun | grep -q '^\s*dep\s'; then
             echo "the binary carries a third-party module"; exit 1
           fi
 
       - name: Checksums
-        run: cd bin && sha256sum aeroprove aeroprove-* > SHA256SUMS
+        run: cd bin && sha256sum aertun aertun-* > SHA256SUMS
 
       - name: Attest the artefacts
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
-            bin/aeroprove
-            bin/aeroprove-*
+            bin/aertun
+            bin/aertun-*
 
       - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           files: |
-            bin/aeroprove-linux-amd64
-            bin/aeroprove-linux-arm64
-            bin/aeroprove-darwin-amd64
-            bin/aeroprove-darwin-arm64
-            bin/aeroprove-windows-amd64.exe
-            bin/aeroprove-windows-arm64.exe
+            bin/aertun-linux-amd64
+            bin/aertun-linux-arm64
+            bin/aertun-darwin-amd64
+            bin/aertun-darwin-arm64
+            bin/aertun-windows-amd64.exe
+            bin/aertun-windows-arm64.exe
             bin/SHA256SUMS
             LICENSE
             NOTICE
           body: |
             Every artefact here carries its SHA-256 in `SHA256SUMS`, and each
             has a build provenance attestation:
-            `gh attestation verify aeroprove-linux-amd64 --repo AeroProve/AeroProve`.
+            `gh attestation verify aertun-linux-amd64 --repo aertun/aertun`.
 
   image:
     runs-on: ubuntu-latest

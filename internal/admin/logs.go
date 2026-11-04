@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aeroprove/aeroprove/internal/audit"
-	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aertun/aertun/internal/audit"
+	"github.com/aertun/aertun/internal/auth"
 )
 
 // The audit log, in the admin, read-only and unable to be anything else.

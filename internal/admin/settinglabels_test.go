@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aeroprove/aeroprove/internal/config"
+	"github.com/aertun/aertun/internal/config"
 )
 
 // Every group on Settings is named in words. A group whose heading is its

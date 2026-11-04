@@ -29,7 +29,7 @@ func endpoint(t *testing.T) (*Endpoint, *[]called) {
 			return nil, errors.New("no such token")
 		},
 		Build: func(r *http.Request, c *Caller) (*Server, error) {
-			s := NewServer("aeroprove", "test")
+			s := NewServer("aertun", "test")
 			s.Authorise = func(op Operation) error {
 				if op.Writes && c.Data == "reader" {
 					return &ScopeError{Scope: "mcp:write", Reason: "this token reads only"}
@@ -217,7 +217,7 @@ func TestModernResults(t *testing.T) {
 	}
 	b, _ := json.Marshal(resp.Result)
 	for _, want := range []string{`"resultType":"complete"`, `"cacheScope":"private"`, `"ttlMs":3600000`,
-		`"io.modelcontextprotocol/serverInfo":{"name":"aeroprove"`, `"readOnlyHint":true`, `"name":"aeroprove_find"`} {
+		`"io.modelcontextprotocol/serverInfo":{"name":"aertun"`, `"readOnlyHint":true`, `"name":"aertun_find"`} {
 		if !strings.Contains(string(b), want) {
 			t.Errorf("tools/list lacks %s: %s", want, b)
 		}
@@ -231,14 +231,14 @@ func TestModernResults(t *testing.T) {
 
 func TestCallsAndScope(t *testing.T) {
 	e, calls := endpoint(t)
-	params := `"name":"aeroprove_read","arguments":{"operation":"list_pages"}`
-	w, resp := modern("tools/call", "aeroprove_read", params).do(t, e)
+	params := `"name":"aertun_read","arguments":{"operation":"list_pages"}`
+	w, resp := modern("tools/call", "aertun_read", params).do(t, e)
 	b, _ := json.Marshal(resp.Result)
 	if w.Code != 200 || !strings.Contains(string(b), "home, about") || !strings.Contains(string(b), `"resultType":"complete"`) {
 		t.Fatalf("%d %s", w.Code, w.Body.String())
 	}
 	// The name in the header must be the body's.
-	c := modern("tools/call", "aeroprove_write", params)
+	c := modern("tools/call", "aertun_write", params)
 	if w, resp := c.do(t, e); w.Code != 400 || resp.Error.Code != CodeHeaderMismatch {
 		t.Fatalf("name mismatch: %d", w.Code)
 	}
@@ -247,7 +247,7 @@ func TestCallsAndScope(t *testing.T) {
 		t.Fatal("missing Mcp-Name accepted")
 	}
 	// Base64 sentinel is decoded before comparing.
-	c.name = "=?base64?" + base64.StdEncoding.EncodeToString([]byte("aeroprove_read")) + "?="
+	c.name = "=?base64?" + base64.StdEncoding.EncodeToString([]byte("aertun_read")) + "?="
 	if w, _ := c.do(t, e); w.Code != 200 {
 		t.Fatalf("encoded name: %d", w.Code)
 	}
@@ -256,7 +256,7 @@ func TestCallsAndScope(t *testing.T) {
 		t.Fatal("broken base64 accepted")
 	}
 	// A scope too small is a 403 that asks for the scope.
-	wc := modern("tools/call", "aeroprove_write", `"name":"aeroprove_write","arguments":{"operation":"write_page"}`)
+	wc := modern("tools/call", "aertun_write", `"name":"aertun_write","arguments":{"operation":"write_page"}`)
 	wc.token = "reader"
 	w, resp = wc.do(t, e)
 	if string(resp.ID) != "1" {
@@ -271,7 +271,7 @@ func TestCallsAndScope(t *testing.T) {
 		t.Fatalf("writer: %d", w.Code)
 	}
 	// Any other refusal is an answer, not an HTTP error.
-	fc := modern("tools/call", "aeroprove_read", `"name":"aeroprove_read","arguments":{"operation":"forbidden"}`)
+	fc := modern("tools/call", "aertun_read", `"name":"aertun_read","arguments":{"operation":"forbidden"}`)
 	w, resp = fc.do(t, e)
 	if w.Code != 200 || resp.Error == nil || resp.Error.Code != CodeRefused || strings.Contains(w.Body.String(), "should not run") {
 		t.Fatalf("%d %s", w.Code, w.Body.String())
@@ -280,7 +280,7 @@ func TestCallsAndScope(t *testing.T) {
 	for _, c := range *calls {
 		got = append(got, c.tool+"/"+c.op)
 	}
-	if strings.Join(got, " ") != "aeroprove_read/list_pages aeroprove_read/list_pages aeroprove_write/write_page aeroprove_write/write_page aeroprove_read/forbidden" {
+	if strings.Join(got, " ") != "aertun_read/list_pages aertun_read/list_pages aertun_write/write_page aertun_write/write_page aertun_read/forbidden" {
 		t.Fatalf("calls %v", got)
 	}
 }
@@ -306,7 +306,7 @@ func TestLegacyClientsAreAnsweredWithoutASession(t *testing.T) {
 	list := hcall{token: "writer", version: "2025-06-18", body: `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`}
 	w, resp = list.do(t, e)
 	b, _ = json.Marshal(resp.Result)
-	if w.Code != 200 || strings.Contains(string(b), "resultType") || !strings.Contains(string(b), "aeroprove_find") {
+	if w.Code != 200 || strings.Contains(string(b), "resultType") || !strings.Contains(string(b), "aertun_find") {
 		t.Fatalf("%d %s", w.Code, b)
 	}
 	// Unknown method: a JSON-RPC error, not a 404 a legacy client would

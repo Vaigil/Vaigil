@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/audit"
+	"github.com/aertun/aertun/internal/audit"
 )
 
 // The evidence half is tested against a real log: a seeded chain written by
@@ -34,7 +34,7 @@ func seedLog(t *testing.T) []audit.Event {
 	l, err := audit.New(audit.Options{
 		Path:   path,
 		Key:    bytes.Repeat([]byte{1}, 32),
-		Source: "aeroprove-test@host",
+		Source: "aertun-test@host",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -299,7 +299,7 @@ func TestVerifyPackRefusesADifferentSchema(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pack.Schema = "aeroprove/evidence/v0"
+	pack.Schema = "aertun/evidence/v0"
 	body, _ := json.Marshal(pack)
 	if _, err := VerifyPack(body, testSigner(t).Verifier()); err == nil ||
 		!strings.Contains(err.Error(), "schema") {

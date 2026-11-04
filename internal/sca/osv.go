@@ -43,8 +43,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/telemetry"
-	"github.com/aeroprove/aeroprove/internal/vuln"
+	"github.com/aertun/aertun/internal/telemetry"
+	"github.com/aertun/aertun/internal/vuln"
 )
 
 // Record is one OSV advisory, as osv.dev publishes it.

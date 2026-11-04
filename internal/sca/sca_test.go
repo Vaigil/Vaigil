@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 var t0 = time.Date(2026, 9, 26, 9, 0, 0, 0, time.UTC)

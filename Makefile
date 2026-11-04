@@ -16,14 +16,14 @@ fmt:
 test:
 	$(GO) test -count=1 ./...
 
-# Two binaries: the server and the endpoint recorder (cmd/aeroprove-collector).
+# Two binaries: the server and the endpoint recorder (cmd/aertun-collector).
 # Both stamp the version the same way, because a collector heartbeat that
 # cannot say which build it is is a fleet nobody can reason about.
 build:
-	$(GO) build -trimpath -ldflags="-s -w -X main.version=$(VERSION)" -o bin/aeroprove ./cmd/aeroprove
-	$(GO) build -trimpath -ldflags="-s -w -X main.version=$(VERSION)" -o bin/aeroprove-collector ./cmd/aeroprove-collector
-	@echo "binary: $$(du -h bin/aeroprove | cut -f1)"
-	@echo "binary: $$(du -h bin/aeroprove-collector | cut -f1)"
+	$(GO) build -trimpath -ldflags="-s -w -X main.version=$(VERSION)" -o bin/aertun ./cmd/aertun
+	$(GO) build -trimpath -ldflags="-s -w -X main.version=$(VERSION)" -o bin/aertun-collector ./cmd/aertun-collector
+	@echo "binary: $$(du -h bin/aertun | cut -f1)"
+	@echo "binary: $$(du -h bin/aertun-collector | cut -f1)"
 
 # One binary per platform, named so a person downloading can tell which is
 # which. CGO is off so these are genuinely static and genuinely
@@ -35,8 +35,8 @@ build-all:
 		ext=""; [ "$$os" = "windows" ] && ext=".exe"; \
 		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch $(GO) build -trimpath \
 			-ldflags="-s -w -X main.version=$(VERSION)" \
-			-o bin/aeroprove-$$os-$$arch$$ext ./cmd/aeroprove || exit 1; \
-		echo "  aeroprove  $$os/$$arch  $$(du -h bin/aeroprove-$$os-$$arch$$ext | cut -f1)"; \
+			-o bin/aertun-$$os-$$arch$$ext ./cmd/aertun || exit 1; \
+		echo "  aertun  $$os/$$arch  $$(du -h bin/aertun-$$os-$$arch$$ext | cut -f1)"; \
 	done
 # The collector's MVP substrate is Linux; Windows and macOS are phase 2
 # (docs/research/12-xdr-ndr-tip-iam.md §8.3), so the release carries it for
@@ -44,8 +44,8 @@ build-all:
 	@for arch in amd64 arm64; do \
 		CGO_ENABLED=0 GOOS=linux GOARCH=$$arch $(GO) build -trimpath \
 			-ldflags="-s -w -X main.version=$(VERSION)" \
-			-o bin/aeroprove-collector-linux-$$arch ./cmd/aeroprove-collector || exit 1; \
-		echo "  aeroprove-collector  linux/$$arch  $$(du -h bin/aeroprove-collector-linux-$$arch | cut -f1)"; \
+			-o bin/aertun-collector-linux-$$arch ./cmd/aertun-collector || exit 1; \
+		echo "  aertun-collector  linux/$$arch  $$(du -h bin/aertun-collector-linux-$$arch | cut -f1)"; \
 	done
 
 # The GNU Coding Standards ask for these targets by name, and the reason is
@@ -65,14 +65,12 @@ INSTALL_PROGRAM ?= $(INSTALL) -m 0755
 
 install: build
 	$(INSTALL) -d "$(DESTDIR)$(bindir)"
-	$(INSTALL_PROGRAM) bin/aeroprove "$(DESTDIR)$(bindir)/aeroprove"
-	$(INSTALL_PROGRAM) bin/aeroprove-collector "$(DESTDIR)$(bindir)/aeroprove-collector"
-	# apv is the short form: the same bytes, a second name for the fingers.
-	ln -f "$(DESTDIR)$(bindir)/aeroprove" "$(DESTDIR)$(bindir)/apv"
-	@echo "installed $(DESTDIR)$(bindir)/aeroprove, apv and aeroprove-collector"
+	$(INSTALL_PROGRAM) bin/aertun "$(DESTDIR)$(bindir)/aertun"
+	$(INSTALL_PROGRAM) bin/aertun-collector "$(DESTDIR)$(bindir)/aertun-collector"
+	@echo "installed $(DESTDIR)$(bindir)/aertun and aertun-collector"
 
 uninstall:
-	rm -f "$(DESTDIR)$(bindir)/aeroprove" "$(DESTDIR)$(bindir)/apv" "$(DESTDIR)$(bindir)/aeroprove-collector"
+	rm -f "$(DESTDIR)$(bindir)/aertun" "$(DESTDIR)$(bindir)/aertun-collector"
 
 # check is the standard name for what this project already spelled `test`.
 # Both, because the muscle memory here is `make test` and a packager's is
@@ -82,18 +80,18 @@ check: test
 # A source archive, from the committed tree rather than the working one — so a
 # release tarball cannot carry somebody's local store or an editor backup.
 dist:
-	@git archive --format=tar.gz --prefix=aeroprove-$(VERSION)/ \
-		-o aeroprove-$(VERSION).tar.gz HEAD
-	@echo "aeroprove-$(VERSION).tar.gz  $$(du -h aeroprove-$(VERSION).tar.gz | cut -f1)"
+	@git archive --format=tar.gz --prefix=aertun-$(VERSION)/ \
+		-o aertun-$(VERSION).tar.gz HEAD
+	@echo "aertun-$(VERSION).tar.gz  $$(du -h aertun-$(VERSION).tar.gz | cut -f1)"
 
 distclean: clean
-	rm -f aeroprove-*.tar.gz
+	rm -f aertun-*.tar.gz
 
 image:
-	docker build --build-arg VERSION=$(VERSION) -t aeroprove:$(VERSION) .
+	docker build --build-arg VERSION=$(VERSION) -t aertun:$(VERSION) .
 
 release: test build-all
-	@cd bin && sha256sum aeroprove-* > SHA256SUMS
+	@cd bin && sha256sum aertun-* > SHA256SUMS
 	@echo
 	@echo "release $(VERSION)"
 	@sed 's/^/  /' bin/SHA256SUMS

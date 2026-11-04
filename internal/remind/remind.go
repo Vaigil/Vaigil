@@ -36,7 +36,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/estate"
+	"github.com/aertun/aertun/internal/estate"
 )
 
 // Channel is how a reminder is sent.

@@ -18,7 +18,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>Sign in — AeroProve</title>
+<title>Sign in — aertun</title>
 {{with .Continue}}<meta http-equiv="refresh" content="0;url={{.Href}}">{{end}}
 <link rel="stylesheet" href="/style.css">
 <link rel="icon" href="{{signedOutIcon}}" type="image/svg+xml">
@@ -56,7 +56,7 @@
     <p class="help">Signing in there proves who you are. What you may do here
       is decided by this console’s access policy, which an administrator
       maintains — so an account with the provider is not by itself access to
-      AeroProve.</p>
+      aertun.</p>
     <p class="or-divider"><span>or</span></p>
     {{end}}
 
@@ -68,8 +68,8 @@
                aria-describedby="tok-help" required
                placeholder="vg_…">
         <p id="tok-help" class="help">Create one with
-          <code>aeroprove auth grant you admin</code>, then
-          <code>aeroprove token issue you --principal you --role admin</code>.
+          <code>aertun auth grant you admin</code>, then
+          <code>aertun token issue you --principal you --role admin</code>.
           Both: the grant is what gives you a role, the token is how you prove
           you are you, and a token on its own signs in and is then refused by
           every screen.</p>

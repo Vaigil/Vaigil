@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aertun/aertun/internal/auth"
 )
 
 // Each role gets what it needs to do its job, and nothing above it.

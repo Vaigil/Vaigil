@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/xmldsig"
+	"github.com/aertun/aertun/internal/xmldsig"
 )
 
 // IdPMetadata is what an identity provider's metadata says about signing
@@ -28,7 +28,7 @@ type IdPMetadata struct {
 	SSOURL   string
 	Certs    []*x509.Certificate
 	// WantsSignedRequests is the provider asking for signed requests, which
-	// AeroProve does not send.
+	// aertun does not send.
 	WantsSignedRequests bool
 }
 

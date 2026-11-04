@@ -117,7 +117,7 @@ func TestAWeakValueWithNoAcceptanceIsStillReported(t *testing.T) {
 func TestOrdinarySettingsChangeWithoutCeremony(t *testing.T) {
 	c := fresh()
 	for _, tc := range [][2]string{
-		{"admin.base_url", "https://aeroprove.example"},
+		{"admin.base_url", "https://aertun.example"},
 		{"security.contact", "mailto:soc@example.com"},
 		{"auth.throttle.after", "3"},  // stricter, not weaker
 		{"token.ttl.default", "168h"}, // shorter, not weaker
@@ -280,7 +280,7 @@ func TestTheDefaultsAreTheOnesWeMeanToShip(t *testing.T) {
 // able to say why it was accepted.
 func TestAConfigurationSurvivesARoundTrip(t *testing.T) {
 	c := fresh()
-	c.Set("admin.base_url", "https://aeroprove.example", "", "dana")
+	c.Set("admin.base_url", "https://aertun.example", "", "dana")
 	c.Set("token.ttl.default", "20000h", "penetration test window", "sam")
 
 	body, err := c.Bytes()
@@ -291,7 +291,7 @@ func TestAConfigurationSurvivesARoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if back.Raw("admin.base_url") != "https://aeroprove.example" {
+	if back.Raw("admin.base_url") != "https://aertun.example" {
 		t.Error("a plain value did not survive")
 	}
 	if back.Dur("token.ttl.default") != 20000*time.Hour {

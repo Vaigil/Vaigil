@@ -3,7 +3,7 @@
 
 package admin
 
-import "github.com/aeroprove/aeroprove/internal/auth"
+import "github.com/aertun/aertun/internal/auth"
 
 // Actor is who a hook acts for: the person, and the limits of the
 // credential their session was made from.

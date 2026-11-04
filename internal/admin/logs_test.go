@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/audit"
-	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aertun/aertun/internal/audit"
+	"github.com/aertun/aertun/internal/auth"
 )
 
 func logServer(t *testing.T, events []audit.Event, sep bool) (*Server, string) {
@@ -273,7 +273,7 @@ func TestTheNavPositionToggleIsGone(t *testing.T) {
 			"not merely unreferenced", w.Code)
 	}
 	for _, c := range w.Result().Cookies() {
-		if c.Name == "aeroprove_nav" {
+		if c.Name == "aertun_nav" {
 			t.Error("the removed toggle still set its cookie")
 		}
 	}
@@ -281,7 +281,7 @@ func TestTheNavPositionToggleIsGone(t *testing.T) {
 	// And an old cookie cannot bring the old layout back.
 	r = httptest.NewRequest("GET", "http://h/logs", nil)
 	r.Header.Set("Authorization", "Bearer "+tok)
-	r.AddCookie(&http.Cookie{Name: "aeroprove_nav", Value: "top"})
+	r.AddCookie(&http.Cookie{Name: "aertun_nav", Value: "top"})
 	w = httptest.NewRecorder()
 	s.Handler().ServeHTTP(w, r)
 	if body := w.Body.String(); strings.Contains(body, "nav-top") ||

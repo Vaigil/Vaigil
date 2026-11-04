@@ -18,9 +18,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/agentreg"
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/dpop"
+	"github.com/aertun/aertun/internal/agentreg"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/dpop"
 )
 
 // The endpoints. The metadata document lives at RFC 8414's path for an
@@ -320,7 +320,7 @@ func (s *Server) check(q url.Values) (a ask, why string, ok bool) {
 }
 
 var consentTmpl = template.Must(template.New("consent").Parse(`<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>AeroProve — agent consent</title></head>
+<html lang="en"><head><meta charset="utf-8"><title>aertun — agent consent</title></head>
 <body>
 <h1>Agent {{.Agent}}, acting for you</h1>
 <p>The agent <strong>{{.Agent}}</strong>, owned by {{.Owner}}, asks to {{.Reach}}
@@ -328,8 +328,8 @@ at {{.Resource}}, for up to {{.Hours}} hours. You are {{.Person}}.</p>
 <p>What you allow here is one of the three bounds on what the agent gets: this
 consent, what the registry allows the agent, and whatever credential the agent
 presents. It may end up narrower. It never ends up wider.</p>
-<p>Reviewing and revoking: <code>aeroprove agent consents</code> lists what exists;
-<code>aeroprove agent consents revoke ID</code> ends one, and every token minted
+<p>Reviewing and revoking: <code>aertun agent consents</code> lists what exists;
+<code>aertun agent consents revoke ID</code> ends one, and every token minted
 under it dies with it.</p>
 <form method="post" action="{{.Action}}">
 <input type="hidden" name="response_type" value="code">
@@ -505,7 +505,7 @@ func (s *Server) serveToken(w http.ResponseWriter, r *http.Request) {
 	case "authorization_code":
 	case "client_credentials":
 		fail(http.StatusBadRequest, "unsupported_grant_type",
-			"there is no client-credentials grant: the store's own credentials (aeroprove token issue, aeroprove agent token) are the machine-to-machine path, issued by an administrator and revocable by id")
+			"there is no client-credentials grant: the store's own credentials (aertun token issue, aertun agent token) are the machine-to-machine path, issued by an administrator and revocable by id")
 		return
 	case "refresh_token":
 		fail(http.StatusBadRequest, "unsupported_grant_type",
@@ -702,6 +702,6 @@ func refusePage(w http.ResponseWriter, status int, why string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
 	_, _ = w.Write([]byte("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">" +
-		"<title>AeroProve — refused</title></head><body><h1>Refused</h1><p>" +
+		"<title>aertun — refused</title></head><body><h1>Refused</h1><p>" +
 		template.HTMLEscapeString(why) + "</p></body></html>"))
 }

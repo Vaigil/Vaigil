@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/audit"
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/vuln"
+	"github.com/aertun/aertun/internal/audit"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/vuln"
 )
 
 // The vulnerability workbench.

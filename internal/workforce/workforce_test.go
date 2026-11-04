@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/audit"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/audit"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 var now = time.Date(2026, 9, 25, 12, 0, 0, 0, time.UTC)

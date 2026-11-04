@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/collector"
-	"github.com/aeroprove/aeroprove/internal/spool"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/collector"
+	"github.com/aertun/aertun/internal/spool"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // Where the machines that run agents talk to, from what the recorder already
@@ -432,7 +432,7 @@ func (s *Server) handleEgress(w http.ResponseWriter, r *http.Request) {
 			data["Unavailable"] = "Nothing has ever been collected here, so " +
 				"no recorder's connects have been observed. That is not an " +
 				"estate of machines that connect nowhere — it is one nothing " +
-				"is watching. Connect events arrive with the aeroprove-collector's " +
+				"is watching. Connect events arrive with the aertun-collector's " +
 				"auditd tail."
 			s.render(w, r, "egress.html", data)
 			return

@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/remind"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/remind"
 )
 
 type fakeReminders struct {

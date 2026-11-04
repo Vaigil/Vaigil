@@ -7,7 +7,7 @@ package windtunnel
 import (
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // The default base stream: a synthetic support-desk morning, shaped like the
@@ -123,7 +123,7 @@ func DefaultBase() []telemetry.Event {
 			map[string]string{"operation": "execute_tool",
 				"tool": "filesystem.write", "status": "ok",
 				"trace_id": "5e77b3aa1c2d4f09b7e6a8c5d3f20117",
-				"path": "replies/391.md"}))
+				"path":     "replies/391.md"}))
 
 	// The reporter's runs: webhooks and posts to the destinations the
 	// integration owns. Egress alone in its traces — the reporting agent

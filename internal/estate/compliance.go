@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/lifecycle"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/lifecycle"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // Device compliance: what a machine is required to be, against what the

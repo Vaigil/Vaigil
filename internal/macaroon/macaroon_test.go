@@ -51,7 +51,7 @@ func minted(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tools, err := ToolCaveat("aeroprove_read", "aeroprove_write")
+	tools, err := ToolCaveat("aertun_read", "aertun_write")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,7 +205,7 @@ func TestTamperedFramingIsRefused(t *testing.T) {
 func TestAttenuationNarrows(t *testing.T) {
 	parent := minted(t)
 	earlier := ExpCaveat(time.Unix(1, 0).UTC())
-	narrower, err := ToolCaveat("aeroprove_read")
+	narrower, err := ToolCaveat("aertun_read")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +222,7 @@ func TestAttenuationNarrows(t *testing.T) {
 		seen[c.Kind]++
 		switch c.Kind {
 		case KindTool:
-			if c.Value != "aeroprove_read" && c.Value != "aeroprove_read,aeroprove_write" {
+			if c.Value != "aertun_read" && c.Value != "aertun_read,aertun_write" {
 				t.Errorf("a tool caveat became %q", c.Value)
 			}
 		case KindPurpose:
@@ -251,7 +251,7 @@ func TestAttenuationNarrows(t *testing.T) {
 // message naming the bound it tried to pass — never clamped into something
 // quieter, because a caller told "done" believes they got what they typed.
 func TestAttenuationNeverWidens(t *testing.T) {
-	tools, err := ToolCaveat("aeroprove_read")
+	tools, err := ToolCaveat("aertun_read")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,8 +279,8 @@ func TestAttenuationNeverWidens(t *testing.T) {
 		wants []string
 	}{
 		{"a wider tool set", func() (Caveat, error) {
-			return ToolCaveat("aeroprove_read", "aeroprove_write")
-		}, []string{"aeroprove_write", "refusing to attenuate"}},
+			return ToolCaveat("aertun_read", "aertun_write")
+		}, []string{"aertun_write", "refusing to attenuate"}},
 		{"a later expiry", func() (Caveat, error) {
 			return ExpCaveat(time.Unix(1_800_000_000, 0).UTC()), nil
 		}, []string{"refusing to attenuate", "1700000000"}},
@@ -318,7 +318,7 @@ func TestAttenuationNeverWidens(t *testing.T) {
 	// changes nothing, and refusing it would make a holder unable to prove
 	// what they hold.
 	for _, same := range []func() (Caveat, error){
-		func() (Caveat, error) { return ToolCaveat("aeroprove_read") },
+		func() (Caveat, error) { return ToolCaveat("aertun_read") },
 		func() (Caveat, error) { return CallsCaveat(3) },
 		func() (Caveat, error) { return LevelCaveat(1) },
 		func() (Caveat, error) { return PurposeCaveat(PurposeObserve) },
@@ -342,7 +342,7 @@ func TestAttenuationNeverWidens(t *testing.T) {
 // the caveat's kind, because the gate's message — and the audit record
 // under it — has to say which bound refused the call.
 func TestDischargeRefusalNamesTheCaveat(t *testing.T) {
-	tools, err := ToolCaveat("aeroprove_read")
+	tools, err := ToolCaveat("aertun_read")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -351,10 +351,10 @@ func TestDischargeRefusalNamesTheCaveat(t *testing.T) {
 		t.Fatal(err)
 	}
 	err = Verify(tok, aKey(), func(c Caveat) error {
-		return errRefused("aeroprove_write is not in the allowed set")
+		return errRefused("aertun_write is not in the allowed set")
 	})
 	if err == nil || !strings.Contains(err.Error(), "caveat tool:") ||
-		!strings.Contains(err.Error(), "aeroprove_write") {
+		!strings.Contains(err.Error(), "aertun_write") {
 		t.Fatalf("the refusal does not name the caveat and the reason: %v", err)
 	}
 }
@@ -364,7 +364,7 @@ func TestDischargeRefusalNamesTheCaveat(t *testing.T) {
 // wrong length — each named, because they are operator errors, not
 // forgeries.
 func TestMintRefusesWhatItCannotMean(t *testing.T) {
-	tools, err := ToolCaveat("aeroprove_read")
+	tools, err := ToolCaveat("aertun_read")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -409,7 +409,7 @@ func TestConstructorsRefuseWhatTheyCannotCarry(t *testing.T) {
 	if _, err := ToolCaveat(); err == nil {
 		t.Error("an empty tool set was built")
 	}
-	if _, err := ToolCaveat("aeroprove_read", "AEROPROVE_READ"); err == nil {
+	if _, err := ToolCaveat("aertun_read", "AERTUN_READ"); err == nil {
 		t.Error("an uppercase tool name was built")
 	}
 	if _, err := ToolCaveat("no/slashes"); err == nil {
@@ -431,11 +431,11 @@ func TestConstructorsRefuseWhatTheyCannotCarry(t *testing.T) {
 		t.Error("a word outside the vocabulary was built")
 	}
 	// Canonical order: two spellings of one set are one set.
-	a, err := ToolCaveat("aeroprove_write", "aeroprove_read")
+	a, err := ToolCaveat("aertun_write", "aertun_read")
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := ToolCaveat("aeroprove_read", "aeroprove_write")
+	b, err := ToolCaveat("aertun_read", "aertun_write")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -443,7 +443,7 @@ func TestConstructorsRefuseWhatTheyCannotCarry(t *testing.T) {
 		t.Fatalf("the same set minted two spellings: %q and %q", a, b)
 	}
 	if _, ok := Parse("vg_s" + marker + enc(payload("agent:watcher/run-1",
-		[]Caveat{{Kind: KindTool, Value: "aeroprove_write,aeroprove_read"}},
+		[]Caveat{{Kind: KindTool, Value: "aertun_write,aertun_read"}},
 		rootSig(aKey(), "agent:watcher/run-1")))); ok {
 		t.Error("an out-of-order tool set parsed; this program writes one order")
 	}
@@ -499,8 +499,8 @@ func TestPurposesHaveAnOrder(t *testing.T) {
 // TestCaveatReaders: Tools and Int, the two readers the gate uses, on the
 // grammars Parse guarantees.
 func TestCaveatReaders(t *testing.T) {
-	tools, _ := ToolCaveat("aeroprove_read", "aeroprove_write")
-	if got := tools.Tools(); len(got) != 2 || got[0] != "aeroprove_read" {
+	tools, _ := ToolCaveat("aertun_read", "aertun_write")
+	if got := tools.Tools(); len(got) != 2 || got[0] != "aertun_read" {
 		t.Fatalf("Tools() = %v", got)
 	}
 	exp := ExpCaveat(time.Unix(1_700_000_000, 0).UTC())

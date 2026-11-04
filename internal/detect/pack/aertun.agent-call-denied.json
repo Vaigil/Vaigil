@@ -1,0 +1,111 @@
+{
+  "id": "aertun.agent-call-denied",
+  "title": "A model's tool call was refused",
+  "why": "the gateway told an agent no; once is a boundary working, and a run of them from one actor is a loop or a hijack, which the correlation over this counts. Counted by a correlation, and raises nothing itself",
+  "blind": "calls that failed for their own reasons rather than being refused, which arrive as failures and not denials",
+  "sources": [
+    "aertun/agent"
+  ],
+  "severity": 2,
+  "when": {
+    "all": [
+      {
+        "match": {
+          "field": "raw.action",
+          "op": "equals",
+          "values": [
+            "mcp.call"
+          ]
+        }
+      },
+      {
+        "match": {
+          "field": "disposition",
+          "op": "equals",
+          "values": [
+            "blocked"
+          ]
+        }
+      }
+    ]
+  },
+  "quiet": true,
+  "fixtures": [
+    {
+      "name": "a tool call refused",
+      "match": true,
+      "event": {
+        "source": "aertun/agent",
+        "time": "2026-10-01T09:00:00Z",
+        "received": "2026-10-01T09:00:05Z",
+        "class": 6003,
+        "disposition": 2,
+        "actor": {
+          "issuer": "aertun",
+          "value": "mcp-client"
+        },
+        "message": "mcp.call",
+        "raw": {
+          "action": "mcp.call",
+          "outcome": "denied",
+          "resource": "/mcp",
+          "model": "mcp-client",
+          "tool": "write_file",
+          "operation": "put",
+          "client": "claude-code"
+        }
+      }
+    },
+    {
+      "name": "a tool call that worked",
+      "match": false,
+      "event": {
+        "source": "aertun/agent",
+        "time": "2026-10-01T09:00:00Z",
+        "received": "2026-10-01T09:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "aertun",
+          "value": "mcp-client"
+        },
+        "message": "mcp.call",
+        "raw": {
+          "action": "mcp.call",
+          "outcome": "success",
+          "resource": "/mcp",
+          "model": "mcp-client",
+          "tool": "read_finding",
+          "operation": "get",
+          "client": "claude-code"
+        }
+      }
+    },
+    {
+      "name": "a proposal, not a call",
+      "match": false,
+      "event": {
+        "source": "aertun/agent",
+        "time": "2026-10-01T09:00:00Z",
+        "received": "2026-10-01T09:00:05Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "aertun",
+          "value": "analyst:triage"
+        },
+        "message": "proposal.finding",
+        "raw": {
+          "action": "proposal.finding",
+          "outcome": "success",
+          "resource": "/f_104",
+          "model": "gpt-oss:20b",
+          "finding": "f_104",
+          "agent": "triage",
+          "to": "benign",
+          "confidence": "0.80"
+        }
+      }
+    }
+  ]
+}

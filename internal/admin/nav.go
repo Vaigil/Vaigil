@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/find"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/find"
 )
 
 // The navigation, as data.
@@ -131,7 +131,7 @@ var destinations = []destination{
 // rather than the next time somebody ships. The cost is that the link target
 // is no longer verifiable by compiling this program, which is what docSections
 // below exists to hold on to.
-const DocsBase = "https://aeroprove.github.io/"
+const DocsBase = "https://aertun.github.io/"
 
 // docSections is every anchor the published manual carries.
 //
@@ -248,7 +248,7 @@ func (s *Server) navigation(r *http.Request, p principal, current string) []navG
 }
 
 // NavOrderCookie holds a person's chosen arrangement.
-const NavOrderCookie = "aeroprove_nav_order"
+const NavOrderCookie = "aertun_nav_order"
 
 // storedOrder reads the arrangement from the request.
 //

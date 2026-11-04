@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/oidc"
+	"github.com/aertun/aertun/internal/oidc"
 )
 
 // The transmitter half, proved the only way that means anything here: a
@@ -24,8 +24,8 @@ import (
 // that cannot pretend otherwise.
 
 const (
-	site = "https://aeroprove.acme.example" // this deployment, as the issuer
-	part = "https://partner.example/caep"   // one receiver, as the audience
+	site = "https://aertun.acme.example"  // this deployment, as the issuer
+	part = "https://partner.example/caep" // one receiver, as the audience
 )
 
 func emitter(t *testing.T) *Emitter {
@@ -172,7 +172,7 @@ func TestAnEmitterWithoutAnIdentityRefusesToSign(t *testing.T) {
 	if _, err := NewEmitter(key, "not a url"); err == nil {
 		t.Error("a non-URL issuer was accepted")
 	}
-	if _, err := NewEmitter(key, "ftp://aeroprove.example"); err == nil {
+	if _, err := NewEmitter(key, "ftp://aertun.example"); err == nil {
 		t.Error("a non-https issuer was accepted")
 	}
 	if _, err := NewEmitter(nil, site); err == nil {

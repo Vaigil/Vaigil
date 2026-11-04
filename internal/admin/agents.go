@@ -13,17 +13,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/agentreg"
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/spool"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/agentreg"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/spool"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // The Agents board: what the agents in this estate have been doing, from the
-// two places aeroprove already hears them.
+// two places aertun already hears them.
 //
 // Everything counted here is observed telemetry, read from the spool on
-// request the way Events and Hunt read it: aeroprove/agent — the sidecar's tool
+// request the way Events and Hunt read it: aertun/agent — the sidecar's tool
 // calls and the analyst's proposals, with the agent as the actor under the
 // audit log's pseudonym — and otel/genai — GenAI spans pushed over OTLP, with
 // the agent identity the SDK set as the actor. A row exists because an event
@@ -47,7 +47,7 @@ import (
 // An agent's page also groups its window into sessions: every otel/genai
 // event that carried one trace id, laid out as a timeline a finding's
 // evidence can cite. The trace id is the events' own edge and the only one
-// grouped on — aeroprove/agent events carry no trace id, so they stay one
+// grouped on — aertun/agent events carry no trace id, so they stay one
 // chronological stream, said as that rather than fenced into sessions
 // nobody observed the edges of. The one annotation the timelines add is
 // arithmetic over the same window: a tool the agent had not used in it
@@ -74,7 +74,7 @@ const (
 
 	// agentSidecar is the sidecar's tool calls and the analyst's proposals,
 	// with the agent as the actor under the audit log's pseudonym.
-	agentSidecar = "aeroprove/agent"
+	agentSidecar = "aertun/agent"
 	// agentOtel is GenAI telemetry pushed over OTLP, with the agent
 	// identity the SDK set as the actor.
 	agentOtel = "otel/genai"
@@ -92,8 +92,8 @@ const (
 // whatever was sent.
 func agentSourceKey(q string) string {
 	switch q {
-	case "aeroprove":
-		return "aeroprove"
+	case "aertun":
+		return "aertun"
 	case "otel":
 		return "otel"
 	}
@@ -115,7 +115,7 @@ type agentTool struct {
 // agentRow is one observed agent: everything the window's events said about
 // one actor key.
 type agentRow struct {
-	// Actor is the identity as stored — a pseudonym under aeroprove/agent, the
+	// Actor is the identity as stored — a pseudonym under aertun/agent, the
 	// SDK's identifier under otel/genai — shown verbatim and never resolved
 	// into a name nobody recorded.
 	Actor telemetry.ID
@@ -150,7 +150,7 @@ type agentRow struct {
 	TokensIn, TokensOut   int64
 	TokensInS, TokensOutS string
 
-	// Names is what the aeroprove/agent records called it (the event's own
+	// Names is what the aertun/agent records called it (the event's own
 	// agent field): a name the event carried, not one this page chose.
 	Names []string
 
@@ -395,7 +395,7 @@ func (s *Server) agentScan(now time.Time, source, want string) (agentScan, error
 			seenActor[e.Actor.String()] = true
 			out.Observed++
 		}
-		if source == "aeroprove" && e.Source != agentSidecar {
+		if source == "aertun" && e.Source != agentSidecar {
 			return nil
 		}
 		if source == "otel" && e.Source != agentOtel {
@@ -644,7 +644,7 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 		body := "Nothing has ever been collected here, so no agent has been " +
 			"observed. That is not a quiet estate of agents — it is one " +
 			"nothing is watching. Agent events arrive from the MCP sidecar " +
-			"and the analyst (aeroprove/agent), and from GenAI telemetry " +
+			"and the analyst (aertun/agent), and from GenAI telemetry " +
 			"pushed over OTLP (otel/genai)."
 		// The registry is a separate record, and what it holds is a fact
 		// even where nothing observes the agents it names: said here so a
@@ -683,8 +683,8 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 	data["Filtered"] = source != ""
 	data["Filters"] = []agentFilter{
 		{Label: "All sources", Href: "/security/agents", Count: scan.Read, On: source == ""},
-		{Label: agentSidecar, Href: "/security/agents?source=aeroprove",
-			Count: scan.FromSidecar, On: source == "aeroprove"},
+		{Label: agentSidecar, Href: "/security/agents?source=aertun",
+			Count: scan.FromSidecar, On: source == "aertun"},
 		{Label: agentOtel, Href: "/security/agents?source=otel",
 			Count: scan.FromOtel, On: source == "otel"},
 	}
@@ -819,7 +819,7 @@ func agentDur(d time.Duration) string {
 // edge is the only thing grouped on. An otel event without a trace id
 // belongs to no session and is counted for the page to say so; it stays in
 // Recent events, ungrouped rather than fenced into a session of one.
-// aeroprove/agent events draw no edges at all, so they are one stream in
+// aertun/agent events draw no edges at all, so they are one stream in
 // arrival order, said as a rendering choice and never as one session.
 //
 // The first-use marks are computed in the same single pass over both
@@ -1108,12 +1108,12 @@ func (s *Server) handleAgent(w http.ResponseWriter, r *http.Request) {
 func (s *Server) agentNotFound(w http.ResponseWriter, r *http.Request,
 	p principal, id string) {
 
-	body := "Nothing arrived from aeroprove/agent or otel/genai with that " +
+	body := "Nothing arrived from aertun/agent or otel/genai with that " +
 		"exact actor in the last seven days. It may have gone quiet before " +
 		"then, or the identity is not the one the events carry. Every agent " +
 		"observed is on the Agents board."
 	if id != "" {
-		body = "Nothing arrived from aeroprove/agent or otel/genai with the " +
+		body = "Nothing arrived from aertun/agent or otel/genai with the " +
 			"actor " + id + " in the last seven days. It may have gone " +
 			"quiet before then, or the identity is not the one the events " +
 			"carry. Every agent observed is on the Agents board."

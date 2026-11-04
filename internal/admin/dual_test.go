@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/config"
-	"github.com/aeroprove/aeroprove/internal/dual"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/config"
+	"github.com/aertun/aertun/internal/dual"
 )
 
 // On the People screen, making somebody an administrator waits for a

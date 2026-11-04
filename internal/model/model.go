@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/fetch"
+	"github.com/aertun/aertun/internal/fetch"
 )
 
 // RequestTimeout bounds one completion.
@@ -117,15 +117,15 @@ func isLocalEndpoint(raw string) (bool, string) {
 
 // NewHTTPModel reads configuration from the environment.
 func NewHTTPModel() (*HTTPModel, error) {
-	base := os.Getenv("AEROPROVE_MODEL_URL")
+	base := os.Getenv("AERTUN_MODEL_URL")
 	if base == "" {
 		base = "https://ollama.com/v1"
 	}
-	key := os.Getenv("AEROPROVE_MODEL_KEY")
+	key := os.Getenv("AERTUN_MODEL_KEY")
 	if key == "" {
 		key = os.Getenv("OLLAMA_API_KEY")
 	}
-	model := os.Getenv("AEROPROVE_MODEL")
+	model := os.Getenv("AERTUN_MODEL")
 	if model == "" {
 		model = "gpt-oss:20b"
 	}
@@ -142,8 +142,8 @@ func NewHTTPModelAt(base, key, model string) (*HTTPModel, error) {
 		if !local {
 			return nil, fmt.Errorf(
 				"no model key, and %s is not a model on this machine (%s).\n"+
-					"  Set AEROPROVE_MODEL_KEY for a hosted endpoint, or point "+
-					"AEROPROVE_MODEL_URL at a local one — Ollama, llama.cpp, LM "+
+					"  Set AERTUN_MODEL_KEY for a hosted endpoint, or point "+
+					"AERTUN_MODEL_URL at a local one — Ollama, llama.cpp, LM "+
 					"Studio and vLLM all serve this protocol and need no key",
 				base, why)
 		}

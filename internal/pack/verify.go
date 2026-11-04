@@ -106,7 +106,7 @@ func Verify(dir string, opts VerifyOptions) (*Verified, error) {
 	if opts.Anchor == nil {
 		return fail("root of trust",
 			"this store has no trusted root.json under its content "+
-				"directory. Run aeroprove content keygen on the producing "+
+				"directory. Run aertun content keygen on the producing "+
 				"store, or copy that store's root.json here; a pack is "+
 				"only as verified as the anchor it is checked against")
 	}
@@ -213,7 +213,7 @@ func Verify(dir string, opts VerifyOptions) (*Verified, error) {
 				"every step is a rotation the old key signed — so a root "+
 				"that skips versions cannot be walked. Copy the producer's "+
 				"current root.json into this store deliberately, or update "+
-				"AeroProve",
+				"aertun",
 			root.Signed.Version, opts.Anchor.Signed.Version)
 
 	default:
@@ -229,7 +229,7 @@ func Verify(dir string, opts VerifyOptions) (*Verified, error) {
 	if exp, ok := expiryOf(root.Signed.Expires, now); !ok {
 		return fail("root.json expiry",
 			"the trusted root expired %s. Updates are refused; installed "+
-				"content keeps running. Re-anchor deliberately: aeroprove "+
+				"content keeps running. Re-anchor deliberately: aertun "+
 				"content keygen, or copy the producer's current root.json",
 			exp)
 	}
@@ -342,7 +342,7 @@ func Verify(dir string, opts VerifyOptions) (*Verified, error) {
 			if floor, ferr := ParseVersion(p.Manifest.Engine.MinimumBinary); ferr == nil &&
 				CompareVersions(got, floor) < 0 {
 				return fail("minimum binary version",
-					"the pack needs AeroProve %s and this binary reports %s",
+					"the pack needs aertun %s and this binary reports %s",
 					p.Manifest.Engine.MinimumBinary, opts.BinaryVersion)
 			}
 		}
@@ -351,7 +351,7 @@ func Verify(dir string, opts VerifyOptions) (*Verified, error) {
 		firstClaimed(p.Manifest.Engine.MinimumBinary, opts.BinaryVersion))
 
 	// 8. The content, through the shipping loaders — the same Validate and
-	// fixtures `aeroprove detect run` would apply. There is no second
+	// fixtures `aertun detect run` would apply. There is no second
 	// validator to disagree with the engine; that disagreement is the
 	// exact shape of the CrowdStrike failure.
 	if err := p.ValidateContent(); err != nil {
@@ -387,10 +387,10 @@ func firstClaimed(floor, binary string) string {
 		return "the pack claims no minimum binary"
 	}
 	if _, err := ParseVersion(binary); err != nil {
-		return fmt.Sprintf("the pack needs AeroProve %s; this binary reports "+
+		return fmt.Sprintf("the pack needs aertun %s; this binary reports "+
 			"an unparseable version %q, so the floor is taken on trust as a "+
 			"dev build", floor, binary)
 	}
-	return fmt.Sprintf("the pack needs AeroProve %s and this binary is %s",
+	return fmt.Sprintf("the pack needs aertun %s and this binary is %s",
 		floor, binary)
 }

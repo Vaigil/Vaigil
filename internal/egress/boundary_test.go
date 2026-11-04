@@ -3,7 +3,7 @@
 
 package egress_test
 
-import "github.com/aeroprove/aeroprove/internal/egress"
+import "github.com/aertun/aertun/internal/egress"
 
 import (
 	"fmt"

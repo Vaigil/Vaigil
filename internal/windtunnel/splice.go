@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/spool"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/spool"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // The splicer: a scenario's events placed on the two clocks and interleaved
@@ -252,14 +252,14 @@ func Place(sc *Scenario, steps []Step, base []telemetry.Event, seed int64,
 				strings.Join(LatenessSources(), ", "))
 		}
 	}
-	if hist.quantile(1) == 0 {
-		return nil, fmt.Errorf("%s: the base stream shows no observed arrival "+
-			"delay, so a measured splice would arrive at the speed of a "+
-			"local function call — trivially distinguishable from live "+
-			"traffic, and flattering to every windowed correlation in the "+
-			"stack. Declare a lateness profile (%s, %s) or use a base "+
-			"stream that arrived like traffic does", sc.ID, ProfileCloudAudit,
-			ProfileLocalAgent)
+	if worst := hist.quantile(1); worst <= time.Second {
+		return nil, fmt.Errorf("%s: the base stream's worst observed arrival "+
+			"delay is %s, so a measured splice would arrive at the speed "+
+			"of a local function call — trivially distinguishable from "+
+			"live traffic, and flattering to every windowed correlation in "+
+			"the stack. Declare a lateness profile (%s, %s) or use a base "+
+			"stream that arrived like traffic does", sc.ID, worst,
+			ProfileCloudAudit, ProfileLocalAgent)
 	}
 	delays, err := synthesiseLateness(sc.ID, src, hist, len(expanded), seed)
 	if err != nil {

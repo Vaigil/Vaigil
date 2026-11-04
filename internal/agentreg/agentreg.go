@@ -24,7 +24,7 @@
 //
 // An agent entry binds to tokens by a naming convention: a token issued as
 // agent:NAME identifies as that agent (Bind). The convention is weak in the
-// way the token-kind heuristic in cmd/aeroprove/caller.go is weak and is said
+// way the token-kind heuristic in cmd/aertun/caller.go is weak and is said
 // out loud there — it is a claim the registry then has to honour or refuse,
 // not a proof. What makes it safe is the direction of the failure: a token
 // claiming an agent name is refused by every gate until a registry row says
@@ -34,7 +34,7 @@
 //
 // Absent means refused. No registry file, no entry for a name, an unreadable
 // file — each leaves the caller with no authority it did not already have as
-// a plain credential, and the enforcement in cmd/aeroprove refuses the agent
+// a plain credential, and the enforcement in cmd/aertun refuses the agent
 // outright. An unregistered agent is nobody.
 package agentreg
 
@@ -46,14 +46,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/atomicfile"
+	"github.com/aertun/aertun/internal/atomicfile"
 )
 
 // TokenPrefix is what a token's name begins with when it was issued to a
 // registered agent: "agent:watcher" identifies as the agent "watcher".
 //
 // A prefix on the token name rather than a new field on the token record,
-// because `aeroprove token issue` is the one path that mints credentials and it
+// because `aertun token issue` is the one path that mints credentials and it
 // needs no change: the name the operator already chooses becomes the binding.
 // The cost is that the convention is a string, so Bind validates nothing —
 // the registry does the deciding.
@@ -64,7 +64,7 @@ const TokenPrefix = "agent:"
 // refused, because an allowlist that accepted names nothing enforces would
 // be a decoration — an agent "allowed" a tool that does not exist has been
 // granted a permission nobody checks the meaning of.
-var tools = []string{"aeroprove_find", "aeroprove_read", "aeroprove_write"}
+var tools = []string{"aertun_find", "aertun_read", "aertun_write"}
 
 // Tools lists what an entry may allow, in the order the interface presents
 // them. A copy, so a caller cannot widen the set through it.
@@ -183,7 +183,7 @@ func (s Store) Load() ([]Agent, error) {
 		// Unreadable is not empty. An entry that cannot be read cannot be
 		// reviewed, so the caller is told rather than left with a registry
 		// that silently forgot everybody — the same line the policy draws
-		// (cmd/aeroprove policyInUse): present-and-broken means refuse.
+		// (cmd/aertun policyInUse): present-and-broken means refuse.
 		return nil, fmt.Errorf("%s: %w", s.Path, err)
 	}
 	out := append([]Agent(nil), f.Agents...)
@@ -255,13 +255,13 @@ func (s Store) Add(a Agent, now time.Time) error {
 // disabled agent nobody can see is one nobody can ask about.
 //
 // Revoking the agent's tokens is the other half of the kill and is done by
-// the command (cmd/aeroprove) in the same action, not here: the registry knows
+// the command (cmd/aertun) in the same action, not here: the registry knows
 // who the agent is and the token store is where the credentials live.
 func (s Store) Disable(name, why, by string, now time.Time) error {
 	return atomicfile.Update(s.Path, func(f *file) error {
 		i := f.find(name)
 		if i < 0 {
-			return fmt.Errorf("there is no agent %q (aeroprove agent list)", name)
+			return fmt.Errorf("there is no agent %q (aertun agent list)", name)
 		}
 		if f.Agents[i].Status == Disabled {
 			// Refused rather than quiet, for the same reason revoking a
@@ -285,7 +285,7 @@ func (s Store) Enable(name, by string, now time.Time) error {
 	return atomicfile.Update(s.Path, func(f *file) error {
 		i := f.find(name)
 		if i < 0 {
-			return fmt.Errorf("there is no agent %q (aeroprove agent list)", name)
+			return fmt.Errorf("there is no agent %q (aertun agent list)", name)
 		}
 		if f.Agents[i].Status != Disabled {
 			return fmt.Errorf("agent %q is not disabled", name)
@@ -305,7 +305,7 @@ func (s Store) Allow(name string, add, remove []string, by string, now time.Time
 	return atomicfile.Update(s.Path, func(f *file) error {
 		i := f.find(name)
 		if i < 0 {
-			return fmt.Errorf("there is no agent %q (aeroprove agent list)", name)
+			return fmt.Errorf("there is no agent %q (aertun agent list)", name)
 		}
 		add, err := cleanTools(add)
 		if err != nil {

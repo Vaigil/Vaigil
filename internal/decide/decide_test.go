@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aeroprove/aeroprove/internal/model"
+	"github.com/aertun/aertun/internal/model"
 )
 
 // seq answers with each reply in turn, cycling, and records prompts.

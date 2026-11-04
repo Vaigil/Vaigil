@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/audit"
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/detect"
+	"github.com/aertun/aertun/internal/audit"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/detect"
 )
 
 // The Detections screen: what each rule has been worth, which ring it is

@@ -119,7 +119,7 @@ func TestFixtureBaseStreamIsByteIdenticalAcrossRuns(t *testing.T) {
 	a, countA := BaseDigest(DefaultBase())
 	b, countB := BaseDigest(DefaultBase())
 	if a != b {
-		t.Fatal("the default base stream digests differently on two "+
+		t.Fatal("the default base stream digests differently on two " +
 			"generations; a moving fixture is a different stream every run")
 	}
 	if countA != countB || countA < 20 {

@@ -1,4 +1,4 @@
-// AeroProve admin: the one script.
+// aertun admin: the one script.
 //
 // Everything here is an addition. Every screen works with it switched off,
 // because a browser that blocks it, a policy that forbids it, or a person who
@@ -304,10 +304,10 @@
   // again with their passkey without leaving the page, so nothing on it
   // is lost. Only the person the page was theirs carries on with it.
   (function () {
-    var meta = document.querySelector('meta[name="aeroprove-idle"]');
+    var meta = document.querySelector('meta[name="aertun-idle"]');
     var idle = meta ? parseInt(meta.content, 10) * 1000 : 0;
     if (!(idle > 0)) return;
-    var whoMeta = document.querySelector('meta[name="aeroprove-who"]');
+    var whoMeta = document.querySelector('meta[name="aertun-who"]');
     var who = whoMeta ? whoMeta.content : "";
     var told = Date.now(), used = told, warning = null, ended = false;
     function close() {
@@ -700,7 +700,7 @@
       try { return JSON.parse(e.data); } catch (x) { return null; }
     }
 
-    var es = null, fails = 0, polled = cookieNamed("aeroprove_poll") !== "";
+    var es = null, fails = 0, polled = cookieNamed("aertun_poll") !== "";
 
     // The fallback, used once: after three failures the page stops
     // pretending and reloads itself once a minute instead, visibly. Not
@@ -710,7 +710,7 @@
     function fallback() {
       if (polled) { badge.textContent = "○ every 60s"; return; }
       es.close();
-      document.cookie = "aeroprove_poll=1; path=/; Max-Age=3600; SameSite=Strict";
+      document.cookie = "aertun_poll=1; path=/; Max-Age=3600; SameSite=Strict";
       location.reload();
     }
 
@@ -722,7 +722,7 @@
         // Holding the stream again ends poll mode on the next load: the
         // cookie goes now, the reload that follows renders live.
         if (polled) {
-          document.cookie = "aeroprove_poll=; path=/; Max-Age=0; SameSite=Strict";
+          document.cookie = "aertun_poll=; path=/; Max-Age=0; SameSite=Strict";
           polled = false;
         }
       };

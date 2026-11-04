@@ -15,9 +15,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/aeroprove/aeroprove/internal/correlate"
-	"github.com/aeroprove/aeroprove/internal/detect"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/correlate"
+	"github.com/aertun/aertun/internal/detect"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // The seed corpus: six scenarios and their twins, embedded as data files the
@@ -27,7 +27,7 @@ import (
 // The corpus and the pack are each other's fixtures. A pack change that
 // makes the reference stack miss a scenario breaks the build here, and a
 // scenario change that wakes a twin breaks it too — which is exactly what
-// AeroProveBench does for the analyst, done to the detections.
+// aertunbench does for the analyst, done to the detections.
 
 //go:embed scenarios/*.json
 var scenarioFS embed.FS
@@ -145,7 +145,7 @@ func ReadBase(path string) ([]telemetry.Event, error) {
 
 // Reference is the calibrated instrument: the detection pack that ships with
 // the program, loaded the way `detect run` loads it and replayed the way the
-// shadow replay replays it. Reference mode measures what AeroProve's own
+// shadow replay replays it. Reference mode measures what aertun's own
 // detections caught on the stream, and the scorecard says so in as many
 // words — it is the instrument, not the organisation's controls.
 type Reference struct {

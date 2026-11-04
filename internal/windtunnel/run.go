@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/correlate"
-	"github.com/aeroprove/aeroprove/internal/detect"
-	"github.com/aeroprove/aeroprove/internal/pack"
-	"github.com/aeroprove/aeroprove/internal/spool"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/correlate"
+	"github.com/aertun/aertun/internal/detect"
+	"github.com/aertun/aertun/internal/pack"
+	"github.com/aertun/aertun/internal/spool"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // The run: splice, replay, join, score.

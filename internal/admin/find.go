@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/config"
-	"github.com/aeroprove/aeroprove/internal/find"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/config"
+	"github.com/aertun/aertun/internal/find"
 )
 
 // Looking for one thing, across everything.

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aeroprove/aeroprove/internal/appsec"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/appsec"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // semgrepish is the shape Semgrep emits: rules in the driver, a
@@ -364,15 +364,15 @@ func TestTheGapBetweenAcceptedAndDisplayed(t *testing.T) {
 // on to whoever receives this.
 func TestWriteAlwaysEmitsAFingerprint(t *testing.T) {
 	alerts := []appsec.Alert{
-		{Tool: "aeroprove", Rule: "hardcoded-key", Kind: appsec.Secret,
+		{Tool: "aertun", Rule: "hardcoded-key", Kind: appsec.Secret,
 			Message: "a key in source", Severity: telemetry.SeverityCritical,
 			Path: "deploy/env.sh", Line: 7, Snippet: "KEY=abc",
 			Symbol: "deploy"},
-		{Tool: "aeroprove", Rule: "hardcoded-key", Kind: appsec.Secret,
+		{Tool: "aertun", Rule: "hardcoded-key", Kind: appsec.Secret,
 			Message: "another", Severity: telemetry.SeverityHigh,
 			Path: "deploy/other.sh", Line: 3, Given: "carried-through"},
 	}
-	l, err := Write("aeroprove", "1.0.0", alerts,
+	l, err := Write("aertun", "1.0.0", alerts,
 		Provenance{RepositoryURI: "https://github.com/acme/api",
 			RevisionID: "deadbeef", Branch: "main"})
 	if err != nil {
@@ -416,14 +416,14 @@ func TestWriteAlwaysEmitsAFingerprint(t *testing.T) {
 // TestRoundTrip: what this writes, this reads, and the severities survive.
 func TestRoundTrip(t *testing.T) {
 	in := []appsec.Alert{
-		{Tool: "aeroprove", Rule: "a", Kind: appsec.Weakness, Message: "m",
+		{Tool: "aertun", Rule: "a", Kind: appsec.Weakness, Message: "m",
 			Severity: telemetry.SeverityCritical, Path: "x.go", Line: 1},
-		{Tool: "aeroprove", Rule: "b", Kind: appsec.Dependency, Message: "m",
+		{Tool: "aertun", Rule: "b", Kind: appsec.Dependency, Message: "m",
 			Severity: telemetry.SeverityMedium, Path: "go.mod", Line: 2},
-		{Tool: "aeroprove", Rule: "c", Kind: appsec.Secret, Message: "m",
+		{Tool: "aertun", Rule: "c", Kind: appsec.Secret, Message: "m",
 			Severity: telemetry.SeverityLow, Path: "y.sh", Line: 3},
 	}
-	l, err := Write("aeroprove", "1.0.0", in, Provenance{})
+	l, err := Write("aertun", "1.0.0", in, Provenance{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -65,8 +65,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aeroprove/aeroprove/internal/atomicfile"
-	"github.com/aeroprove/aeroprove/internal/model"
+	"github.com/aertun/aertun/internal/atomicfile"
+	"github.com/aertun/aertun/internal/model"
 )
 
 // Kind is what shape of answer a question takes.

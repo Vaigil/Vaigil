@@ -32,7 +32,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/atomicfile"
+	"github.com/aertun/aertun/internal/atomicfile"
 )
 
 // The numbers. Threshold and LockFor are PCI DSS 8.3.4's; Ceiling is NIST

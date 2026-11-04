@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/dual"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/dual"
 )
 
 // Privileged changes that wait for a second administrator (internal/dual):
@@ -97,7 +97,7 @@ func (s *Server) applyDual(r dual.Request, by string) error {
 		}
 		return s.Settings.Save(cfg)
 	case dual.Token:
-		// Issued to whoever asked, on the command line: aeroprove pending redeem.
+		// Issued to whoever asked, on the command line: aertun pending redeem.
 		return nil
 	}
 	if s.Dual.Apply == nil {
@@ -170,7 +170,7 @@ func (s *Server) handlePeoplePending(w http.ResponseWriter, r *http.Request) {
 	s.audit(map[string]string{"approve": "dual.approved", "decline": "dual.declined", "withdraw": "dual.withdrawn"}[do], "/", detail)
 	msg := req.What + ": " + dual.StateWords(req, now) + "."
 	if do == "approve" && req.Kind == dual.Token {
-		msg += " " + req.By + " receives it with aeroprove pending redeem " + req.ID + ", within a day."
+		msg += " " + req.By + " receives it with aertun pending redeem " + req.ID + ", within a day."
 	}
 	s.peopleBack(w, r, msg)
 }

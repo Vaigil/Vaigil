@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/estate"
-	"github.com/aeroprove/aeroprove/internal/lifecycle"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/estate"
+	"github.com/aertun/aertun/internal/lifecycle"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // Device compliance on the workforce screens: each machine measured

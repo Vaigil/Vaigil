@@ -52,7 +52,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/audit"
+	"github.com/aertun/aertun/internal/audit"
 )
 
 // Format is an export format.
@@ -86,7 +86,7 @@ func (o Options) withDefaults() Options {
 		o.Vendor = "rsh1k"
 	}
 	if o.Product == "" {
-		o.Product = "aeroprove"
+		o.Product = "aertun"
 	}
 	if o.Version == "" {
 		o.Version = "1"
@@ -245,7 +245,7 @@ const (
 // did.
 //
 // So the attestation is the chain, expressed in the schema's own terms rather
-// than in this program's. A consumer that has never heard of AeroProve can
+// than in this program's. A consumer that has never heard of aertun can
 // follow prev_event.uid backwards and check each fingerprint.
 //
 // # What is deliberately not claimed
@@ -454,7 +454,7 @@ func activityFor(e audit.Event) int {
 	// the write tool: an agent's reading is most of what it does, and an
 	// export that called every one an update would bury the writes.
 	if e.Action == "mcp.call" {
-		if e.Detail["tool"] == "aeroprove_write" {
+		if e.Detail["tool"] == "aertun_write" {
 			return 3
 		}
 		return 2

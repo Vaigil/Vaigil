@@ -105,7 +105,7 @@ func KeyID(pub *ecdsa.PublicKey) string {
 	size := (pub.Curve.Params().BitSize + 7) / 8
 	sum := sha256.Sum256(append(pub.X.FillBytes(make([]byte, size)),
 		pub.Y.FillBytes(make([]byte, size))...))
-	return "aeroprove-ssf-" + hex.EncodeToString(sum[:])[:12]
+	return "aertun-ssf-" + hex.EncodeToString(sum[:])[:12]
 }
 
 // NewEmitter checks what a transmitter has to have: a P-256 key, and an

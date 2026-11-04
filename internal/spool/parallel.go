@@ -32,7 +32,7 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // fanBuffer is how many events one segment's worker may hold ahead of the

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aeroprove/aeroprove/internal/httpsig"
+	"github.com/aertun/aertun/internal/httpsig"
 )
 
 // A sender signs only the older Digest; somebody on the way replaces the

@@ -5,14 +5,14 @@ package scim
 
 import (
 	"encoding/json"
-	"github.com/aeroprove/aeroprove/internal/clientip"
+	"github.com/aertun/aertun/internal/clientip"
 	"net/http"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 
-	"github.com/aeroprove/aeroprove/internal/throttle"
+	"github.com/aertun/aertun/internal/throttle"
 )
 
 // Handler serves /scim/v2 for an identity provider.
@@ -108,7 +108,7 @@ var serviceProviderConfig = map[string]any{
 	"sort":           map[string]bool{"supported": false},
 	"etag":           map[string]bool{"supported": false},
 	"authenticationSchemes": []map[string]any{{"type": "oauthbearertoken", "name": "Bearer token",
-		"description": "The provisioning token made with aeroprove scim token"}},
+		"description": "The provisioning token made with aertun scim token"}},
 }
 
 func resourceTypes(prefix string) map[string]any {

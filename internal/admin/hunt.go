@@ -13,17 +13,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroprove/aeroprove/internal/auth"
-	"github.com/aeroprove/aeroprove/internal/detect"
-	"github.com/aeroprove/aeroprove/internal/spool"
-	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/detect"
+	"github.com/aertun/aertun/internal/spool"
+	"github.com/aertun/aertun/internal/telemetry"
 )
 
 // Hunting: looking at the events before there is a rule.
 //
 // Stacking — sort by how rare a thing is and read the top — is the oldest
 // technique in security analysis and the one that keeps earning its place,
-// because malicious activity is rare by definition. `aeroprove hunt` did it
+// because malicious activity is rare by definition. `aertun hunt` did it
 // over a file somebody exported. This does it over the store, where the
 // events are.
 //
