@@ -1,0 +1,176 @@
+name: scorecard
+
+# The published miss rate: a weekly run of the whole shipped scenario
+# corpus in reference mode, dual-signed, appended to the `scorecards`
+# branch. Nobody else publishes their own running product's miss rate as a
+# standing, verifiable number; the whole point of doing it is that the
+# number a stranger reads is the number a third party can re-verify
+# offline with a public key — so this workflow verifies its own output
+# before it publishes, and verifies the pushed bytes after.
+#
+# Actions are pinned to commits, not tags: a tag is a mutable pointer in
+# somebody else's repository. The version is in a trailing comment so a
+# person can read it, and Dependabot updates both together.
+
+on:
+  schedule:
+    # Mondays, 06:23 UTC. Off the exact hour, which is when everybody
+    # else's cron lands and GitHub's queue is deepest.
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
+
+# Read-only at the top, named rather than inherited from a repository
+# default somebody can widen without touching this file. The one job
+# below widens to write for the publication step, and only after it has
+# verified what it is about to publish.
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      # The push to the `scorecards` branch. House precedent is the
+      # release workflow: one job that runs its checks first and holds
+      # write from the start, because the write is the point of the job.
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      # the binary name matches the Makefile build target
+      # invokes it by. The verify path is offline and needs no store.
+      - name: Build the engine
+        run: go build -o bin/aertun ./cmd/aertun
+
+      # The key story, stated where the key is used:
+      #
+      # SCORECARD_SIGNING_KEY is the private half of a DEDICATED CI
+      # scorecard key — one dual key (Ed25519 + ML-DSA-65 seeds) in the
+      # same seeds-on-disk format `windtunnel run --key` loads. It is
+      # not, and must never be, the content plane's offline root key or
+      # any store's release key: those anchor pack distribution, a
+      # different trust decision made by a different ceremony
+      # (`content keygen`). Even if the same key bytes were reused, the
+      # signature context (aertun/windtunnel-scorecard/v1) is inside the
+      # signed bytes, so a scorecard signature cannot be re-presented as
+      # a pack signature or an audit head — but the keys are kept
+      # separate anyway, because a key doing two jobs is a key whose
+      # theft is twice as bad.
+      #
+      # The public half is committed twice, deliberately: at the root of
+      # the `scorecards` branch (what a stranger downloads) and on main
+      # under scorecards/public-key.json beside the genesis card (what
+      # scorecard_seed_test.go pins green in CI forever). Rotation is a
+      # person's act: a new secret, then one open commit replacing the
+      # committed public key and the seed pair together.
+      - name: Unseal the signing key
+        env:
+          KEY: ${{ secrets.SCORECARD_SIGNING_KEY }}
+        run: |
+          umask 077
+          printf '%s' "$KEY" > "$RUNNER_TEMP/scorecard-signing.key"
+          test -s "$RUNNER_TEMP/scorecard-signing.key" || {
+            echo "::error::the SCORECARD_SIGNING_KEY secret is empty or unset"
+            exit 1
+          }
+
+      # One datestamp for the whole run, so the card's name, its commit
+      # and the post-push check all agree even if a manual dispatch
+      # crosses midnight UTC mid-job.
+      - name: The run's datestamp
+        run: echo "CARD_DATE=$(date -u +%F)" >> "$GITHUB_ENV"
+
+      # The full shipped corpus in reference mode over the shipped base
+      # stream at seed 7 — the same inputs every week, so the numbers
+      # move only when the pack, the corpus or the engine moves. The
+      # scratch spools go to a temporary directory and are abandoned
+      # there: they are the one artifact of a run that holds stream
+      # data, and everything published is digests and counts.
+      - name: Run the corpus and sign the card
+        run: |
+          mkdir -p "$RUNNER_TEMP/artifacts"
+          bin/aertun windtunnel run --score reference --seed 7 \
+            --key "$RUNNER_TEMP/scorecard-signing.key" \
+            --public-key "$RUNNER_TEMP/artifacts/public-key.json" \
+            --out "$RUNNER_TEMP/artifacts/scorecard-$CARD_DATE.json"
+
+      # Verify its own output before publishing anything. This is the
+      # same command, the same exit code and the same refusal messages a
+      # stranger gets: the digest check, both signatures in context, the
+      # key id. A card that does not verify here is never pushed.
+      - name: Verify the card before it is published
+        run: |
+          bin/aertun windtunnel verify \
+            --key "$RUNNER_TEMP/artifacts/public-key.json" \
+            "$RUNNER_TEMP/artifacts/scorecard-$CARD_DATE.json"
+
+      # The key the run signed with must be the key main has committed.
+      # If they differ, the secret was rotated without the open commit
+      # that replaces the committed public half — and a branch that
+      # published under a key nobody can find would be a number whose
+      # verifier does not exist. Refuse and say what to do instead.
+      - name: The key must be the one main has committed
+        run: |
+          cmp "$RUNNER_TEMP/artifacts/public-key.json" scorecards/public-key.json || {
+            echo "::error::the signing secret and the committed public key differ."
+            echo "Rotate deliberately: set the new secret, then one commit that"
+            echo "replaces scorecards/public-key.json and the seed card on main"
+            echo "and public-key.json on the scorecards branch, together."
+            exit 1
+          }
+          echo "the run signed with the key main has committed"
+
+      # Publish: append the datestamped card to the `scorecards` branch.
+      #
+      # The branch is seeded once by hand and is append-only from then
+      # on — a signed weekly history cannot be backdated, and rewriting
+      # a published card is exactly what the digest and the history
+      # exist to make loud. A card for today that already exists is a
+      # re-run, and the honest answer to a re-run is refusal: move the
+      # old card deliberately or wait for tomorrow's date, never
+      # silently replace it.
+      - name: Publish to the scorecards branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin scorecards
+          git switch -c scorecards --track origin/scorecards
+          if git show "origin/scorecards:scorecard-$CARD_DATE.json" >/dev/null 2>&1; then
+            echo "::error::a card for $CARD_DATE is already published; the branch is append-only"
+            exit 1
+          fi
+          cp "$RUNNER_TEMP/artifacts/scorecard-$CARD_DATE.json" .
+          cp "$RUNNER_TEMP/artifacts/public-key.json" .
+          git add "scorecard-$CARD_DATE.json" public-key.json
+          git commit -m "The $CARD_DATE scorecard: this week's run of the whole shipped corpus, dual-signed"
+          git push origin scorecards
+
+      # What a stranger downloads is what was just pushed, not what the
+      # run wrote: read the card and the key back from the remote branch
+      # and verify those bytes. This closes the loop between "the run
+      # verified its output" and "the publication verifies".
+      - name: Verify what was pushed
+        run: |
+          git fetch origin scorecards
+          git show "origin/scorecards:public-key.json" > "$RUNNER_TEMP/pushed-public-key.json"
+          git show "origin/scorecards:scorecard-$CARD_DATE.json" > "$RUNNER_TEMP/pushed-scorecard.json"
+          bin/aertun windtunnel verify \
+            --key "$RUNNER_TEMP/pushed-public-key.json" \
+            "$RUNNER_TEMP/pushed-scorecard.json"
+
+      # Anchoring, and why it is not here: the OpenTimestamps machinery
+      # this project ships (internal/anchor, `auditlog anchor`) commits
+      # a STORE'S AUDIT-LOG HEAD to Bitcoin calendars — it takes no
+      # arbitrary digest, and forcing a scorecard through it would mean
+      # either a new command surface or a raw calendar POST that skips
+      # the package's walk-before-store discipline. Neither fits this
+      # workflow cleanly, so the honest statement stands: a scorecard
+      # today proves WHAT ran and that the key signed it; WHEN rests on
+      # the signed generated_at and this branch's public commit
+      # history. An OpenTimestamps or SCITT receipt (RFC 9943/9942) per
+      # card is the designed phase-2 upgrade, not something forced in
+      # here.
