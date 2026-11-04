@@ -11,7 +11,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/vaigil/vaigil/internal/analyst"
+	"github.com/aeroprove/aeroprove/internal/analyst"
 )
 
 // marshalCorpus renders a corpus the way corpus.json is written on disk:

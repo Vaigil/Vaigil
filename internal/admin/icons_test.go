@@ -37,19 +37,19 @@ func TestTheMenuDrawsTheIconsAndHidesThemFromScreenReaders(t *testing.T) {
 
 // The typeface is served with its licence beside it, under its own name.
 func TestTheTypefaceTravelsWithItsLicenceAndNotUnderGooglesName(t *testing.T) {
-	for _, f := range []string{"assets/fonts/vaigil-ui.woff2", "assets/fonts/OFL.txt",
+	for _, f := range []string{"assets/fonts/aeroprove-ui.woff2", "assets/fonts/OFL.txt",
 		"assets/fonts/README.md"} {
 		if _, err := assets.ReadFile(f); err != nil {
 			t.Errorf("%s is missing", f)
 		}
 	}
 	srv, token := setup(t)
-	w := get(t, srv, "/fonts/vaigil-ui.woff2", token)
+	w := get(t, srv, "/fonts/aeroprove-ui.woff2", token)
 	if w.Code != 200 || w.Header().Get("Content-Type") != "font/woff2" {
 		t.Fatalf("the font answered %d as %q", w.Code, w.Header().Get("Content-Type"))
 	}
 	css := get(t, srv, "/style.css", token).Body.String()
-	if !strings.Contains(css, `font-family: "Vaigil UI"`) ||
+	if !strings.Contains(css, `font-family: "AeroProve UI"`) ||
 		strings.Contains(css, `font-family: "Google Sans`) {
 		t.Error("the stylesheet does not use the face under its own name")
 	}

@@ -10,13 +10,13 @@ import (
 	"sort"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/atomicfile"
+	"github.com/aeroprove/aeroprove/internal/atomicfile"
 )
 
 // The register, kept between runs.
 //
 // A register only in memory is a queue that exists for the length of one
-// command. `vaigil triage` built one from the events it was handed, printed
+// command. `aeroprove triage` built one from the events it was handed, printed
 // the top twenty and threw it away, so there was nothing for a screen to show,
 // nothing for an agent to read and nothing for a decision to apply to — the
 // decisions were written to the audit log about findings that no longer

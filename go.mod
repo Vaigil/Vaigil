@@ -1,4 +1,4 @@
-module github.com/vaigil/vaigil
+module github.com/aeroprove/aeroprove
 
 go 1.27
 

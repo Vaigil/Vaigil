@@ -200,7 +200,7 @@ func TestTheShippedPlaybooksAreWorkable(t *testing.T) {
 			}
 			// The words of an action this program cannot take. A step
 			// that reads as if it will be done for you is one nobody does.
-			for _, claim := range []string{"automatically", "vaigil will"} {
+			for _, claim := range []string{"automatically", "aeroprove will"} {
 				if strings.Contains(strings.ToLower(s.Title+s.Why), claim) {
 					t.Errorf("%s/%s reads as if it does itself", p.ID, s.ID)
 				}
@@ -486,7 +486,7 @@ func TestAnActIsAskedForApprovedBySomebodyElseAndItsOutcomeRecorded(t *testing.T
 	}
 	record := strings.Join(said, "\n")
 	for _, want := range []string{"dana requested okta-suspend-user on okta:00u1a2b3c4d5: sessions from two countries",
-		"sam approved okta-suspend-user", "vaigil okta-suspend-user on okta:00u1a2b3c4d5 done (the tool answered 200)",
+		"sam approved okta-suspend-user", "aeroprove okta-suspend-user on okta:00u1a2b3c4d5 done (the tool answered 200)",
 		"failed (the tool answered 500); it is still in force", "undone (the tool answered 200)"} {
 		if !strings.Contains(record, want) {
 			t.Errorf("the record lacks %q", want)

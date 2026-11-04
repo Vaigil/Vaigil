@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/finding"
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/finding"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // The order, and the one number that makes a probability useful.

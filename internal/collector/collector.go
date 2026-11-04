@@ -10,7 +10,7 @@
 //
 // This is an evidence recorder, not a sensor product. There is no kernel
 // driver on any OS and never will be, no on-endpoint detection engine, no
-// prevention: every decision runs in the Vaigil server's rule engine, where
+// prevention: every decision runs in the AeroProve server's rule engine, where
 // the trial ring and the fixture discipline already live. The reason is the
 // CrowdStrike July 2024 RCA — an interpreted content file met a template
 // expecting one more value and took 8.5 million hosts down through a kernel
@@ -71,13 +71,13 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/vaigil/vaigil/internal/fetch"
+	"github.com/aeroprove/aeroprove/internal/fetch"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/atomicfile"
+	"github.com/aeroprove/aeroprove/internal/atomicfile"
 )
 
 // The record sources this collector ships, and the server's endpoint knows.
@@ -297,7 +297,7 @@ func FetchConfig(ctx context.Context, server, name, secret string, client *http.
 		return Config{}, nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+secret)
-	req.Header.Set("X-Vaigil-Token", name)
+	req.Header.Set("X-AeroProve-Token", name)
 	res, err := client.Do(req)
 	if err != nil {
 		return Config{}, nil, err

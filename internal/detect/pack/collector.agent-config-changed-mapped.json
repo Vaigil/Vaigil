@@ -1,7 +1,7 @@
 {
   "id": "collector.agent-config-changed-mapped",
   "title": "An agent's configuration changed on a host declared to run it",
-  "why": "the join leg of the watch-then-call chain: the same config change the severity-3 rule already raises, restricted to a host an operator has mapped to exactly one registered agent (vaigil agent maps), so the change can be attributed to that agent and correlated with the calls it went on to make. Quiet on purpose — the change itself is the other rule's finding; this exists so the correlation has an attributed half to count",
+  "why": "the join leg of the watch-then-call chain: the same config change the severity-3 rule already raises, restricted to a host an operator has mapped to exactly one registered agent (aeroprove agent maps), so the change can be attributed to that agent and correlated with the calls it went on to make. Quiet on purpose — the change itself is the other rule's finding; this exists so the correlation has an attributed half to count",
   "blind": "everything the recorder cannot see (who changed it, what changed) plus the join's own limits: a host declared to run more than one agent carries the closed list in raw.agents and no single name, and this rule refuses to choose between them, so a shared box never feeds the chain; an SDK whose gen_ai.agent.id is not the registered name never joins; and the declaration is read at push time, so a mapping made after a change does not reach back to it",
   "sources": [
     "collector/watch"

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // The roster, the one automatic rule, and the count that decides whether any

@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/audit"
-	"github.com/vaigil/vaigil/internal/finding"
+	"github.com/aeroprove/aeroprove/internal/audit"
+	"github.com/aeroprove/aeroprove/internal/finding"
 )
 
 // The live stream: server-sent events over the audit log.
@@ -523,7 +523,7 @@ func liveEvent(e audit.Event) (string, any, bool) {
 // Poll mode is visible on the screen, it expires on its own (an hour), and
 // the moment the stream holds again the script clears it, so a recovered
 // stream heals the page on the next load without anybody asking.
-const livePollCookie = "vaigil_poll"
+const livePollCookie = "aeroprove_poll"
 
 // pollMode says whether this request's page should render in poll fallback,
 // and the value Refresh takes when it does: a full reload once a minute,

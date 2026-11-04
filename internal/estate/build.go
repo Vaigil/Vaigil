@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/telemetry"
-	"github.com/vaigil/vaigil/internal/workforce"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/workforce"
 )
 
 // Individual is one person as every tool that knows them describes them.

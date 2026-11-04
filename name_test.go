@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-// The program is Vaigil, and Quilzo is named only where Vaigil means Quilzo.
+// The program is AeroProve, and Quilzo is named only where AeroProve means Quilzo.
 //
 // The code began as part of Quilzo, and a name left behind in a message, a
 // cookie, an environment variable or a command example is a sentence that
@@ -27,17 +27,25 @@ func TestQuilzoIsNamedOnlyWhereItIsMeant(t *testing.T) {
 		// for: a signature covers it, so it is kept as it was signed.
 		regexp.MustCompile(`quilzo\.example/saml`),
 		// The kind of feed that receives Quilzo's audit log, in the usage
-		// and in what the README says Vaigil collects.
+		// and in what the README says AeroProve collects.
 		regexp.MustCompile(`\|ssf\|quilzo NAME`),
 		regexp.MustCompile(`Quilzo's audit log`),
 	}
 	// The files whose whole job is Quilzo: receiving its audit stream, and
-	// the rules over what it sends. Named there because there Vaigil means
+	// the rules over what it sends. Named there because there AeroProve means
 	// Quilzo, which is the one case this test allows.
-	about := regexp.MustCompile(`^(internal/inbound/quilzo(_test)?\.go|cmd/vaigil/quilzofeed(_test)?\.go|internal/detect/pack/quilzo\.[a-z-]+\.json)$`)
+	about := regexp.MustCompile(`^(internal/inbound/quilzo(_test)?\.go|cmd/aeroprove/quilzofeed(_test)?\.go|internal/detect/pack/quilzo\.[a-z-]+\.json)$`)
 	// "uilzo" as well: a fragment of the old name, such as a logotype that
-	// spelled it after its mark, is still the wrong name.
+	// spelled it after its mark, is still the wrong name. And "aigil", the
+	// fragment of the name this program retired when it became AeroProve:
+	// a name left behind is the same sentence telling somebody the wrong
+	// program, whichever rename left it.
 	any := regexp.MustCompile(`(?i)uilzo`)
+	retired := regexp.MustCompile(`(?i)aigil`)
+	// The research record is history: it was written under the old name,
+	// says so at the top of its master report, and rewriting it would be
+	// the one edit an append-only discipline cannot allow.
+	historical := regexp.MustCompile(`^docs/research/`)
 	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -74,6 +82,10 @@ func TestQuilzoIsNamedOnlyWhereItIsMeant(t *testing.T) {
 			}
 			if any.MatchString(rest) {
 				t.Errorf("%s:%d names Quilzo: %s", path, n+1, strings.TrimSpace(line))
+			}
+			if !historical.MatchString(path) && retired.MatchString(rest) {
+				t.Errorf("%s:%d names the retired name: %s", path, n+1,
+					strings.TrimSpace(line))
 			}
 		}
 		return nil

@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/dual"
-	"github.com/vaigil/vaigil/internal/enrol"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/dual"
+	"github.com/aeroprove/aeroprove/internal/enrol"
 )
 
 // Managing people, and managing the credentials they hold.
@@ -226,7 +226,7 @@ func (s *Server) handlePeopleGrant(w http.ResponseWriter, r *http.Request) {
 		Deny: r.FormValue("deny") == "on",
 		// own_only is not read from the form any more. The checkbox said
 		// "only content they created", stored a binding that said so, and
-		// nothing enforced it — see the error `vaigil auth grant --own-only`
+		// nothing enforced it — see the error `aeroprove auth grant --own-only`
 		// now returns. A form field that cannot be honoured is not read.
 		GrantedBy: p.Name,
 		Note:      strings.TrimSpace(r.FormValue("note")),

@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/oidc"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/oidc"
 )
 
 // The admin is checked by the same engine it uses on your content.

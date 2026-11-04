@@ -1,26 +1,26 @@
 # The console, the feeds other systems push to, and the scheduled work.
 #
-#   sudo cp deploy/vaigil.service /etc/systemd/system/
-#   sudo systemctl enable --now vaigil
+#   sudo cp deploy/aeroprove.service /etc/systemd/system/
+#   sudo systemctl enable --now aeroprove
 #
 # A key for the keyring, when one is enabled, comes from outside the store:
-# put VAIGIL_KEY_FILE (or VAIGIL_KEY_COMMAND) in /etc/vaigil/env, readable
+# put AEROPROVE_KEY_FILE (or AEROPROVE_KEY_COMMAND) in /etc/aeroprove/env, readable
 # by root alone.
 
 [Unit]
-Description=Vaigil security operations console
-Documentation=https://vaigil.github.io/
+Description=AeroProve security operations console
+Documentation=https://aeroprove.github.io/
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=vaigil
-Group=vaigil
-WorkingDirectory=/srv/vaigil
-EnvironmentFile=-/etc/vaigil/env
+User=aeroprove
+Group=aeroprove
+WorkingDirectory=/srv/aeroprove
+EnvironmentFile=-/etc/aeroprove/env
 
-ExecStart=/usr/local/bin/vaigil --root /srv/vaigil/store serve --addr 127.0.0.1:8080
+ExecStart=/usr/local/bin/aeroprove --root /srv/aeroprove/store serve --addr 127.0.0.1:8080
 
 Restart=on-failure
 RestartSec=5s
@@ -45,7 +45,7 @@ SystemCallFilter=@system-service
 SystemCallFilter=~@privileged @resources @obsolete
 
 # The store is the only place it writes.
-ReadWritePaths=/srv/vaigil/store
+ReadWritePaths=/srv/aeroprove/store
 
 [Install]
 WantedBy=multi-user.target

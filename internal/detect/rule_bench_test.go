@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // benchSink keeps a match from being optimised away.

@@ -63,7 +63,7 @@ import (
 // there is one credential for the one protocol surface, not one per signal.
 // An operator makes it with:
 //
-//	VAIGIL_CONNECT_SECRET=… vaigil connect secret inbound-otlp
+//	AEROPROVE_CONNECT_SECRET=… aeroprove connect secret inbound-otlp
 //
 // and it is checked the way every push credential here is: a static token
 // in the Authorization header, compared through a digest in constant time,

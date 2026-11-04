@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/auth"
 )
 
 // Signing in for the first time lands on the getting started screen.

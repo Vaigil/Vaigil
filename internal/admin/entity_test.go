@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/incident"
-	"github.com/vaigil/vaigil/internal/spool"
-	"github.com/vaigil/vaigil/internal/telemetry"
-	"github.com/vaigil/vaigil/internal/vuln"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/incident"
+	"github.com/aeroprove/aeroprove/internal/spool"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/vuln"
 )
 
 // entityEstate is a store where okta:dana has a finding, an incident about

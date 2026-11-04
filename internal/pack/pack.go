@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package pack is the signed content plane: versioned content packs that
-// update Vaigil's detections without a binary release.
+// update AeroProve's detections without a binary release.
 //
 // # Packs are data, and only data
 //
@@ -90,8 +90,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/vaigil/vaigil/internal/correlate"
-	"github.com/vaigil/vaigil/internal/detect"
+	"github.com/aeroprove/aeroprove/internal/correlate"
+	"github.com/aeroprove/aeroprove/internal/detect"
 )
 
 // Bounds on a pack, refused before anything is interpreted (§5.1 step 2 of
@@ -138,7 +138,7 @@ func (c Channel) known() bool {
 }
 
 // idPattern is a pack id: lowercase letters, digits, dots and hyphens, 3 to
-// 64 bytes, `vaigil.*` reserved for first-party content and third parties
+// 64 bytes, `aeroprove.*` reserved for first-party content and third parties
 // domain-reversed (`com.example.phishing`). One shape for both, because the
 // namespace rule is a convention the producer owns, not something the
 // installer could usefully police.
@@ -159,7 +159,7 @@ type File struct {
 
 // Engine is the version negotiation half of the manifest.
 type Engine struct {
-	// MinimumBinary is the oldest Vaigil release that understands this
+	// MinimumBinary is the oldest AeroProve release that understands this
 	// pack's schemas, X.Y.Z. Empty means no floor is claimed.
 	MinimumBinary string `json:"minimum_binary,omitempty"`
 }
@@ -266,7 +266,7 @@ func (m *Manifest) Validate() error {
 		}
 		if !knownType(f.Type) {
 			return fmt.Errorf("%s: %q is not a content type this binary "+
-				"knows; it may have been written for a newer Vaigil",
+				"knows; it may have been written for a newer AeroProve",
 				f.Path, f.Type)
 		}
 		if err := typeMatchesPath(f.Type, f.Path); err != nil {

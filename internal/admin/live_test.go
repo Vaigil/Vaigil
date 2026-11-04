@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/aeroprove/aeroprove/internal/audit"
 )
 
 // The live stream, checked the way it fails.

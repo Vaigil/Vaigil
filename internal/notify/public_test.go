@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // A page saying "the following customers had their data exposed" is a second

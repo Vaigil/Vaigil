@@ -2,13 +2,13 @@
 #
 #   caddy run --config deploy/Caddyfile
 #
-# Replace the hostname, and tell Vaigil it is behind TLS:
+# Replace the hostname, and tell AeroProve it is behind TLS:
 #
-#   vaigil config set admin.behind_tls_proxy true
-#   vaigil config set admin.base_url https://vaigil.example.com
-#   vaigil config set admin.trusted_proxy true
+#   aeroprove config set admin.behind_tls_proxy true
+#   aeroprove config set admin.base_url https://aeroprove.example.com
+#   aeroprove config set admin.trusted_proxy true
 
-vaigil.example.com {
+aeroprove.example.com {
 	reverse_proxy 127.0.0.1:8080
 	encode zstd gzip
 }

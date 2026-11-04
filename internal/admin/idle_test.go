@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/config"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/config"
 )
 
 func withSettings(t *testing.T, srv *Server, values map[string]string) {
@@ -30,7 +30,7 @@ func sessionCookie(t *testing.T, srv *Server, token string) *http.Cookie {
 	t.Helper()
 	w := signInPost(srv, token)
 	for _, c := range w.Result().Cookies() {
-		if c.Name == "vaigil_token" && c.Value != "" {
+		if c.Name == "aeroprove_token" && c.Value != "" {
 			return c
 		}
 	}
@@ -80,7 +80,7 @@ func TestASessionNobodyUsesEnds(t *testing.T) {
 	if w := browse(srv, http.MethodGet, "/today", c, person); w.Code != http.StatusOK {
 		t.Fatalf("first use: %d", w.Code)
 	}
-	if body := browse(srv, http.MethodGet, "/today", c, person).Body.String(); !strings.Contains(body, `name="vaigil-idle" content="600"`) {
+	if body := browse(srv, http.MethodGet, "/today", c, person).Body.String(); !strings.Contains(body, `name="aeroprove-idle" content="600"`) {
 		t.Fatal("the page is not told the idle period, so it cannot warn")
 	}
 
@@ -157,7 +157,7 @@ func TestWhoCanGrantAccessIsSignedOutSooner(t *testing.T) {
 			withSettings(t, srv, c.settings)
 		}
 		body := browse(srv, http.MethodGet, "/today", sessionCookie(t, srv, c.token), person).Body.String()
-		if !strings.Contains(body, `name="vaigil-idle" `+c.want) || !strings.Contains(body, `name="vaigil-who"`) {
+		if !strings.Contains(body, `name="aeroprove-idle" `+c.want) || !strings.Contains(body, `name="aeroprove-who"`) {
 			t.Errorf("%v: wanted %s", c.settings, c.want)
 		}
 	}

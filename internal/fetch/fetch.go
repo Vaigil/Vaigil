@@ -50,7 +50,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/vaigil/vaigil/internal/egress"
+	"github.com/aeroprove/aeroprove/internal/egress"
 	"io"
 	"net"
 	"net/http"
@@ -275,7 +275,7 @@ func (c *Client) checkIP(ip net.IP) string {
 // New returns a Client with the defaults.
 func New() *Client {
 	return &Client{Limits: Limits{}.withDefaults(),
-		UserAgent: "vaigil/1"}
+		UserAgent: "aeroprove/1"}
 }
 
 // For returns a Client with the defaults, for one declared purpose
@@ -284,7 +284,7 @@ func New() *Client {
 func For(purpose string) *Client {
 	c := New()
 	c.Purpose = purpose
-	c.UserAgent = "vaigil/1 (+" + purpose + ")"
+	c.UserAgent = "aeroprove/1 (+" + purpose + ")"
 	return c
 }
 

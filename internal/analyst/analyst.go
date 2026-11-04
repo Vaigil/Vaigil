@@ -36,10 +36,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/decide"
-	"github.com/vaigil/vaigil/internal/finding"
-	"github.com/vaigil/vaigil/internal/telemetry"
-	"github.com/vaigil/vaigil/internal/untrusted"
+	"github.com/aeroprove/aeroprove/internal/decide"
+	"github.com/aeroprove/aeroprove/internal/finding"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/untrusted"
 )
 
 // Step is one thing the plan reads.

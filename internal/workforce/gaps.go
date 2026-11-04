@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/finding"
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/finding"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // What the join is for: the questions no single system can answer.

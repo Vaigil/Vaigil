@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/dpop"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/dpop"
 )
 
 func programKey(t *testing.T) (*ecdsa.PrivateKey, string) {

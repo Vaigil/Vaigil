@@ -12,12 +12,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/agentreg"
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/dpop"
-	"github.com/vaigil/vaigil/internal/macaroon"
-	"github.com/vaigil/vaigil/internal/oauthas"
-	"github.com/vaigil/vaigil/internal/throttle"
+	"github.com/aeroprove/aeroprove/internal/agentreg"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/dpop"
+	"github.com/aeroprove/aeroprove/internal/macaroon"
+	"github.com/aeroprove/aeroprove/internal/oauthas"
+	"github.com/aeroprove/aeroprove/internal/throttle"
 )
 
 // Short-lived and bound credentials for programs.
@@ -63,7 +63,7 @@ func (s *Server) proofOf(r *http.Request, token string) (string, error) {
 // tokenChallenge answers a refused token with what this server accepts: a
 // Bearer token, or a DPoP-bound one, and what was wrong.
 func tokenChallenge(w http.ResponseWriter, extra string, err error) {
-	bearer, proof := `Bearer realm="vaigil"`+extra, `DPoP algs="`+dpop.AlgorithmNames()+`"`
+	bearer, proof := `Bearer realm="aeroprove"`+extra, `DPoP algs="`+dpop.AlgorithmNames()+`"`
 	switch {
 	case errors.Is(err, dpop.ErrProof):
 		proof += `, error="invalid_dpop_proof"`
@@ -84,7 +84,7 @@ type exchangeAnswer struct {
 	Scope           string `json:"scope,omitempty"`
 }
 
-// handleTokenExchange is RFC 8693 token exchange: a Vaigil token for a
+// handleTokenExchange is RFC 8693 token exchange: a AeroProve token for a
 // narrower one that lasts minutes, or a job's identity token for a token a
 // trust says it may have. Bound to a key when the request carries a proof.
 func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request) {
@@ -180,12 +180,12 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request) {
 		}
 		detail["how"] = "narrowed"
 	case typeIDToken, typeJWT:
-		// A token another system issued is not taken here: Vaigil trusts no
+		// A token another system issued is not taken here: AeroProve trusts no
 		// other issuer.
 		failed("invalid_grant", errors.New("this console trusts no other issuer"))
 		return
 	default:
-		failed("invalid_request", errors.New("subject_token_type is a Vaigil access token, or an identity token (id_token or jwt) from an issuer a trust names"))
+		failed("invalid_request", errors.New("subject_token_type is a AeroProve access token, or an identity token (id_token or jwt) from an issuer a trust names"))
 		return
 	}
 	if s.Throttle != nil {
@@ -505,7 +505,7 @@ func (s *Server) exchangeOnBehalf(w http.ResponseWriter, r *http.Request,
 	}
 	if s.AuditAgent != nil {
 		// Closed detail: the bundle word, the depth, the tool set — words
-		// from closed vocabularies, so the vaigil/agent telemetry a rule
+		// from closed vocabularies, so the aeroprove/agent telemetry a rule
 		// reads carries facts rather than prose. Who the agent acts for is
 		// in the audit log's own record of this exchange and nowhere
 		// wider: a person's name is personal data, and the event store is

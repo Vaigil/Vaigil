@@ -11,7 +11,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/vaigil/vaigil/internal/atomicfile"
+	"github.com/aeroprove/aeroprove/internal/atomicfile"
 )
 
 // The metadata side of a pack: a minimal TUF-shaped chain of three roles,
@@ -92,9 +92,9 @@ type Digest struct {
 
 // Role type names, inside the signed bytes.
 const (
-	rootType      = "vaigil-content-root-v1"
-	targetsType   = "vaigil-content-targets-v1"
-	timestampType = "vaigil-content-timestamp-v1"
+	rootType      = "aeroprove-content-root-v1"
+	targetsType   = "aeroprove-content-targets-v1"
+	timestampType = "aeroprove-content-timestamp-v1"
 )
 
 // SignedRoot is root.json.

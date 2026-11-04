@@ -1,0 +1,109 @@
+{
+  "schema": 1,
+  "id": "agent.recorder-blind-window",
+  "title": "The recorder went quiet for ten minutes while the agent kept working through them",
+  "family": "recorder-blind",
+  "phase": "replay",
+  "safety": "synthetic-only",
+  "narrative": "Traces erased in the harness, staged: the watch stream's last write ages out mid-session and the agent's tool calls continue in the dark — the arXiv 2609.30266 finding, five harnesses in six, replayed against the controls that were supposed to notice.",
+  "catalogue": "B7/A27",
+  "technique": ["ASI10", "T1070.001"],
+  "bindings": {
+    "agent": {"gen": "agent-name", "seed": 51},
+    "trace": {"gen": "trace-id", "seed": 51}
+  },
+  "steps": [
+    {
+      "name": "recorders-last-write",
+      "at": 0,
+      "emit": {
+        "source": "collector/watch",
+        "class": 1001,
+        "disposition": 1,
+        "device": {"issuer": "collector", "value": "desk04"},
+        "message": "/var/log/recorder/journal rotated (other)",
+        "raw": {
+          "path": "/var/log/recorder/journal",
+          "kind": "other",
+          "op": "changed",
+          "sha256": "5c1f00ba",
+          "size": "1048576",
+          "host": "desk04"
+        }
+      }
+    },
+    {
+      "name": "work-continues-in-the-dark",
+      "at": 30,
+      "repeat": {"count": 20, "every": 30},
+      "emit": {
+        "source": "otel/genai",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {"issuer": "otel", "value": "${agent}"},
+        "message": "execute_tool",
+        "raw": {
+          "operation": "execute_tool",
+          "tool": "filesystem.write",
+          "status": "ok",
+          "trace_id": "${trace}"
+        }
+      }
+    }
+  ],
+  "expects": [
+    {"kind": "rule", "id": "otel.tool-call", "verdict": "fires-quietly"},
+    {"kind": "correlation", "id": "corr.agent-tool-burst", "verdict": "stays-quiet"}
+  ],
+  "benign-twin": {
+    "id": "agent.healthy-recorder-session",
+    "title": "The same ten minutes with the recorder healthy: watch writes interleaved with the agent's work",
+    "narrative": "The control for the gap: identical agent activity, and the watch stream still writing every minute. If a detection fires on the attack session, this twin is the one that decides whether it noticed the silence or merely the work.",
+    "steps": [
+      {
+        "name": "recorder-writes",
+        "at": 0,
+        "repeat": {"count": 10, "every": 60},
+        "emit": {
+          "source": "collector/watch",
+          "class": 1001,
+          "disposition": 1,
+          "device": {"issuer": "collector", "value": "desk04"},
+          "message": "/var/log/recorder/journal rotated (other)",
+          "raw": {
+            "path": "/var/log/recorder/journal",
+            "kind": "other",
+            "op": "changed",
+            "sha256": "5c1f00ba",
+            "size": "1048576",
+            "host": "desk04"
+          }
+        }
+      },
+      {
+        "name": "work-continues-on-the-record",
+        "at": 30,
+        "repeat": {"count": 20, "every": 30},
+        "emit": {
+          "source": "otel/genai",
+          "class": 6003,
+          "disposition": 1,
+          "actor": {"issuer": "otel", "value": "${agent}"},
+          "message": "execute_tool",
+          "raw": {
+            "operation": "execute_tool",
+            "tool": "filesystem.write",
+            "status": "ok",
+            "trace_id": "${trace}"
+          }
+        }
+      }
+    ]
+  },
+  "preflight": [
+    {"check": "source-emits", "source": "collector/watch"},
+    {"check": "source-emits", "source": "otel/genai"}
+  ],
+  "blind": "The gap itself is invisible to this pack by declared design: the correlations file refuses heartbeat-absence rules because a falling count fires for every collector that never existed, so no rule in the reference pack watches the recorder's pulse. What this scenario measures is that the agent's activity through the dark window is still counted — the evidence survives the erasure attempt — and that the work-paced rate does not false-fire the burst correlation. The scheduler-side absence rule this scenario is really asking for is a gap the scorecard names rather than papers over.",
+  "lateness": "measured"
+}

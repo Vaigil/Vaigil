@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/estate"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/estate"
 )
 
 // The workforce screens: people's risk, from what their tools say.

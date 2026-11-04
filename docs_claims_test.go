@@ -107,7 +107,7 @@ func TestTheReadmeClaimsTheLicenceThisRepositoryCarries(t *testing.T) {
 		if states[name] && !strings.Contains(body, "Apache") {
 			t.Errorf("%s does not say the licence is Apache-2.0", name)
 		}
-		for _, stale := range []string{"AGPL", "Affero", "LicenseRef-Vaigil-Commercial",
+		for _, stale := range []string{"AGPL", "Affero", "LicenseRef-AeroProve-Commercial",
 			"LICENSING.md", "CLA.md"} {
 			if strings.Contains(body, stale) {
 				t.Errorf("%s still mentions %q, from a licence arrangement this "+
@@ -181,7 +181,7 @@ func TestTheLicenceTextIsOneText(t *testing.T) {
 // Every copy carries the licence and the notices.
 //
 // A binary is a copy of the Go standard library, the endoflife.date data, the
-// typeface and the icons as well as of Vaigil, and their licences ask for
+// typeface and the icons as well as of AeroProve, and their licences ask for
 // their notices to go with it. So NOTICE names each of them, and the release
 // and the container image carry LICENSE and NOTICE.
 func TestEveryCopyCarriesTheLicenceAndNotices(t *testing.T) {
@@ -198,7 +198,7 @@ func TestEveryCopyCarriesTheLicenceAndNotices(t *testing.T) {
 			t.Errorf("the release does not publish %s beside the binaries", strings.TrimSpace(f))
 		}
 	}
-	if !strings.Contains(read(t, "Dockerfile"), "/src/LICENSE /src/NOTICE /usr/share/doc/vaigil/") {
+	if !strings.Contains(read(t, "Dockerfile"), "/src/LICENSE /src/NOTICE /usr/share/doc/aeroprove/") {
 		t.Error("the container image does not carry LICENSE and NOTICE")
 	}
 	// The image's binary is built from what .dockerignore lets in, and the
@@ -336,7 +336,7 @@ func TestInstallCountsTheTestSuiteCorrectly(t *testing.T) {
 //
 // The git tag is v0.1.0 and the image tags are 0.1.0, 0.1 and latest, because
 // docker/metadata-action's semver patterns strip the prefix. So
-// ghcr.io/vaigil/vaigil:v0.1.0 does not exist, and both INSTALL and the
+// ghcr.io/aeroprove/aeroprove:v0.1.0 does not exist, and both INSTALL and the
 // release workflow asked for it — the workflow in the very step written to
 // prove the image is reachable, where a 404 for a tag that was never pushed
 // is indistinguishable from a 404 for a private package.
@@ -402,7 +402,7 @@ func TestGoModRequiresNothing(t *testing.T) {
 	for _, line := range strings.Split(read(t, "go.mod"), "\n") {
 		f := strings.Fields(line)
 		if len(f) > 0 && (f[0] == "require" || f[0] == "replace") {
-			t.Errorf("go.mod has %q. Vaigil has no third-party dependencies; "+
+			t.Errorf("go.mod has %q. AeroProve has no third-party dependencies; "+
 				"CONTRIBUTING.md says what to do instead", strings.TrimSpace(line))
 		}
 	}

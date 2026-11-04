@@ -12,7 +12,7 @@
 //
 //	<credential>.vgt1.<base64url(payload)>
 //
-// The credential half is an ordinary Vaigil token secret (internal/auth): it
+// The credential half is an ordinary AeroProve token secret (internal/auth): it
 // is what the token store hashes, so revocation, expiry, the registry gate
 // and the kill switch reach a run token exactly as they reach any credential,
 // with no second store and no other issuer. The payload half names the run it
@@ -21,7 +21,7 @@
 // by whoever mints and whoever verifies, and by nobody else).
 //
 // The chain is the v2 macaroon construction. The first signature is
-// HMAC-SHA256(run key, "vaigil/macaroon/root/v1" || id); each caveat is
+// HMAC-SHA256(run key, "aeroprove/macaroon/root/v1" || id); each caveat is
 // signed with the signature before it, so appending one needs nothing but
 // the tag it follows — which is in the token — and forging or removing one
 // needs the run key, which is not. Verification recomputes the chain from
@@ -44,7 +44,7 @@
 //
 // # Who can do what to a token
 //
-//   - The minter (vaigil agent token) holds the run key and the token store.
+//   - The minter (aeroprove agent token) holds the run key and the token store.
 //     It mints: a fresh secret, a run id, caveats, the chain.
 //   - The holder can attenuate (Attenuate): append a caveat, signed with the
 //     tag already in the token. They cannot widen — not by appending (every
@@ -53,7 +53,7 @@
 //     can re-make). They cannot strip the caveats and present the bare
 //     credential either: the store entry's name carries the run, and the one
 //     gate that checks caveats refuses a run-bound credential that arrives
-//     without its payload (cmd/vaigil, authoriseTool).
+//     without its payload (cmd/aeroprove, authoriseTool).
 //   - The verifier (the agent interface's tool gate) holds the run key and
 //     checks the chain, then hands each caveat to a discharge function that
 //     knows what the call is: which tool, what time, how many calls already
@@ -100,8 +100,8 @@ const marker = ".vgt1."
 // made for another, and the version rides in the string so a change to what
 // is signed is not confused with the thing it replaced.
 const (
-	rootDomain    = "vaigil/macaroon/root/v1"
-	caveatDomain  = "vaigil/macaroon/caveat/v1"
+	rootDomain    = "aeroprove/macaroon/root/v1"
+	caveatDomain  = "aeroprove/macaroon/caveat/v1"
 	runKeyLength  = 32
 	maxSecret     = 200
 	maxID         = 128

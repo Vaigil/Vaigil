@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/incident"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/incident"
 )
 
 // Approvals: everything waiting for a person, in one place.

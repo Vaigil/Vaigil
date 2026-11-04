@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/find"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/find"
 )
 
 // The navigation, as data.
@@ -131,7 +131,7 @@ var destinations = []destination{
 // rather than the next time somebody ships. The cost is that the link target
 // is no longer verifiable by compiling this program, which is what docSections
 // below exists to hold on to.
-const DocsBase = "https://vaigil.github.io/"
+const DocsBase = "https://aeroprove.github.io/"
 
 // docSections is every anchor the published manual carries.
 //
@@ -248,7 +248,7 @@ func (s *Server) navigation(r *http.Request, p principal, current string) []navG
 }
 
 // NavOrderCookie holds a person's chosen arrangement.
-const NavOrderCookie = "vaigil_nav_order"
+const NavOrderCookie = "aeroprove_nav_order"
 
 // storedOrder reads the arrangement from the request.
 //

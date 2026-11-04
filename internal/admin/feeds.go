@@ -8,13 +8,13 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/auth"
 )
 
 // The Feeds screen: what other systems push here, whether it is arriving,
 // and what it has said.
 //
-// A feed is added here or with vaigil inbound. Either way it takes an
+// A feed is added here or with aeroprove inbound. Either way it takes an
 // administrator of the whole site, because what a feed says reaches the
 // automations, and some of them change who can get in.
 
@@ -95,7 +95,7 @@ func (s *Server) handleFeedsAct(w http.ResponseWriter, r *http.Request) {
 	// Whoever could add a feed could make a signal up and have it acted
 	// on, so it is the whole site's decision.
 	if s.Policy == nil || !s.Policy.Evaluate(p.Name, auth.ActGrant, "/").Allowed {
-		back("e", "Changing a feed takes an administrator of all of Vaigil: what a feed says reaches the automations.")
+		back("e", "Changing a feed takes an administrator of all of AeroProve: what a feed says reaches the automations.")
 		return
 	}
 	name := strings.TrimSpace(r.FormValue("name"))

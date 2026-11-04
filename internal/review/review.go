@@ -54,8 +54,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/audit"
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/audit"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // MinThought is how long a decision has to take to be one.

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/aeroprove/aeroprove/internal/audit"
 )
 
 func fixedAt(id, introduced, fixed string, epss float64) Advisory {

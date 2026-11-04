@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/enrol"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/enrol"
 )
 
 // enrol runs the ceremony an enrolment page runs, with the link's secret.

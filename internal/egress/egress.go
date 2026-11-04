@@ -133,7 +133,7 @@ var Purposes = []Purpose{
 	{
 		Name: "siem",
 		What: "pushing the audit log to a SIEM as it is written (siem.stream.url)",
-		Without: "the audit log is kept here only. vaigil siem still exports it " +
+		Without: "the audit log is kept here only. aeroprove siem still exports it " +
 			"for somebody to carry across",
 	},
 	{
@@ -249,7 +249,7 @@ func (b *Blocked) Error() string {
 		"this deployment is offline, so %s cannot reach %s.\n"+
 			"  What it was for: %s.\n"+
 			"  Without it: %s.\n"+
-			"  Allow it with `vaigil config set network.mode open`, or leave "+
+			"  Allow it with `aeroprove config set network.mode open`, or leave "+
 			"it refused deliberately",
 		b.Purpose.Name, b.Address, b.Purpose.What, b.Purpose.Without)
 }

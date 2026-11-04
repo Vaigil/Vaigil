@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/aeroprove/aeroprove/internal/audit"
 )
 
 var now = time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
@@ -616,10 +616,10 @@ func TestAgentInterfaceCallsExportAsReadsAndWrites(t *testing.T) {
 	events := log(t, nil,
 		audit.Record{Action: "mcp.call", Resource: "/mcp", Outcome: audit.Success, Principal: "app:vgc_1",
 			Kind: audit.KindAI, Model: "vgc_1", Verified: true,
-			Detail: map[string]string{"tool": "vaigil_read", "operation": "list_pages", "on_behalf_of": "dana"}},
+			Detail: map[string]string{"tool": "aeroprove_read", "operation": "list_pages", "on_behalf_of": "dana"}},
 		audit.Record{Action: "mcp.call", Resource: "/mcp", Outcome: audit.Denied, Principal: "app:vgc_1",
 			Kind: audit.KindAI, Model: "vgc_1", Verified: true,
-			Detail: map[string]string{"tool": "vaigil_write", "operation": "write_page", "on_behalf_of": "dana"}},
+			Detail: map[string]string{"tool": "aeroprove_write", "operation": "write_page", "on_behalf_of": "dana"}},
 		audit.Record{Action: "oauth.disconnected", Resource: "/mcp", Outcome: audit.Success, Principal: "dana",
 			Kind: audit.KindHuman, Verified: true},
 	)

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vaigil/vaigil/internal/model"
+	"github.com/aeroprove/aeroprove/internal/model"
 )
 
 // seq answers with each reply in turn, cycling, and records prompts.

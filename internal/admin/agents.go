@@ -13,17 +13,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/agentreg"
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/spool"
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/agentreg"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/spool"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // The Agents board: what the agents in this estate have been doing, from the
-// two places vaigil already hears them.
+// two places aeroprove already hears them.
 //
 // Everything counted here is observed telemetry, read from the spool on
-// request the way Events and Hunt read it: vaigil/agent — the sidecar's tool
+// request the way Events and Hunt read it: aeroprove/agent — the sidecar's tool
 // calls and the analyst's proposals, with the agent as the actor under the
 // audit log's pseudonym — and otel/genai — GenAI spans pushed over OTLP, with
 // the agent identity the SDK set as the actor. A row exists because an event
@@ -47,7 +47,7 @@ import (
 // An agent's page also groups its window into sessions: every otel/genai
 // event that carried one trace id, laid out as a timeline a finding's
 // evidence can cite. The trace id is the events' own edge and the only one
-// grouped on — vaigil/agent events carry no trace id, so they stay one
+// grouped on — aeroprove/agent events carry no trace id, so they stay one
 // chronological stream, said as that rather than fenced into sessions
 // nobody observed the edges of. The one annotation the timelines add is
 // arithmetic over the same window: a tool the agent had not used in it
@@ -72,9 +72,9 @@ const (
 	// inside the budget on a busy store.
 	agentLookback = 7 * 24 * time.Hour
 
-	// agentVaigil is the sidecar's tool calls and the analyst's proposals,
+	// agentSidecar is the sidecar's tool calls and the analyst's proposals,
 	// with the agent as the actor under the audit log's pseudonym.
-	agentVaigil = "vaigil/agent"
+	agentSidecar = "aeroprove/agent"
 	// agentOtel is GenAI telemetry pushed over OTLP, with the agent
 	// identity the SDK set as the actor.
 	agentOtel = "otel/genai"
@@ -92,8 +92,8 @@ const (
 // whatever was sent.
 func agentSourceKey(q string) string {
 	switch q {
-	case "vaigil":
-		return "vaigil"
+	case "aeroprove":
+		return "aeroprove"
 	case "otel":
 		return "otel"
 	}
@@ -115,7 +115,7 @@ type agentTool struct {
 // agentRow is one observed agent: everything the window's events said about
 // one actor key.
 type agentRow struct {
-	// Actor is the identity as stored — a pseudonym under vaigil/agent, the
+	// Actor is the identity as stored — a pseudonym under aeroprove/agent, the
 	// SDK's identifier under otel/genai — shown verbatim and never resolved
 	// into a name nobody recorded.
 	Actor telemetry.ID
@@ -128,10 +128,10 @@ type agentRow struct {
 	First, Last time.Time
 	LastAgo     string
 
-	// FromVaigil and FromOtel are how many of its events came from each
+	// FromSidecar and FromOtel are how many of its events came from each
 	// source, because which sources have seen an agent is a fact about the
 	// observation, not a detail.
-	FromVaigil, FromOtel int
+	FromSidecar, FromOtel int
 
 	// Calls is the tool and model calls it made — the sidecar's and every
 	// span. Refused is the blocked ones, the sidecar or a policy stopping
@@ -150,7 +150,7 @@ type agentRow struct {
 	TokensIn, TokensOut   int64
 	TokensInS, TokensOutS string
 
-	// Names is what the vaigil/agent records called it (the event's own
+	// Names is what the aeroprove/agent records called it (the event's own
 	// agent field): a name the event carried, not one this page chose.
 	Names []string
 
@@ -307,8 +307,8 @@ type agentScan struct {
 	Rows []agentRow
 	// Read is every agent event the window held, whatever the filter, so
 	// the page's denominators describe the period rather than the view.
-	Read                 int
-	FromVaigil, FromOtel int
+	Read                  int
+	FromSidecar, FromOtel int
 	// From is where the window actually began, which is the budget's
 	// decision when Short is set, and the lookback otherwise.
 	From  time.Time
@@ -363,7 +363,7 @@ func (s *Server) agentScan(now time.Time, source, want string) (agentScan, error
 	// a segment is refused only when it can hold neither source's events,
 	// which cannot narrow what the walk would have kept.
 	keep := func(seg spool.Segment) bool {
-		return sp.CouldHold(seg, "source", agentVaigil) ||
+		return sp.CouldHold(seg, "source", agentSidecar) ||
 			sp.CouldHold(seg, "source", agentOtel)
 	}
 
@@ -381,13 +381,13 @@ func (s *Server) agentScan(now time.Time, source, want string) (agentScan, error
 	// arrival order: the input the session grouping is computed from.
 	var mine []telemetry.Event
 	err = sp.RangeWhere(out.From, time.Time{}, keep, func(e telemetry.Event) error {
-		if e.Source != agentVaigil && e.Source != agentOtel {
+		if e.Source != agentSidecar && e.Source != agentOtel {
 			return nil
 		}
 		out.Read++
 		switch e.Source {
-		case agentVaigil:
-			out.FromVaigil++
+		case agentSidecar:
+			out.FromSidecar++
 		case agentOtel:
 			out.FromOtel++
 		}
@@ -395,7 +395,7 @@ func (s *Server) agentScan(now time.Time, source, want string) (agentScan, error
 			seenActor[e.Actor.String()] = true
 			out.Observed++
 		}
-		if source == "vaigil" && e.Source != agentVaigil {
+		if source == "aeroprove" && e.Source != agentSidecar {
 			return nil
 		}
 		if source == "otel" && e.Source != agentOtel {
@@ -432,8 +432,8 @@ func (s *Server) agentScan(now time.Time, source, want string) (agentScan, error
 		// cannot be refused.
 		call := true
 		switch e.Source {
-		case agentVaigil:
-			r.FromVaigil++
+		case agentSidecar:
+			r.FromSidecar++
 			switch e.Raw["action"] {
 			case "proposal.finding":
 				r.Proposals++
@@ -644,7 +644,7 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 		body := "Nothing has ever been collected here, so no agent has been " +
 			"observed. That is not a quiet estate of agents — it is one " +
 			"nothing is watching. Agent events arrive from the MCP sidecar " +
-			"and the analyst (vaigil/agent), and from GenAI telemetry " +
+			"and the analyst (aeroprove/agent), and from GenAI telemetry " +
 			"pushed over OTLP (otel/genai)."
 		// The registry is a separate record, and what it holds is a fact
 		// even where nothing observes the agents it names: said here so a
@@ -683,8 +683,8 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 	data["Filtered"] = source != ""
 	data["Filters"] = []agentFilter{
 		{Label: "All sources", Href: "/security/agents", Count: scan.Read, On: source == ""},
-		{Label: agentVaigil, Href: "/security/agents?source=vaigil",
-			Count: scan.FromVaigil, On: source == "vaigil"},
+		{Label: agentSidecar, Href: "/security/agents?source=aeroprove",
+			Count: scan.FromSidecar, On: source == "aeroprove"},
 		{Label: agentOtel, Href: "/security/agents?source=otel",
 			Count: scan.FromOtel, On: source == "otel"},
 	}
@@ -701,7 +701,7 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	data["Refused"], data["ProposalsN"], data["Active"] = refused, proposals, active
-	data["BothSources"] = scan.FromVaigil > 0 && scan.FromOtel > 0
+	data["BothSources"] = scan.FromSidecar > 0 && scan.FromOtel > 0
 	data["Maybe"] = maybe
 
 	poll, refresh := pollMode(r)
@@ -819,7 +819,7 @@ func agentDur(d time.Duration) string {
 // edge is the only thing grouped on. An otel event without a trace id
 // belongs to no session and is counted for the page to say so; it stays in
 // Recent events, ungrouped rather than fenced into a session of one.
-// vaigil/agent events draw no edges at all, so they are one stream in
+// aeroprove/agent events draw no edges at all, so they are one stream in
 // arrival order, said as a rendering choice and never as one session.
 //
 // The first-use marks are computed in the same single pass over both
@@ -843,7 +843,7 @@ func agentSessions(actor telemetry.ID, events []telemetry.Event) (
 			Model: e.Raw["model"], Outcome: e.Disposition.String(),
 			Tone: agentTone(e.Disposition),
 		}
-		if e.Source == agentVaigil {
+		if e.Source == agentSidecar {
 			entry.Op = e.Raw["action"]
 		} else if ms, perr := strconv.ParseInt(e.Raw["duration_ms"], 10, 64); perr == nil {
 			entry.Dur = agentDur(time.Duration(ms) * time.Millisecond)
@@ -857,7 +857,7 @@ func agentSessions(actor telemetry.ID, events []telemetry.Event) (
 			seenTool[entry.Tool] = true
 		}
 
-		if e.Source == agentVaigil {
+		if e.Source == agentSidecar {
 			if stream == nil {
 				stream = &agentStream{}
 			}
@@ -1108,12 +1108,12 @@ func (s *Server) handleAgent(w http.ResponseWriter, r *http.Request) {
 func (s *Server) agentNotFound(w http.ResponseWriter, r *http.Request,
 	p principal, id string) {
 
-	body := "Nothing arrived from vaigil/agent or otel/genai with that " +
+	body := "Nothing arrived from aeroprove/agent or otel/genai with that " +
 		"exact actor in the last seven days. It may have gone quiet before " +
 		"then, or the identity is not the one the events carry. Every agent " +
 		"observed is on the Agents board."
 	if id != "" {
-		body = "Nothing arrived from vaigil/agent or otel/genai with the " +
+		body = "Nothing arrived from aeroprove/agent or otel/genai with the " +
 			"actor " + id + " in the last seven days. It may have gone " +
 			"quiet before then, or the identity is not the one the events " +
 			"carry. Every agent observed is on the Agents board."

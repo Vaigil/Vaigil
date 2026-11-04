@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/config"
-	"github.com/vaigil/vaigil/internal/find"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/config"
+	"github.com/aeroprove/aeroprove/internal/find"
 )
 
 // Looking for one thing, across everything.

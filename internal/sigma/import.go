@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/vaigil/vaigil/internal/detect"
+	"github.com/aeroprove/aeroprove/internal/detect"
 )
 
 // Skip is a rule that did not come across, and why.

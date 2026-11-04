@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // Quilzo's audit log, pushed as it is written.

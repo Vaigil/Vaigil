@@ -1,0 +1,142 @@
+// SPDX-FileCopyrightText: 2026 Anthropic PBC
+//
+// SPDX-License-Identifier: Apache-2.0
+
+package windtunnel
+
+import (
+	"fmt"
+	"math"
+	"sort"
+)
+
+// The scoring: a miss rate with Wilson bounds over categorical outcomes, and
+// the family and technique grids beneath it — never instead of it (decision
+// 4).
+//
+// The primary number is the miss rate over must-alert scenarios, because a
+// scenario that expects only quiet legs is a precision claim, not a
+// detection claim, and folding it into a coverage percentage is how a
+// benchmark sells telemetry as detection.
+
+// z95 is the two-sided 95% normal quantile, and wilson below is the Wilson
+// score interval — both ported from internal/bench/run.go, which chose them
+// first and for the same reason this package needs them: the interesting
+// ends of a benchmark are small samples, and the plain interval walks
+// outside [0, 1] exactly there, reporting a miss rate an honest count cannot
+// have. Ported rather than shared because internal/bench is a finished
+// document about the analyst and this is one about the detections, and a
+// shared statistical helper would couple two packages that have nothing else
+// to do with each other; the citation is the coupling.
+const z95 = 1.959963984540054
+
+// wilson is the Wilson score interval for a proportion p over n, at 95%.
+func wilson(p float64, n int) (lo, hi float64) {
+	if n <= 0 {
+		return 0, 1
+	}
+	z2 := z95 * z95
+	denom := 1 + z2/float64(n)
+	center := (p + z2/(2*float64(n))) / denom
+	half := (z95 / denom) * math.Sqrt(
+		p*(1-p)/float64(n)+z2/(4*float64(n)*float64(n)))
+	return clamp01(center - half), clamp01(center + half)
+}
+
+func clamp01(v float64) float64 { return math.Min(1, math.Max(0, v)) }
+
+// rate is n over d, or 0 when d is 0 — no evidence reads as no evidence.
+func rate(n, d int) float64 {
+	if d == 0 {
+		return 0
+	}
+	return float64(n) / float64(d)
+}
+
+// aggregate folds the rows into the scorecard's numbers: the miss rate with
+// its Wilson bounds over the must-alert scenarios, the twin-false-fire
+// count, and the family and technique grids.
+func (c *Scorecard) aggregate() error {
+	sortRows(c.Rows)
+	sort.Slice(c.Scenarios, func(i, j int) bool {
+		return c.Scenarios[i].ID < c.Scenarios[j].ID
+	})
+	sort.Slice(c.Blinds, func(i, j int) bool {
+		return c.Blinds[i].Scenario < c.Blinds[j].Scenario
+	})
+
+	agg := &Aggregate{}
+	families := map[string]*FamilyRow{}
+	techniques := map[string]*TechniqueRow{}
+	for i := range c.Rows {
+		row := &c.Rows[i]
+		agg.Scenarios++
+		f := families[row.Family]
+		if f == nil {
+			f = &FamilyRow{Family: row.Family}
+			families[row.Family] = f
+		}
+		f.Tested++
+		switch row.Outcome {
+		case OutcomeMissed:
+			agg.MustAlert++
+			agg.Missed++
+			f.Missed++
+			if row.MissKind() == MissLateness {
+				agg.MissedLateness++
+			}
+		case OutcomeCaughtAlert:
+			agg.MustAlert++
+			agg.Caught++
+			f.Caught++
+		case OutcomeWronglyQuiet:
+			agg.WronglyQuiet++
+			f.WronglyQuiet++
+		case OutcomeCaughtTelemetry:
+			agg.TelemetryOnly++
+			f.TelemetryOnly++
+		}
+		if row.Twin.Outcome == TwinFalseFire {
+			agg.TwinFires++
+			f.TwinFires++
+		}
+		for _, tech := range row.Techniques {
+			tt := techniques[tech]
+			if tt == nil {
+				tt = &TechniqueRow{Technique: tech}
+				techniques[tech] = tt
+			}
+			tt.Tested++
+			if row.Outcome == OutcomeCaughtAlert {
+				tt.Caught++
+			}
+		}
+	}
+	agg.MissRate = rate(agg.Missed, agg.MustAlert)
+	agg.MissRateLow, agg.MissRateHigh = wilson(agg.MissRate, agg.MustAlert)
+	c.Aggregate = agg
+
+	for _, f := range Families() {
+		if row, ok := families[f]; ok {
+			c.Families = append(c.Families, *row)
+		}
+	}
+	techs := make([]string, 0, len(techniques))
+	for t := range techniques {
+		techs = append(techs, t)
+	}
+	sort.Strings(techs)
+	for _, t := range techs {
+		c.Techniques = append(c.Techniques, *techniques[t])
+	}
+
+	// A document with no must-alert scenario has no primary number, and
+	// rendering a 0% miss rate over nothing would be exactly the naked
+	// percentage this schema exists to refuse.
+	if agg.MustAlert == 0 {
+		return fmt.Errorf("no scenario in this run carries a must-alert " +
+			"expectation, so there is no miss rate to bound and no document " +
+			"to seal")
+	}
+	return nil
+}

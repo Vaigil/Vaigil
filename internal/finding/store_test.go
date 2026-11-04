@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/audit"
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/audit"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 func sample(src, who string) Finding {

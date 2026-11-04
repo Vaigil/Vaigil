@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/agentreg"
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/macaroon"
-	"github.com/vaigil/vaigil/internal/oauthas"
+	"github.com/aeroprove/aeroprove/internal/agentreg"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/macaroon"
+	"github.com/aeroprove/aeroprove/internal/oauthas"
 )
 
 // The on-behalf-of half of the exchange: an agent presents its own
@@ -146,7 +146,7 @@ func toolsOf(t *testing.T, token string) map[string]bool {
 func TestOnBehalfIsTheIntersectionOfAllThreeBounds(t *testing.T) {
 	// Wider consent than registry: the consent carries triage, the registry
 	// allows reading only. What is issued reads.
-	r := onBehalf(t, []string{"vaigil_find", "vaigil_read"}, "triage")
+	r := onBehalf(t, []string{"aeroprove_find", "aeroprove_read"}, "triage")
 	w := r.offer(t, r.plain, r.person)
 	var got exchangeAnswer
 	if w.Code != http.StatusOK || json.Unmarshal(w.Body.Bytes(), &got) != nil {
@@ -155,7 +155,7 @@ func TestOnBehalfIsTheIntersectionOfAllThreeBounds(t *testing.T) {
 	if got.Scope != "triage" {
 		t.Errorf("the answer's scope word is the consent's: %+v", got)
 	}
-	if tools := toolsOf(t, got.AccessToken); len(tools) != 2 || !tools["vaigil_read"] || tools["vaigil_write"] {
+	if tools := toolsOf(t, got.AccessToken); len(tools) != 2 || !tools["aeroprove_read"] || tools["aeroprove_write"] {
 		t.Errorf("the registry's narrowness did not win: %v", tools)
 	}
 
@@ -166,7 +166,7 @@ func TestOnBehalfIsTheIntersectionOfAllThreeBounds(t *testing.T) {
 	if w.Code != http.StatusOK || json.Unmarshal(w.Body.Bytes(), &got) != nil {
 		t.Fatalf("%d %s", w.Code, w.Body)
 	}
-	if tools := toolsOf(t, got.AccessToken); len(tools) != 2 || tools["vaigil_write"] {
+	if tools := toolsOf(t, got.AccessToken); len(tools) != 2 || tools["aeroprove_write"] {
 		t.Errorf("the consent's narrowness did not win: %v", tools)
 	}
 
@@ -174,19 +174,19 @@ func TestOnBehalfIsTheIntersectionOfAllThreeBounds(t *testing.T) {
 	// inside a registry and a consent that allow three. What is issued is
 	// that one tool.
 	r = onBehalf(t, agentreg.Tools(), "triage")
-	narrow := narrowRun(t, r, "vaigil_read")
+	narrow := narrowRun(t, r, "aeroprove_read")
 	w = r.offer(t, narrow, r.person)
 	if w.Code != http.StatusOK || json.Unmarshal(w.Body.Bytes(), &got) != nil {
 		t.Fatalf("%d %s", w.Code, w.Body)
 	}
-	if tools := toolsOf(t, got.AccessToken); len(tools) != 1 || !tools["vaigil_read"] {
+	if tools := toolsOf(t, got.AccessToken); len(tools) != 1 || !tools["aeroprove_read"] {
 		t.Errorf("the credential's narrowness did not win: %v", tools)
 	}
 
 	// Nothing in common: a refusal, in the spec's word, naming the three
 	// bounds so the operator can widen the right one.
-	r = onBehalf(t, []string{"vaigil_read"}, "triage")
-	w = r.offer(t, narrowRun(t, r, "vaigil_write"), r.person)
+	r = onBehalf(t, []string{"aeroprove_read"}, "triage")
+	w = r.offer(t, narrowRun(t, r, "aeroprove_write"), r.person)
 	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "invalid_scope") ||
 		!strings.Contains(w.Body.String(), "three bounds") {
 		t.Errorf("%d %s", w.Code, w.Body)
@@ -194,7 +194,7 @@ func TestOnBehalfIsTheIntersectionOfAllThreeBounds(t *testing.T) {
 }
 
 // narrowRun mints the agent a run credential carrying exactly one tool,
-// over its plain bearer, the way `vaigil agent token` does.
+// over its plain bearer, the way `aeroprove agent token` does.
 func narrowRun(t *testing.T, r *oboRig, tool string) string {
 	t.Helper()
 	toolCaveat, err := macaroon.ToolCaveat(tool)

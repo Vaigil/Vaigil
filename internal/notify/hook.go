@@ -131,13 +131,13 @@ func (h HookSender) Send(n Notice, d Delivery) error {
 		return err
 	}
 	status, err := h.Post.Post(d.Address, body, map[string]string{
-		"Content-Type":     "application/json",
-		"User-Agent":       "vaigil-notify",
-		"Vaigil-Delivery":  d.Key,
-		"Vaigil-Timestamp": fmt.Sprint(at.Unix()),
-		"Vaigil-Signature": Sign(secret, at, body),
-		"Vaigil-Notice-Of": string(n.Kind),
-		"Auto-Submitted":   "auto-generated",
+		"Content-Type":        "application/json",
+		"User-Agent":          "aeroprove-notify",
+		"AeroProve-Delivery":  d.Key,
+		"AeroProve-Timestamp": fmt.Sprint(at.Unix()),
+		"AeroProve-Signature": Sign(secret, at, body),
+		"AeroProve-Notice-Of": string(n.Kind),
+		"Auto-Submitted":      "auto-generated",
 	})
 	if err != nil {
 		return err

@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/detect"
-	"github.com/vaigil/vaigil/internal/spool"
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/detect"
+	"github.com/aeroprove/aeroprove/internal/spool"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // huntStore is a store where one account signs in from the usual address a

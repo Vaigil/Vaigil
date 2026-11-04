@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vaigil/vaigil/internal/inbound"
+	"github.com/aeroprove/aeroprove/internal/inbound"
 )
 
 // Every rule that ships validates, fires on the event it says it fires on,
@@ -70,7 +70,7 @@ func TestEveryShippedRuleAgreesWithItsOwnFixtures(t *testing.T) {
 		t.Errorf("%d rules, %d of them quiet", rules, quiet)
 	}
 	for _, want := range []string{"okta", "entra", "workspace", "github",
-		"aws", "evm", "vaigil", "duo", "kubernetes", "snowflake",
+		"aws", "evm", "aeroprove", "duo", "kubernetes", "snowflake",
 		"auditd", "otel", "collector", "openai", "anthropic",
 		strings.SplitN(inbound.StreamSource, "/", 2)[0]} {
 		if !platforms[want] {

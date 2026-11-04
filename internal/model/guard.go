@@ -6,9 +6,9 @@ package model
 import (
 	"context"
 
-	"github.com/vaigil/vaigil/internal/pii"
-	"github.com/vaigil/vaigil/internal/plaintext"
-	"github.com/vaigil/vaigil/internal/secret"
+	"github.com/aeroprove/aeroprove/internal/pii"
+	"github.com/aeroprove/aeroprove/internal/plaintext"
+	"github.com/aeroprove/aeroprove/internal/secret"
 )
 
 // Guarded is a model behind a privacy guard: what may not leave is masked

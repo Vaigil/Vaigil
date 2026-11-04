@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/config"
-	"github.com/vaigil/vaigil/internal/dual"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/config"
+	"github.com/aeroprove/aeroprove/internal/dual"
 )
 
 // On the People screen, making somebody an administrator waits for a

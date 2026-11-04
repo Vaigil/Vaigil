@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 var base = time.Date(2026, 9, 25, 12, 0, 0, 0, time.UTC)

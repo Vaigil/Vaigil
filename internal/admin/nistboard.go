@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/audit"
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/compliance"
-	"github.com/vaigil/vaigil/internal/config"
+	"github.com/aeroprove/aeroprove/internal/audit"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/compliance"
+	"github.com/aeroprove/aeroprove/internal/config"
 )
 
 // The Compliance board: what this program maps to, and what the audit chain
@@ -276,7 +276,7 @@ func buildComplianceBoard(m *compliance.Mapping, events []audit.Event, chainRead
 		entries := byControl[c]
 		ctrl := complianceControl{
 			ID: c, Family: family, Entries: entries,
-			Command: "vaigil compliance evidence " + c,
+			Command: "aeroprove compliance evidence " + c,
 		}
 		for _, e := range entries {
 			if e.Records > 0 {

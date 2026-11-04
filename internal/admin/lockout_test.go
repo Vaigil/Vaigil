@@ -19,9 +19,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/enrol"
-	"github.com/vaigil/vaigil/internal/lockout"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/enrol"
+	"github.com/aeroprove/aeroprove/internal/lockout"
 )
 
 // signInFrom is signIn from an address of the caller's choosing.
@@ -58,7 +58,7 @@ func postFormAs(t *testing.T, srv *Server, path, session string, form url.Values
 	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Sec-Fetch-Site", "same-origin")
-	req.AddCookie(&http.Cookie{Name: "vaigil_token", Value: session})
+	req.AddCookie(&http.Cookie{Name: "aeroprove_token", Value: session})
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 	return w

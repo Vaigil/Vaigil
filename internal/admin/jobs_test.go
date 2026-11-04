@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/auth"
 )
 
 // Each job opens its own screens and no others.

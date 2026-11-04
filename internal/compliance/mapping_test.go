@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vaigil/vaigil/internal/detect"
+	"github.com/aeroprove/aeroprove/internal/detect"
 )
 
 // The shipped mapping is the document an assessor is handed, and the document
@@ -282,7 +282,7 @@ func TestParseRefusesADuplicateId(t *testing.T) {
 
 func TestParseRefusesAControlOutsideTheCatalog(t *testing.T) {
 	err := parseOr(t, func(doc map[string]any) {
-		e := entry(t, doc, "vaigil.signin-failures")
+		e := entry(t, doc, "aeroprove.signin-failures")
 		nist, _ := e["nist"].(map[string]any)
 		nist["controls"] = []any{"AC-99"}
 	})
@@ -293,7 +293,7 @@ func TestParseRefusesAControlOutsideTheCatalog(t *testing.T) {
 
 func TestParseRefusesAnAbsentArray(t *testing.T) {
 	err := parseOr(t, func(doc map[string]any) {
-		e := entry(t, doc, "vaigil.signin-failures")
+		e := entry(t, doc, "aeroprove.signin-failures")
 		delete(e, "attack")
 	})
 	if err == nil || !strings.Contains(err.Error(), `no "attack" key`) {
@@ -304,7 +304,7 @@ func TestParseRefusesAnAbsentArray(t *testing.T) {
 
 func TestParseRefusesAnActionPatternThatIsNotOne(t *testing.T) {
 	err := parseOr(t, func(doc map[string]any) {
-		e := entry(t, doc, "vaigil.signin-failures")
+		e := entry(t, doc, "aeroprove.signin-failures")
 		ev, _ := e["evidence"].(map[string]any)
 		ev["actions"] = []any{"auth.*.failures"}
 	})
@@ -315,7 +315,7 @@ func TestParseRefusesAnActionPatternThatIsNotOne(t *testing.T) {
 
 func TestParseRefusesAnEntryThatProvesNothing(t *testing.T) {
 	err := parseOr(t, func(doc map[string]any) {
-		e := entry(t, doc, "vaigil.signin-failures")
+		e := entry(t, doc, "aeroprove.signin-failures")
 		ev, _ := e["evidence"].(map[string]any)
 		ev["proves"] = ""
 	})

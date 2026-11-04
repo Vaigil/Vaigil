@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vaigil/vaigil/internal/config"
+	"github.com/aeroprove/aeroprove/internal/config"
 )
 
 // Every setting must be read by something.
@@ -19,7 +19,7 @@ import (
 // # Why this exists
 //
 // An audit found six settings that were settable, validated, documented with a
-// compliance mapping, rendered in the admin, and read by nothing. `vaigil
+// compliance mapping, rendered in the admin, and read by nothing. `aeroprove
 // config set` reported success and the value went nowhere.
 //
 // The worst of them was approval.required_humans, whose own explanatory text

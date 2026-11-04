@@ -65,15 +65,15 @@ func TestAnUnresolvableEndpointIsNotLocal(t *testing.T) {
 // The end-to-end decision: a keyless local endpoint builds, a keyless public
 // one does not.
 func TestKeylessConfigurationIsAcceptedOnlyForALocalModel(t *testing.T) {
-	t.Setenv("VAIGIL_MODEL_KEY", "")
+	t.Setenv("AEROPROVE_MODEL_KEY", "")
 	t.Setenv("OLLAMA_API_KEY", "")
 
-	t.Setenv("VAIGIL_MODEL_URL", "http://127.0.0.1:11434/v1")
+	t.Setenv("AEROPROVE_MODEL_URL", "http://127.0.0.1:11434/v1")
 	if _, err := NewHTTPModel(); err != nil {
 		t.Errorf("a keyless local model was refused: %v", err)
 	}
 
-	t.Setenv("VAIGIL_MODEL_URL", "https://api.openai.com/v1")
+	t.Setenv("AEROPROVE_MODEL_URL", "https://api.openai.com/v1")
 	err := NewHTTPModel2Err()
 	if err == nil {
 		t.Fatal("a keyless public endpoint was accepted; the operator would " +

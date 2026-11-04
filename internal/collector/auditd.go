@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/atomicfile"
+	"github.com/aeroprove/aeroprove/internal/atomicfile"
 )
 
 // The auditd tail.

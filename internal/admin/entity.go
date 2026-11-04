@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/finding"
-	"github.com/vaigil/vaigil/internal/telemetry"
-	"github.com/vaigil/vaigil/internal/vuln"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/finding"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/vuln"
 )
 
 // One account or one machine, and everything held about it.

@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/audit"
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/audit"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // Deciding who gets a notice, showing the decision, and only then sending.

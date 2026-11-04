@@ -28,7 +28,7 @@ package untrusted
 import (
 	"strings"
 
-	"github.com/vaigil/vaigil/internal/plaintext"
+	"github.com/aeroprove/aeroprove/internal/plaintext"
 )
 
 // confusable folds characters that imitate the ASCII a fence is made of.

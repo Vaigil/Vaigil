@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/auth"
 )
 
 // A sign-in a rule judged unlike its person reaches nothing but "confirm
@@ -42,13 +42,13 @@ func TestASteppedUpSessionReachesNothingUntilLetIn(t *testing.T) {
 	}
 	var session string
 	for _, c := range rec.Result().Cookies() {
-		if c.Name == "vaigil_token" {
+		if c.Name == "aeroprove_token" {
 			session = c.Value
 		}
 	}
 	as := func(method, path, body string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest(method, path, strings.NewReader(body))
-		r.AddCookie(&http.Cookie{Name: "vaigil_token", Value: session})
+		r.AddCookie(&http.Cookie{Name: "aeroprove_token", Value: session})
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		r.Header.Set("Sec-Fetch-Site", "same-origin")
 		w := httptest.NewRecorder()
@@ -132,7 +132,7 @@ func TestAStepUpThatCannotBeRecordedRefusesTheSignIn(t *testing.T) {
 		t.Fatalf("the sign-in went to %q", loc)
 	}
 	for _, c := range rec.Result().Cookies() {
-		if c.Name == "vaigil_token" && c.Value != "" && c.MaxAge > 0 {
+		if c.Name == "aeroprove_token" && c.Value != "" && c.MaxAge > 0 {
 			t.Error("a session cookie was set")
 		}
 	}
@@ -163,7 +163,7 @@ func TestConfirmingASessionNeverUsesEmail(t *testing.T) {
 	}
 	as := func(method, path string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest(method, path, strings.NewReader(""))
-		r.AddCookie(&http.Cookie{Name: "vaigil_token", Value: secret})
+		r.AddCookie(&http.Cookie{Name: "aeroprove_token", Value: secret})
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		r.Header.Set("Sec-Fetch-Site", "same-origin")
 		w := httptest.NewRecorder()
@@ -181,7 +181,7 @@ func TestConfirmingASessionNeverUsesEmail(t *testing.T) {
 	}
 	for i := 0; i < 3; i++ {
 		r := httptest.NewRequest(http.MethodPost, "/signin/passkey/verify", nil)
-		r.AddCookie(&http.Cookie{Name: "vaigil_token", Value: secret})
+		r.AddCookie(&http.Cookie{Name: "aeroprove_token", Value: secret})
 		srv.stepUpFailed(r)
 	}
 	if len(signals) != 1 || signals[0] != "ada@example.com verification-failing" {
@@ -220,13 +220,13 @@ func TestASessionUsedSomewhereElseIsCaught(t *testing.T) {
 	srv.Handler().ServeHTTP(rec, req)
 	var session string
 	for _, c := range rec.Result().Cookies() {
-		if c.Name == "vaigil_token" {
+		if c.Name == "aeroprove_token" {
 			session = c.Value
 		}
 	}
 	from := func(addr, agent string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest(http.MethodGet, "/today", nil)
-		r.AddCookie(&http.Cookie{Name: "vaigil_token", Value: session})
+		r.AddCookie(&http.Cookie{Name: "aeroprove_token", Value: session})
 		r.Header.Set("User-Agent", agent)
 		r.RemoteAddr = addr + ":5000"
 		w := httptest.NewRecorder()
@@ -251,7 +251,7 @@ func TestASessionUsedSomewhereElseIsCaught(t *testing.T) {
 	var reported []string
 	srv.Reported = func(who, sess string) { reported = append(reported, who) }
 	r := httptest.NewRequest(http.MethodPost, "/signin/verify/report", nil)
-	r.AddCookie(&http.Cookie{Name: "vaigil_token", Value: session})
+	r.AddCookie(&http.Cookie{Name: "aeroprove_token", Value: session})
 	r.Header.Set("Sec-Fetch-Site", "same-origin")
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, r)
@@ -274,7 +274,7 @@ func TestASessionOnAnotherDeviceIsCaught(t *testing.T) {
 	}
 	srv.SessionMovedTo = func(m SessionMove) SignInVerdict { return SignInVerdict{StepUp: true, Reason: "moved"} }
 	r := httptest.NewRequest(http.MethodGet, "/today", nil)
-	r.AddCookie(&http.Cookie{Name: "vaigil_token", Value: secret})
+	r.AddCookie(&http.Cookie{Name: "aeroprove_token", Value: secret})
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, r)
 	if w.Code != http.StatusSeeOther {

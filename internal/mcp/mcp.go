@@ -1,13 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Rashik Adhikari
 // SPDX-License-Identifier: Apache-2.0
 
-// Package mcp exposes vaigil to agents over the Model Context Protocol.
+// Package mcp exposes aeroprove to agents over the Model Context Protocol.
 //
 // # Why now, and not before
 //
 // Earlier research on this project concluded that MCP is worth its cost for
 // remote, authenticated access and not for local, deterministic work — a CLI
-// wins the second case outright, and vaigil was local. Hosting changes which
+// wins the second case outright, and aeroprove was local. Hosting changes which
 // case this is, so the conclusion changes with it.
 //
 // # Three tools, not fifteen
@@ -43,7 +43,7 @@
 // names the pitfall plainly: a server that checks a token's signature and expiry
 // but not its audience will accept a token minted for something else entirely.
 //
-// vaigil's tokens are opaque and issued by this server, so they are
+// aeroprove's tokens are opaque and issued by this server, so they are
 // audience-bound by construction — there is no other issuer whose token could
 // validate here, and the class of confusion the specification warns about cannot
 // arise. That is a smaller claim than OAuth 2.1 conformance, and it is the true
@@ -210,8 +210,8 @@ func (s *Server) tools() []Tool {
 	}
 	return []Tool{
 		{
-			Name: "vaigil_find",
-			Description: "Find the Vaigil operation for a task. Call this first; " +
+			Name: "aeroprove_find",
+			Description: "Find the AeroProve operation for a task. Call this first; " +
 				"it returns the exact arguments for the operation you need.",
 			InputSchema: map[string]any{
 				"type": "object",
@@ -226,20 +226,20 @@ func (s *Server) tools() []Tool {
 			Annotations: map[string]any{"readOnlyHint": true, "openWorldHint": false},
 		},
 		{
-			Name: "vaigil_read",
+			Name: "aeroprove_read",
 			Description: "Read the security queue: findings and their evidence, " +
 				"open incidents and their clocks, detection statistics, the " +
-				"vulnerability plan, the estate in numbers. Use vaigil_find to " +
+				"vulnerability plan, the estate in numbers. Use aeroprove_find to " +
 				"learn the operations.",
-			InputSchema: opSchema("a read operation name from vaigil_find"),
+			InputSchema: opSchema("a read operation name from aeroprove_find"),
 			Annotations: map[string]any{"readOnlyHint": true, "openWorldHint": false},
 		},
 		{
-			Name: "vaigil_write",
+			Name: "aeroprove_write",
 			Description: "Propose a decision on a finding, for a person to make. " +
 				"Records a proposal only — a finding never changes state here. " +
-				"Use vaigil_find to learn the operations.",
-			InputSchema: opSchema("a write operation name from vaigil_find"),
+				"Use aeroprove_find to learn the operations.",
+			InputSchema: opSchema("a write operation name from aeroprove_find"),
 			Annotations: map[string]any{"readOnlyHint": false, "destructiveHint": false, "openWorldHint": false},
 		},
 	}
@@ -252,7 +252,7 @@ func opSchema(desc string) map[string]any {
 			"operation": map[string]any{"type": "string", "description": desc},
 			"arguments": map[string]any{
 				"type":        "object",
-				"description": "arguments for the operation, as vaigil_find described them",
+				"description": "arguments for the operation, as aeroprove_find described them",
 			},
 		},
 		"required": []string{"operation"},
@@ -350,7 +350,7 @@ func (s *Server) Handle(req Request) *Response {
 // one. They describe what this server does, because an agent that reads a
 // promise about drafts or publishing will plan around a thing that is not
 // here.
-const instructions = "Call vaigil_find first to discover operations. Reading " +
+const instructions = "Call aeroprove_find first to discover operations. Reading " +
 	"is most of what is here. The one write, propose_finding_decision, " +
 	"records a suggestion that a person decides on: nothing you call " +
 	"changes a finding, an incident or anybody's authority."
@@ -410,29 +410,29 @@ func (s *Server) call(raw json.RawMessage) (any, *Error) {
 		return s.callDirect(p)
 	}
 
-	if p.Name == "vaigil_find" {
+	if p.Name == "aeroprove_find" {
 		query, _ := p.Arguments["query"].(string)
 		return textResult(s.describe(s.find(query))), nil
 	}
 
 	kind := map[string]string{
-		"vaigil_read": "read", "vaigil_write": "write",
+		"aeroprove_read": "read", "aeroprove_write": "write",
 	}[p.Name]
 	if kind == "" {
 		return nil, &Error{Code: CodeMethodNotFound,
-			Message: fmt.Sprintf("no tool %q; the tools are vaigil_find, "+
-				"vaigil_read and vaigil_write", p.Name)}
+			Message: fmt.Sprintf("no tool %q; the tools are aeroprove_find, "+
+				"aeroprove_read and aeroprove_write", p.Name)}
 	}
 
 	opName, _ := p.Arguments["operation"].(string)
 	if opName == "" {
 		return nil, &Error{Code: CodeInvalidParams,
-			Message: "no operation given; call vaigil_find to get one"}
+			Message: "no operation given; call aeroprove_find to get one"}
 	}
 	op, ok := s.operations[opName]
 	if !ok {
 		return nil, &Error{Code: CodeInvalidParams,
-			Message: fmt.Sprintf("no operation %q; call vaigil_find", opName)}
+			Message: fmt.Sprintf("no operation %q; call aeroprove_find", opName)}
 	}
 
 	// A read tool must not be able to reach a write operation. Without this the
@@ -440,11 +440,11 @@ func (s *Server) call(raw json.RawMessage) (any, *Error) {
 	// and a client permitted only to read could write by naming the operation.
 	if op.Writes && kind == "read" {
 		return nil, &Error{Code: CodeInvalidParams,
-			Message: fmt.Sprintf("%q changes content; call it through vaigil_write", opName)}
+			Message: fmt.Sprintf("%q changes content; call it through aeroprove_write", opName)}
 	}
 	if !op.Writes && kind == "write" {
 		return nil, &Error{Code: CodeInvalidParams,
-			Message: fmt.Sprintf("%q does not change anything; use vaigil_read", opName)}
+			Message: fmt.Sprintf("%q does not change anything; use aeroprove_read", opName)}
 	}
 
 	if s.Authorise == nil {
@@ -528,9 +528,9 @@ func (s *Server) describe(ops []Operation) string {
 		return "no operations available"
 	}
 	for _, op := range ops {
-		tool := "vaigil_read"
+		tool := "aeroprove_read"
 		if op.Writes {
-			tool = "vaigil_write"
+			tool = "aeroprove_write"
 		}
 		fmt.Fprintf(&b, "%s — %s\n", op.Name, op.Summary)
 		fmt.Fprintf(&b, "  call: %s{operation:%q, arguments:{...}}\n", tool, op.Name)
@@ -561,7 +561,7 @@ func textResult(text string) map[string]any {
 	}
 }
 
-// Operations lists what is registered, for tests and for `vaigil mcp --list`.
+// Operations lists what is registered, for tests and for `aeroprove mcp --list`.
 func (s *Server) Operations() []Operation {
 	out := make([]Operation, 0, len(s.operations))
 	for _, op := range s.operations {

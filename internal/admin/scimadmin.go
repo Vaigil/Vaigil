@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/scim"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/scim"
 )
 
 // The Provisioning screen: the identity provider's connection, and what

@@ -32,7 +32,7 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // fanBuffer is how many events one segment's worker may hold ahead of the

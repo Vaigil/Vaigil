@@ -19,7 +19,7 @@ func (h *hearing) Complete(_ context.Context, system, user string) (string, erro
 }
 
 func firstPlaceholder(s string) string {
-	i := strings.Index(s, "<vaigil:")
+	i := strings.Index(s, "<aeroprove:")
 	if i < 0 {
 		return "nobody"
 	}

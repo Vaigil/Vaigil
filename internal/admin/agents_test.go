@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/agentreg"
-	"github.com/vaigil/vaigil/internal/spool"
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/agentreg"
+	"github.com/aeroprove/aeroprove/internal/spool"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // The Agents board, from a spool holding both sources that watch agents.
@@ -47,28 +47,28 @@ func agentBoard(t *testing.T, in ...telemetry.Event) (*Server, string) {
 // sources produce for what may be one agent, which the board must say
 // rather than merge.
 var (
-	va    = telemetry.ID{Issuer: "vaigil", Value: "ana"}
+	va    = telemetry.ID{Issuer: "aeroprove", Value: "ana"}
 	ci    = telemetry.ID{Issuer: "otel", Value: "ci-agent"}
 	quiet = telemetry.ID{Issuer: "otel", Value: "quiet-bot"}
 )
 
 func agentFixture() []telemetry.Event {
 	return []telemetry.Event{
-		// vaigil:ana — three allowed calls, one refused, one proposal.
-		agentEv(agentVaigil, va, telemetry.DispositionAllowed, 6000,
+		// aeroprove:ana — three allowed calls, one refused, one proposal.
+		agentEv(agentSidecar, va, telemetry.DispositionAllowed, 6000,
 			map[string]string{"action": "mcp.call", "tool": "fs.read",
 				"model": "analyst", "agent": "ci-agent"}),
-		agentEv(agentVaigil, va, telemetry.DispositionAllowed, 4320,
+		agentEv(agentSidecar, va, telemetry.DispositionAllowed, 4320,
 			map[string]string{"action": "mcp.call", "tool": "fs.read",
 				"model": "analyst", "agent": "ci-agent"}),
-		agentEv(agentVaigil, va, telemetry.DispositionAllowed, 120,
+		agentEv(agentSidecar, va, telemetry.DispositionAllowed, 120,
 			map[string]string{"action": "mcp.call", "tool": "gh.pr",
 				"model": "analyst", "agent": "ci-agent"}),
-		agentEv(agentVaigil, va, telemetry.DispositionBlocked, 60,
+		agentEv(agentSidecar, va, telemetry.DispositionBlocked, 60,
 			map[string]string{"action": "mcp.call", "tool": "gh.push",
 				"model": "analyst", "why": "outside its scope",
 				"agent": "ci-agent"}),
-		agentEv(agentVaigil, va, telemetry.DispositionAllowed, 90,
+		agentEv(agentSidecar, va, telemetry.DispositionAllowed, 90,
 			map[string]string{"action": "proposal.finding", "finding": "f-1",
 				"to": "false-positive", "confidence": "0.8", "agent": "ci-agent"}),
 		// otel:ci-agent — two allowed tool calls, one model call that failed.
@@ -102,7 +102,7 @@ func TestTheBoardCountsWhatEachAgentDid(t *testing.T) {
 		t.Fatal("the board did not render to the end")
 	}
 	// A row per actor, as stored — the pseudonym and the SDK's identifier.
-	for _, key := range []string{"vaigil:ana", "otel:ci-agent", "otel:quiet-bot"} {
+	for _, key := range []string{"aeroprove:ana", "otel:ci-agent", "otel:quiet-bot"} {
 		if !strings.Contains(body, "<code>"+key+"</code>") {
 			t.Errorf("no row for %s", key)
 		}
@@ -110,7 +110,7 @@ func TestTheBoardCountsWhatEachAgentDid(t *testing.T) {
 	// Most recently active first: ci-agent called ten minutes ago, ana an
 	// hour, quiet-bot three days.
 	ciAt, anaAt, quietAt := strings.Index(body, "otel:ci-agent"),
-		strings.Index(body, "vaigil:ana"), strings.Index(body, "otel:quiet-bot")
+		strings.Index(body, "aeroprove:ana"), strings.Index(body, "otel:quiet-bot")
 	if ciAt < 0 || anaAt < 0 || quietAt < 0 || !(ciAt < anaAt && anaAt < quietAt) {
 		t.Errorf("not sorted by recent activity (%d, %d, %d)", ciAt, anaAt, quietAt)
 	}
@@ -148,7 +148,7 @@ func TestTheBoardCountsWhatEachAgentDid(t *testing.T) {
 // TestAnAgentsPageHoldsItsCountsAndTheirDenominators.
 func TestAnAgentsPageHoldsItsCountsAndTheirDenominators(t *testing.T) {
 	srv, token := agentBoard(t, agentFixture()...)
-	body := get(t, srv, "/security/agents/vaigil:ana", token).Body.String()
+	body := get(t, srv, "/security/agents/aeroprove:ana", token).Body.String()
 	if strings.Contains(body, "render error") {
 		t.Fatal("the page did not render")
 	}
@@ -172,7 +172,7 @@ func TestAnAgentsPageHoldsItsCountsAndTheirDenominators(t *testing.T) {
 	// other row it may or may not share an agent with.
 	for _, want := range []string{
 		"the pseudonym the audit log gave the agent",
-		"<code>vaigil/agent</code>, 5 events",
+		"<code>aeroprove/agent</code>, 5 events",
 		"named the agent",
 		"<code>ci-agent</code>",
 		"May or may not be the same agent as",
@@ -215,19 +215,19 @@ func TestTheBoardsSourceFilterFollowsTheChips(t *testing.T) {
 	srv, token := agentBoard(t, agentFixture()...)
 
 	otel := get(t, srv, "/security/agents?source=otel", token).Body.String()
-	if !strings.Contains(otel, "otel:ci-agent") || strings.Contains(otel, "vaigil:ana") {
+	if !strings.Contains(otel, "otel:ci-agent") || strings.Contains(otel, "aeroprove:ana") {
 		t.Error("the otel filter did not narrow the board to otel's agents")
 	}
 	if !strings.Contains(otel, `href="/security/agents?source=otel" class="on"`) {
 		t.Error("the otel chip is not marked as the current filter")
 	}
-	vaigil := get(t, srv, "/security/agents?source=vaigil", token).Body.String()
-	if !strings.Contains(vaigil, "vaigil:ana") || strings.Contains(vaigil, "otel:ci-agent") {
-		t.Error("the vaigil filter did not narrow the board to the sidecar's agents")
+	aeroprove := get(t, srv, "/security/agents?source=aeroprove", token).Body.String()
+	if !strings.Contains(aeroprove, "aeroprove:ana") || strings.Contains(aeroprove, "otel:ci-agent") {
+		t.Error("the aeroprove filter did not narrow the board to the sidecar's agents")
 	}
 	// An unknown value is no filter, never a comparison nobody wrote.
 	odd := get(t, srv, "/security/agents?source=everything", token).Body.String()
-	if !strings.Contains(odd, "otel:ci-agent") || !strings.Contains(odd, "vaigil:ana") {
+	if !strings.Contains(odd, "otel:ci-agent") || !strings.Contains(odd, "aeroprove:ana") {
 		t.Error("an unknown filter value narrowed the board")
 	}
 }
@@ -293,13 +293,13 @@ func TestNothingAnAgentOrItsSourcesWroteRunsOnTheScreen(t *testing.T) {
 			"trace_id": "t-x", "conversation": "c-x",
 			"span_id": evil, "status": evil})
 	fromOtel.Message = evil
-	fromVaigil := agentEv(agentVaigil,
-		telemetry.ID{Issuer: "vaigil", Value: "ev"},
+	fromSidecar := agentEv(agentSidecar,
+		telemetry.ID{Issuer: "aeroprove", Value: "ev"},
 		telemetry.DispositionAllowed, 4,
 		map[string]string{"action": "mcp.call", "tool": "fs.read",
 			"resource": evil, "client": evil})
-	fromVaigil.Message = evil
-	srv, token := agentBoard(t, fromOtel, fromVaigil)
+	fromSidecar.Message = evil
+	srv, token := agentBoard(t, fromOtel, fromSidecar)
 	board := get(t, srv, "/security/agents", token).Body.String()
 	page := get(t, srv, agentHref(nasty), token).Body.String()
 	for name, body := range map[string]string{"board": board, "page": page} {
@@ -341,7 +341,7 @@ func TestNothingAnAgentOrItsSourcesWroteRunsOnTheScreen(t *testing.T) {
 // a 404 rather than an empty agent page pretending the identity is known.
 func TestAnUnknownAgentIsAnHonestNotFound(t *testing.T) {
 	srv, token := agentBoard(t, agentFixture()...)
-	w := get(t, srv, "/security/agents/vaigil:nobody", token)
+	w := get(t, srv, "/security/agents/aeroprove:nobody", token)
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("an unknown agent answered %d", w.Code)
 	}
@@ -438,10 +438,10 @@ func addAgent(t *testing.T, st agentreg.Store, a agentreg.Agent) {
 // bot is the actor whose events name the registered agent ci-bot: the token
 // the sidecar saw was issued agent:ci-bot, which is the whole of the claim
 // the join is allowed to act on.
-var bot = telemetry.ID{Issuer: "vaigil", Value: "bot-1"}
+var bot = telemetry.ID{Issuer: "aeroprove", Value: "bot-1"}
 
 func botEvent(mins int, client string) telemetry.Event {
-	return agentEv(agentVaigil, bot, telemetry.DispositionAllowed, mins,
+	return agentEv(agentSidecar, bot, telemetry.DispositionAllowed, mins,
 		map[string]string{"action": "mcp.call", "tool": "fs.read", "client": client})
 }
 
@@ -454,7 +454,7 @@ func botEvent(mins int, client string) telemetry.Event {
 func TestTheRegistryIsJoinedWhereARowsEventsNamedIt(t *testing.T) {
 	withRegistry(t, func(st agentreg.Store) {
 		addAgent(t, st, agentreg.Agent{Name: "ci-bot", Owner: "Ana",
-			Allow: []string{"vaigil_find", "vaigil_read"},
+			Allow: []string{"aeroprove_find", "aeroprove_read"},
 			Note:  "triages CI failures", CreatedBy: "dana"})
 	})
 	srv, token := agentBoard(t, botEvent(20, "agent:ci-bot"))
@@ -463,7 +463,7 @@ func TestTheRegistryIsJoinedWhereARowsEventsNamedIt(t *testing.T) {
 		`<span class="tag tag-ok">registered</span>`,
 		"<code>ci-bot</code>",
 		"owner Ana",
-		`<span class="chip-small">vaigil_find</span>`,
+		`<span class="chip-small">aeroprove_find</span>`,
 		`<span class="wf-word good">active</span>`,
 	} {
 		if !strings.Contains(body, want) {
@@ -483,9 +483,9 @@ func TestTheRegistryIsJoinedWhereARowsEventsNamedIt(t *testing.T) {
 	}
 	// The agent's page: a Registry section holding what the registry
 	// records, attributed to whoever wrote it.
-	page := get(t, srv, "/security/agents/vaigil:bot-1", token).Body.String()
+	page := get(t, srv, "/security/agents/aeroprove:bot-1", token).Body.String()
 	for _, want := range []string{"<h2>Registry</h2>", "<dt>Owner</dt><dd>Ana</dd>",
-		`<span class="chip-small">vaigil_find</span>`,
+		`<span class="chip-small">aeroprove_find</span>`,
 		"triages CI failures", "Last changed", "by dana",
 		"The join runs one way"} {
 		if !strings.Contains(page, want) {
@@ -503,7 +503,7 @@ func TestTheRegistryIsJoinedWhereARowsEventsNamedIt(t *testing.T) {
 func TestADisabledRegisteredAgentIsTheLoudestThingOnItsRow(t *testing.T) {
 	withRegistry(t, func(st agentreg.Store) {
 		addAgent(t, st, agentreg.Agent{Name: "ci-bot", Owner: "Ana",
-			Allow: []string{"vaigil_read"}, CreatedBy: "dana"})
+			Allow: []string{"aeroprove_read"}, CreatedBy: "dana"})
 		if err := st.Disable("ci-bot", "found exfiltration in its build logs",
 			"responder", time.Now().UTC().Add(-30*time.Minute)); err != nil {
 			t.Fatal(err)
@@ -517,7 +517,7 @@ func TestADisabledRegisteredAgentIsTheLoudestThingOnItsRow(t *testing.T) {
 	if strings.Contains(body, `<span class="wf-word good">active</span>`) {
 		t.Error("the disabled entry was shown as active")
 	}
-	page := get(t, srv, "/security/agents/vaigil:bot-1", token).Body.String()
+	page := get(t, srv, "/security/agents/aeroprove:bot-1", token).Body.String()
 	for _, want := range []string{
 		"<h2>Registry</h2>",
 		"Why it was disabled",
@@ -539,10 +539,10 @@ func TestADisabledRegisteredAgentIsTheLoudestThingOnItsRow(t *testing.T) {
 func TestAnObservedAgentNoEntryMatchesIsSaidAsNotRegistered(t *testing.T) {
 	withRegistry(t, func(st agentreg.Store) {
 		addAgent(t, st, agentreg.Agent{Name: "ci-bot", Owner: "Ana",
-			Allow: []string{"vaigil_read"}, CreatedBy: "dana"})
+			Allow: []string{"aeroprove_read"}, CreatedBy: "dana"})
 	})
-	analyst := agentEv(agentVaigil,
-		telemetry.ID{Issuer: "vaigil", Value: "ana"}, telemetry.DispositionAllowed, 15,
+	analyst := agentEv(agentSidecar,
+		telemetry.ID{Issuer: "aeroprove", Value: "ana"}, telemetry.DispositionAllowed, 15,
 		map[string]string{"action": "proposal.finding", "agent": "triage"})
 	srv, token := agentBoard(t, analyst)
 	body := get(t, srv, "/security/agents", token).Body.String()
@@ -552,7 +552,7 @@ func TestAnObservedAgentNoEntryMatchesIsSaidAsNotRegistered(t *testing.T) {
 	if strings.Contains(body, "<code>ci-bot</code>") {
 		t.Error("the registry's entry reached a row that never named it")
 	}
-	page := get(t, srv, "/security/agents/vaigil:ana", token).Body.String()
+	page := get(t, srv, "/security/agents/aeroprove:ana", token).Body.String()
 	if !strings.Contains(page, "No registry entry matches any name this agent used") {
 		t.Error("the agent's honesty box does not say no entry matches")
 	}
@@ -569,9 +569,9 @@ func TestAnObservedAgentNoEntryMatchesIsSaidAsNotRegistered(t *testing.T) {
 func TestOneActorThatUsedTwoRegisteredTokensShowsBoth(t *testing.T) {
 	withRegistry(t, func(st agentreg.Store) {
 		addAgent(t, st, agentreg.Agent{Name: "one-bot", Owner: "Ana",
-			Allow: []string{"vaigil_read"}, CreatedBy: "dana"})
+			Allow: []string{"aeroprove_read"}, CreatedBy: "dana"})
 		addAgent(t, st, agentreg.Agent{Name: "two-bot", Owner: "Sam",
-			Allow: []string{"vaigil_write"}, CreatedBy: "dana"})
+			Allow: []string{"aeroprove_write"}, CreatedBy: "dana"})
 	})
 	srv, token := agentBoard(t,
 		botEvent(30, "agent:one-bot"), botEvent(20, "agent:two-bot"))
@@ -595,7 +595,7 @@ func TestOneActorThatUsedTwoRegisteredTokensShowsBoth(t *testing.T) {
 func TestARegisteredAgentNobodyObservedIsACountNotARow(t *testing.T) {
 	withRegistry(t, func(st agentreg.Store) {
 		addAgent(t, st, agentreg.Agent{Name: "ci-bot", Owner: "Ana",
-			Allow: []string{"vaigil_read"}, CreatedBy: "dana"})
+			Allow: []string{"aeroprove_read"}, CreatedBy: "dana"})
 	})
 	// A busy store holding nothing from the two sources that watch agents.
 	at := time.Now().UTC().Add(-time.Minute)
@@ -637,7 +637,7 @@ func TestTheRegistrysFreeTextIsRenderedAsTextAndNeverAsALink(t *testing.T) {
 	hostile := `<script>alert(1)</script>"><a href="https://evil.example/x">click</a>`
 	withRegistry(t, func(st agentreg.Store) {
 		addAgent(t, st, agentreg.Agent{Name: "ci-bot", Owner: "Ana",
-			Allow: []string{"vaigil_read"}, Note: hostile, CreatedBy: "dana"})
+			Allow: []string{"aeroprove_read"}, Note: hostile, CreatedBy: "dana"})
 		if err := st.Disable("ci-bot", hostile, "responder",
 			time.Now().UTC().Add(-time.Minute)); err != nil {
 			t.Fatal(err)
@@ -646,7 +646,7 @@ func TestTheRegistrysFreeTextIsRenderedAsTextAndNeverAsALink(t *testing.T) {
 	srv, token := agentBoard(t, botEvent(20, "agent:ci-bot"))
 	for name, body := range map[string]string{
 		"board": get(t, srv, "/security/agents", token).Body.String(),
-		"page":  get(t, srv, "/security/agents/vaigil:bot-1", token).Body.String(),
+		"page":  get(t, srv, "/security/agents/aeroprove:bot-1", token).Body.String(),
 	} {
 		if strings.Contains(body, "<script>alert(1)") {
 			t.Errorf("%s: the registry's note ran as markup", name)
@@ -662,7 +662,7 @@ func TestTheRegistrysFreeTextIsRenderedAsTextAndNeverAsALink(t *testing.T) {
 	// page that renders them. html.EscapeString is the same table
 	// html/template escapes text nodes with, so this asserts the page's
 	// own escaping rather than a hand-copied guess at it.
-	page := get(t, srv, "/security/agents/vaigil:bot-1", token).Body.String()
+	page := get(t, srv, "/security/agents/aeroprove:bot-1", token).Body.String()
 	escaped := html.EscapeString(hostile)
 	if strings.Count(page, escaped) != 2 {
 		t.Errorf("the note and the reason appear %d times escaped, want 2 (once each)",
@@ -702,10 +702,10 @@ func TestAnUnreadableRegistryWithholdsTheJoinRatherThanEmptyingIt(t *testing.T) 
 	if strings.Contains(body, "registered</span>") {
 		t.Error("the join ran against a registry it could not read")
 	}
-	if !strings.Contains(body, "vaigil:bot-1") {
+	if !strings.Contains(body, "aeroprove:bot-1") {
 		t.Error("the observed row did not stand")
 	}
-	page := get(t, srv, "/security/agents/vaigil:bot-1", token).Body.String()
+	page := get(t, srv, "/security/agents/aeroprove:bot-1", token).Body.String()
 	if !strings.Contains(page, "The registry could not be read") {
 		t.Error("the agent's page did not say the registry was unreadable")
 	}
@@ -796,14 +796,14 @@ func TestSessionsAreTheTracesTheEventsDrewThemselves(t *testing.T) {
 
 // TestTheSidecarsEventsAreOneStreamNotInventedSessions.
 //
-// vaigil/agent events carry no trace id. The honest answer is one
+// aeroprove/agent events carry no trace id. The honest answer is one
 // chronological stream, said as that: no session edge is invented for events
 // that never named one, and the sidecar-only agent's page says both facts —
 // no session can be grouped, and these events are a stream by arrival order,
 // not a session.
 func TestTheSidecarsEventsAreOneStreamNotInventedSessions(t *testing.T) {
 	srv, token := agentBoard(t, agentFixture()...)
-	body := get(t, srv, "/security/agents/vaigil:ana", token).Body.String()
+	body := get(t, srv, "/security/agents/aeroprove:ana", token).Body.String()
 	if strings.Contains(body, "render error") {
 		t.Fatal("the page did not render")
 	}

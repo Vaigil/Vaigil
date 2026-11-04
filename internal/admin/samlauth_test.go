@@ -25,9 +25,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/saml"
-	"github.com/vaigil/vaigil/internal/xmldsig"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/saml"
+	"github.com/aeroprove/aeroprove/internal/xmldsig"
 )
 
 // The whole sign-in, through the admin's own handlers: start, a response
@@ -129,7 +129,7 @@ func start(t *testing.T, srv *Server) (requestID, relay string, cookie *http.Coo
 	}
 	relay = loc.Query().Get("RelayState")
 	for _, c := range w.Result().Cookies() {
-		if strings.Contains(c.Name, "vaigil_saml") {
+		if strings.Contains(c.Name, "aeroprove_saml") {
 			cookie = c
 		}
 	}
@@ -241,7 +241,7 @@ func postACS(t *testing.T, srv *Server, relay, samlResponse string, cookie *http
 
 func sessionOf(w *httptest.ResponseRecorder) *http.Cookie {
 	for _, c := range w.Result().Cookies() {
-		if c.Name == "vaigil_token" && c.MaxAge > 0 {
+		if c.Name == "aeroprove_token" && c.MaxAge > 0 {
 			return c
 		}
 	}
@@ -435,7 +435,7 @@ func TestOnlyTheACSTakesACrossSitePost(t *testing.T) {
 		req := httptest.NewRequest("POST", p, strings.NewReader("do=remove&name=corp"))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Header.Set("Sec-Fetch-Site", "cross-site")
-		req.AddCookie(&http.Cookie{Name: "vaigil_token", Value: token})
+		req.AddCookie(&http.Cookie{Name: "aeroprove_token", Value: token})
 		w := httptest.NewRecorder()
 		srv.Handler().ServeHTTP(w, req)
 		if w.Code != http.StatusForbidden {
@@ -515,7 +515,7 @@ func TestTheSSOScreenAddsOnlyAConfirmedKey(t *testing.T) {
 	act := func(v url.Values) *httptest.ResponseRecorder {
 		req := httptest.NewRequest("POST", "/sso/act", strings.NewReader(v.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		req.AddCookie(&http.Cookie{Name: "vaigil_token", Value: token})
+		req.AddCookie(&http.Cookie{Name: "aeroprove_token", Value: token})
 		w := httptest.NewRecorder()
 		srv.Handler().ServeHTTP(w, req)
 		return w

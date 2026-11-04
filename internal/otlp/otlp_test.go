@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/source"
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/source"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // A push, in the shape the OTLP/HTTP JSON mapping specifies and the

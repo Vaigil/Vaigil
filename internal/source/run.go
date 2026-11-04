@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // Batch is what happened when a page of records was mapped.

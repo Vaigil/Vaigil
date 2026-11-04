@@ -24,7 +24,7 @@ import (
 // that knowledge is a declaration, the same one the AI-BOM and the agent
 // registry already ask for. So the labels are data: a table shipped with the
 // pack, installed as files beside the rules, tuned by the organisation, and
-// stamped onto events at the ingest boundary (cmd/vaigil's OTLP path) so a
+// stamped onto events at the ingest boundary (cmd/aeroprove's OTLP path) so a
 // rule can ask about them without any rule having to infer anything.
 //
 // The set is closed because a label nobody defined is a label nobody can

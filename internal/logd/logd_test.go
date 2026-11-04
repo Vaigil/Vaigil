@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/aeroprove/aeroprove/internal/audit"
 )
 
 func writer(t *testing.T) (string, *audit.Log, string) {

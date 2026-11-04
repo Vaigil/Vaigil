@@ -165,7 +165,7 @@ func (i *Incident) FinishAct(id int, ok bool, code int, at time.Time) error {
 	if ok {
 		a.State, word = ActDone, "done"
 	}
-	i.note("vaigil", fmt.Sprintf("%s on %s %s (the tool answered %d)", a.Action,
+	i.note("aeroprove", fmt.Sprintf("%s on %s %s (the tool answered %d)", a.Action,
 		a.Target, word, code), at)
 	return nil
 }
@@ -203,12 +203,12 @@ func (i *Incident) FinishUndo(id int, ok bool, code int, at time.Time) error {
 	a.Code, a.At = code, at.UTC()
 	if ok {
 		a.State = ActUndone
-		i.note("vaigil", fmt.Sprintf("%s on %s undone (the tool answered %d)",
+		i.note("aeroprove", fmt.Sprintf("%s on %s undone (the tool answered %d)",
 			a.Action, a.Target, code), at)
 		return nil
 	}
 	a.State, a.Undone = ActDone, nil
-	i.note("vaigil", fmt.Sprintf("undoing %s on %s failed (the tool answered "+
+	i.note("aeroprove", fmt.Sprintf("undoing %s on %s failed (the tool answered "+
 		"%d); it is still in force", a.Action, a.Target, code), at)
 	return nil
 }

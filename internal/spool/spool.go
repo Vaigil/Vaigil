@@ -77,8 +77,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/atomicfile"
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/atomicfile"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // Defaults. Every one of them is a number somebody will want to change, and

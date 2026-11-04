@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/atomicfile"
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/atomicfile"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // Keeping the list, the notices and what has been delivered.

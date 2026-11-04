@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vaigil/vaigil/internal/config"
+	"github.com/aeroprove/aeroprove/internal/config"
 )
 
 // Every group on Settings is named in words. A group whose heading is its

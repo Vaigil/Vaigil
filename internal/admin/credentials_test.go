@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/throttle"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/throttle"
 )
 
 // The sign-in box is behind the same limiter as everything else.
@@ -150,7 +150,7 @@ func TestArrivingWithNothingIsNotAFailure(t *testing.T) {
 	refused := false
 	for i := 0; i < 25 && !refused; i++ {
 		req := httptest.NewRequest(http.MethodGet, "/today", nil)
-		req.AddCookie(&http.Cookie{Name: "vaigil_token", Value: "vg_definitelynotarealtoken"})
+		req.AddCookie(&http.Cookie{Name: "aeroprove_token", Value: "vg_definitelynotarealtoken"})
 		req.RemoteAddr = from
 		w := httptest.NewRecorder()
 		srv.Handler().ServeHTTP(w, req)

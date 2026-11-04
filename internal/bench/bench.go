@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-// Package bench is VaigilBench v0: the open benchmark of agentic-SOC
+// Package bench is AeroProveBench v0: the open benchmark of agentic-SOC
 // accuracy, beginning with the number no vendor publishes — how often the
 // analyst would have closed a real attack (docs/research white space 11).
 //
@@ -63,7 +63,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/vaigil/vaigil/internal/analyst"
+	"github.com/aeroprove/aeroprove/internal/analyst"
 )
 
 // Schema is the corpus version this build reads. A corpus whose schema is

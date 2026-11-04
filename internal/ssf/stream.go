@@ -11,7 +11,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/vaigil/vaigil/internal/fetch"
+	"github.com/aeroprove/aeroprove/internal/fetch"
 )
 
 // Asking a transmitter for a stream.

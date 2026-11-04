@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "name": "vaigilbench-v0",
+  "name": "aeroprovebench-v0",
   "cases": [
     {
       "name": "bruteforce-privileged-record",

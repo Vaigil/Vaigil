@@ -1,5 +1,5 @@
 {
-  "schema": "vaigil/mapping/v1",
+  "schema": "aeroprove/mapping/v1",
   "generated": "2026-10-26",
   "catalogs": {
     "nist-sp-800-53": "5.2.0",
@@ -11,7 +11,7 @@
   },
   "entries": [
     {
-      "id": "vaigil.signin-failures",
+      "id": "aeroprove.signin-failures",
       "kind": "detection",
       "title": "Repeated failed sign-ins to this program",
       "nist": {
@@ -28,7 +28,7 @@
       }
     },
     {
-      "id": "vaigil.admin-granted",
+      "id": "aeroprove.admin-granted",
       "kind": "detection",
       "title": "Somebody was made an administrator of this program",
       "nist": {
@@ -45,7 +45,7 @@
       }
     },
     {
-      "id": "vaigil.admin-token-issued",
+      "id": "aeroprove.admin-token-issued",
       "kind": "detection",
       "title": "A token with administrator rights was issued",
       "nist": {
@@ -62,7 +62,7 @@
       }
     },
     {
-      "id": "vaigil.break-glass",
+      "id": "aeroprove.break-glass",
       "kind": "detection",
       "title": "Emergency access recovery was used",
       "nist": {
@@ -79,7 +79,7 @@
       }
     },
     {
-      "id": "vaigil.audit-log-moved",
+      "id": "aeroprove.audit-log-moved",
       "kind": "detection",
       "title": "The audit log was moved",
       "nist": {
@@ -96,7 +96,7 @@
       }
     },
     {
-      "id": "vaigil.setting-weakened",
+      "id": "aeroprove.setting-weakened",
       "kind": "detection",
       "title": "A security setting was weakened",
       "nist": {
@@ -113,7 +113,7 @@
       }
     },
     {
-      "id": "vaigil.agent-proposed",
+      "id": "aeroprove.agent-proposed",
       "kind": "detection",
       "title": "A model proposed what to do with a finding",
       "nist": {
@@ -130,7 +130,7 @@
       }
     },
     {
-      "id": "vaigil.agent-call-denied",
+      "id": "aeroprove.agent-call-denied",
       "kind": "detection",
       "title": "A model's tool call was refused",
       "nist": {

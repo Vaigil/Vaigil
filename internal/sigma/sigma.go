@@ -44,8 +44,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/vaigil/vaigil/internal/detect"
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/detect"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // Rule is a Sigma rule as written.

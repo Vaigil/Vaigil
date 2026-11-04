@@ -171,7 +171,7 @@ func TestAPasskeyRegistersAndThenSignsSomebodyIn(t *testing.T) {
 	// A session, and a real one: the cookie has to authenticate.
 	var session string
 	for _, c := range w.Result().Cookies() {
-		if c.Name == "vaigil_token" {
+		if c.Name == "aeroprove_token" {
 			session = c.Value
 		}
 	}

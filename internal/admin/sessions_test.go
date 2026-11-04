@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/auth"
 )
 
 // TestTheCookieNeverHoldsThePastedToken.
@@ -44,7 +44,7 @@ func TestTheCookieNeverHoldsThePastedToken(t *testing.T) {
 	// Signing out ends the session and leaves the token alone.
 	req := httptest.NewRequest(http.MethodPost, "/signout", nil)
 	req.Header.Set("Sec-Fetch-Site", "same-origin")
-	req.AddCookie(&http.Cookie{Name: "vaigil_token", Value: session})
+	req.AddCookie(&http.Cookie{Name: "aeroprove_token", Value: session})
 	srv.Handler().ServeHTTP(httptest.NewRecorder(), req)
 
 	if _, err := srv.Tokens.Authenticate(session, time.Now()); err == nil {
@@ -93,7 +93,7 @@ func TestSigningOutEndsAnIdentityProviderSession(t *testing.T) {
 	}
 	req := httptest.NewRequest(http.MethodPost, "/signout", nil)
 	req.Header.Set("Sec-Fetch-Site", "same-origin")
-	req.AddCookie(&http.Cookie{Name: "vaigil_token", Value: secret})
+	req.AddCookie(&http.Cookie{Name: "aeroprove_token", Value: secret})
 	srv.Handler().ServeHTTP(httptest.NewRecorder(), req)
 	if w := get(t, srv, "/today", secret); w.Code == http.StatusOK {
 		t.Fatal("an identity-provider session outlived signing out")

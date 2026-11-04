@@ -1,0 +1,78 @@
+{
+  "schema": 1,
+  "id": "agent.cost-bomb-loop",
+  "title": "A session burned through a quarter million tokens in one loop, a call every two seconds for four minutes",
+  "family": "cost-bomb",
+  "phase": "replay",
+  "safety": "synthetic-only",
+  "narrative": "The runaway loop: one hundred and thirty identical tool calls in under four and a half minutes, machine speed without pause, where supervised agentic work has gaps — the rate the tool-burst correlation exists to name.",
+  "catalogue": "B13/B14",
+  "technique": ["ASI08", "LLM10"],
+  "bindings": {
+    "agent": {"gen": "agent-name", "seed": 61},
+    "trace": {"gen": "trace-id", "seed": 61}
+  },
+  "steps": [
+    {
+      "name": "the-loop",
+      "at": 0,
+      "repeat": {"count": 130, "every": 2},
+      "emit": {
+        "source": "otel/genai",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {"issuer": "otel", "value": "${agent}"},
+        "target": {"issuer": "otel", "value": "claude-sonnet-4-5"},
+        "message": "execute_tool",
+        "raw": {
+          "operation": "execute_tool",
+          "tool": "sql_query",
+          "status": "ok",
+          "trace_id": "${trace}",
+          "tokens_in": "1900",
+          "tokens_out": "410",
+          "attempt": "same"
+        }
+      }
+    }
+  ],
+  "expects": [
+    {"kind": "rule", "id": "otel.tool-call", "verdict": "fires-quietly"},
+    {"kind": "correlation", "id": "corr.agent-tool-burst", "verdict": "must-alert"},
+    {"kind": "rule", "id": "otel.model-call-failed", "verdict": "stays-quiet"}
+  ],
+  "benign-twin": {
+    "id": "agent.heavy-honest-session",
+    "title": "A heavy but honest coding session: sixty calls with pauses, inside the hour the burst rule's own comment sets aside for it",
+    "narrative": "The correlation's threshold sits above a busy human-supervised session and below machine speed, and this twin is the lower edge of that argument made concrete: sixty calls in twelve minutes is a hard day's agentic work, and it must not fire.",
+    "steps": [
+      {
+        "name": "honest-heavy-work",
+        "at": 0,
+        "repeat": {"count": 60, "every": 12},
+        "emit": {
+          "source": "otel/genai",
+          "class": 6003,
+          "disposition": 1,
+          "actor": {"issuer": "otel", "value": "${agent}"},
+          "target": {"issuer": "otel", "value": "claude-sonnet-4-5"},
+          "message": "execute_tool",
+          "raw": {
+            "operation": "execute_tool",
+            "tool": "sql_query",
+            "status": "ok",
+            "trace_id": "${trace}",
+            "tokens_in": "1400",
+            "tokens_out": "300",
+            "attempt": "varied"
+          }
+        }
+      }
+    ]
+  },
+  "preflight": [
+    {"check": "source-emits", "source": "otel/genai"}
+  ],
+  "blind": "The spend itself is not a number anything sums: the store keeps per-call token strings and no session total, so a session-wide budget breach — the cost bomb proper, catalogue B14 — has no rule and no field. What fires here is the rate proxy, the burst, which catches the loop shape and not the bill; a patient bomb under one call every seven and a half seconds is invisible to this pack, and the pack's own comments say so.",
+  "lateness": "measured"
+}

@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/enrol"
-	"github.com/vaigil/vaigil/internal/throttle"
-	"github.com/vaigil/vaigil/internal/webauthn"
+	"github.com/aeroprove/aeroprove/internal/enrol"
+	"github.com/aeroprove/aeroprove/internal/throttle"
+	"github.com/aeroprove/aeroprove/internal/webauthn"
 )
 
 // Adding a first passkey through a one-time link (internal/enrol).

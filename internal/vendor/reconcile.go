@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/connector"
-	"github.com/vaigil/vaigil/internal/finding"
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/connector"
+	"github.com/aeroprove/aeroprove/internal/finding"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // Comparing the register against the credentials that actually exist.

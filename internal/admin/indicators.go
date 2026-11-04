@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/indicator"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/indicator"
 )
 
 // Indicators: what somebody else has said is bad, what each has found, and

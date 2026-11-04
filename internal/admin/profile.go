@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/auth"
 )
 
 // Your own account, and only your own.
@@ -319,7 +319,7 @@ func presentedToken(r *http.Request) string {
 	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
 		return strings.TrimSpace(strings.TrimPrefix(h, "Bearer "))
 	}
-	if c, err := r.Cookie("vaigil_token"); err == nil {
+	if c, err := r.Cookie("aeroprove_token"); err == nil {
 		return c.Value
 	}
 	return ""

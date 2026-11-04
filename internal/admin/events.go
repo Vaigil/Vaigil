@@ -9,9 +9,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/spool"
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/spool"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // The events, in the interface.
@@ -116,7 +116,7 @@ func (s *Server) handleEventsScreen(w http.ResponseWriter, r *http.Request) {
 		data["Unavailable"] = "Nothing has ever been collected here: no " +
 			"events have been stored in this site. That is not a quiet " +
 			"estate — it is one nothing is watching. Events arrive with " +
-			"vaigil spool add, or from a connector that runs it."
+			"aeroprove spool add, or from a connector that runs it."
 		s.render(w, r, "events.html", data)
 		return
 	}

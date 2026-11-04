@@ -8,7 +8,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/incident"
+	"github.com/aeroprove/aeroprove/internal/incident"
 )
 
 // Today: the first screen after signing in.

@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/vaigil/vaigil/internal/decide"
+	"github.com/aeroprove/aeroprove/internal/decide"
 )
 
 // Measuring an agent the way it will be used: many times.

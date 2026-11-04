@@ -62,7 +62,7 @@ import (
 var mappingJSON []byte
 
 // Schema is the version this package reads and writes.
-const Schema = "vaigil/mapping/v1"
+const Schema = "aeroprove/mapping/v1"
 
 // NIST is the catalogues half of an entry's tags.
 type NIST struct {

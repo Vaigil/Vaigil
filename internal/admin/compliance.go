@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/estate"
-	"github.com/vaigil/vaigil/internal/lifecycle"
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/estate"
+	"github.com/aeroprove/aeroprove/internal/lifecycle"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // Device compliance on the workforce screens: each machine measured

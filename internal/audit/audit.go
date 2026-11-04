@@ -69,7 +69,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/atomicfile"
+	"github.com/aeroprove/aeroprove/internal/atomicfile"
 )
 
 // Kind distinguishes the three sorts of actor. AU-3(f).
@@ -138,7 +138,7 @@ type Event struct {
 	// and substantively false. The chain proves nobody edited a record after it
 	// was written. It says nothing about whether the record was true when
 	// written — and an identity taken from $USER is true only if nobody minds
-	// lying, since `USER=ceo vaigil publish` costs nothing.
+	// lying, since `USER=ceo aeroprove publish` costs nothing.
 	//
 	// So an unproven identity is recorded as unproven rather than dressed up as
 	// a name. An auditor can then filter for what was actually established,
@@ -201,12 +201,12 @@ type Options struct {
 // The file mode depends on the deployment, and picking one for both is wrong
 // in whichever direction it is picked.
 //
-// Single account: the log lives in the store and Vaigil owns it, so 0600 —
+// Single account: the log lives in the store and AeroProve owns it, so 0600 —
 // group-readable would hand the audit record to anybody else on the machine
 // for no benefit.
 //
-// Separated: the writer owns the log and Vaigil is in its group, because
-// Vaigil is not trusted to *write* the log, which is a different claim from
+// Separated: the writer owns the log and AeroProve is in its group, because
+// AeroProve is not trusted to *write* the log, which is a different claim from
 // not being trusted to read it: auditlog and siem need to read it.
 //
 // Hard-coding 0640 fixed that and made the inspector flag its own default as a

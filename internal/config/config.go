@@ -158,7 +158,7 @@ func Parse(body []byte) (*Config, error) {
 		if !ok {
 			return nil, fmt.Errorf(
 				"%q is not a setting this version knows about. Remove it, or "+
-					"check `vaigil config list` for the current name", key)
+					"check `aeroprove config list` for the current name", key)
 		}
 		if err := s.Validate(v); err != nil {
 			// Its default instead: the bounds are where a value stops being
@@ -275,9 +275,9 @@ func (e *ErrNeedsAcceptance) Error() string {
 	return fmt.Sprintf(
 		"%s = %s gives up security: %s\n"+
 			"  This is allowed. It needs a reason, which is recorded in the "+
-			"audit log and reported by `vaigil config list` and the "+
+			"audit log and reported by `aeroprove config list` and the "+
 			"Settings screen until it is changed back or renewed:\n"+
-			"    vaigil config set %s %s --accept-risk \"why this is right here\"",
+			"    aeroprove config set %s %s --accept-risk \"why this is right here\"",
 		e.Key, e.Value, e.Why, e.Key, e.Value)
 }
 
@@ -290,7 +290,7 @@ func (e *ErrNeedsAcceptance) Error() string {
 func (c *Config) Set(key, value, reason, by string) error {
 	s, ok := Lookup(key)
 	if !ok {
-		return fmt.Errorf("%q is not a setting; `vaigil config list` shows "+
+		return fmt.Errorf("%q is not a setting; `aeroprove config list` shows "+
 			"every one", key)
 	}
 	if err := s.Validate(value); err != nil {

@@ -15,9 +15,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/throttle"
-	"github.com/vaigil/vaigil/internal/webauthn"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/throttle"
+	"github.com/aeroprove/aeroprove/internal/webauthn"
 )
 
 // Passkeys in an admin that serves no script.
@@ -664,7 +664,7 @@ func (s *Server) handlePasskeyVerify(w http.ResponseWriter, r *http.Request) {
 	if !s.knownPrincipal(cred.Principal) {
 		writeJSONError(w, http.StatusForbidden, fmt.Errorf(
 			"%s holds a passkey and no role. An administrator can grant one: "+
-				"vaigil auth grant %s author", cred.Principal, cred.Principal))
+				"aeroprove auth grant %s author", cred.Principal, cred.Principal))
 		return
 	}
 	if body.Expect != "" && !strings.EqualFold(body.Expect, cred.Principal) {
@@ -745,7 +745,7 @@ func (s *Server) handlePasskeyVerify(w http.ResponseWriter, r *http.Request) {
 	next = s.withNotice(next, notice)
 
 	http.SetCookie(w, &http.Cookie{
-		Name: "vaigil_token", Value: secret, Path: "/",
+		Name: "aeroprove_token", Value: secret, Path: "/",
 		HttpOnly: true, SameSite: http.SameSiteStrictMode,
 		Secure: r.TLS != nil || s.behindTLSProxy(), MaxAge: int(s.sessionMax().Seconds()),
 	})

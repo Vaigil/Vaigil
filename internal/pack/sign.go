@@ -17,7 +17,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/atomicfile"
+	"github.com/aeroprove/aeroprove/internal/atomicfile"
 )
 
 // Signing pack metadata, twice, with algorithms that fail differently.
@@ -40,7 +40,7 @@ import (
 // signatureContext is the domain every pack-metadata signature is made and
 // checked in. Versioned, so a change to what gets signed cannot be confused
 // with the thing it replaced.
-const signatureContext = "vaigil/pack-metadata/v1"
+const signatureContext = "aeroprove/pack-metadata/v1"
 
 // SeedSize is the length of each half of a key's seeds.
 const SeedSize = 32
@@ -169,6 +169,28 @@ func metadataMessage(body any) ([]byte, error) {
 		return nil, fmt.Errorf("the body would not encode: %w", err)
 	}
 	return append(append([]byte(signatureContext), 0), canonical...), nil
+}
+
+// DualSign signs exact bytes in a caller-named context with both algorithms.
+//
+// The context is the whole point: a domain that is not pack metadata signs
+// in its own — internal/windtunnel signs its scorecards in
+// aeroprove/windtunnel-scorecard/v1 — so a signature made for one purpose can
+// never be presented as one for another, the same separation this file's
+// own context provides, lent to a second signer holding the same key
+// material. Deterministic on both algorithms, so the same bytes sign to the
+// same signatures and a document remains a commitment.
+func (k *Key) DualSign(msg []byte, context string) (edSig, mlSig []byte, err error) {
+	ed := ed25519.NewKeyFromSeed(k.edSeed)
+	ml, err := mldsa.NewPrivateKey(mldsa.MLDSA65(), k.mlSeed)
+	if err != nil {
+		return nil, nil, fmt.Errorf("the ML-DSA key is unusable: %w", err)
+	}
+	mlSig, err = ml.SignDeterministic(msg, &mldsa.Options{Context: context})
+	if err != nil {
+		return nil, nil, fmt.Errorf("the ML-DSA signature failed: %w", err)
+	}
+	return ed25519.Sign(ed, msg), mlSig, nil
 }
 
 // VerifyMetadata checks both signatures over a body against a dual public

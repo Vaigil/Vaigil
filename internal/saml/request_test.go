@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/xmldsig"
+	"github.com/aeroprove/aeroprove/internal/xmldsig"
 )
 
 func TestTheRequestSaysWhatTheResponseIsCheckedAgainst(t *testing.T) {

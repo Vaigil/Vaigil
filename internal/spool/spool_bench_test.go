@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // ingestBatch is the workload every append benchmark writes: a thousand

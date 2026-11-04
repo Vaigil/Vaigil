@@ -3,7 +3,7 @@
 
 package egress_test
 
-import "github.com/vaigil/vaigil/internal/egress"
+import "github.com/aeroprove/aeroprove/internal/egress"
 
 import (
 	"fmt"

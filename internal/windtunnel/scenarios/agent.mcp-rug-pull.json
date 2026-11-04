@@ -1,0 +1,113 @@
+{
+  "schema": 1,
+  "id": "agent.mcp-rug-pull",
+  "title": "A server's MCP config changed after approval, and the agent's next call went through the changed tool",
+  "family": "config-rug-pull",
+  "phase": "replay",
+  "safety": "synthetic-only",
+  "narrative": "The rug pull: a tool definition that behaved through review and changed after it, caught only as a hash that moved on a host an operator had mapped to the one agent that runs there.",
+  "catalogue": "B1/B10/B11",
+  "technique": ["AML.T0051.001", "AML.T0010", "ASI04", "ASI06", "T1098", "T1195.002"],
+  "bindings": {
+    "agent": {"gen": "agent-name", "seed": 21},
+    "trace": {"gen": "trace-id", "seed": 21}
+  },
+  "steps": [
+    {
+      "name": "config-changed-under-approval",
+      "at": 0,
+      "emit": {
+        "source": "collector/watch",
+        "class": 1001,
+        "disposition": 1,
+        "device": {"issuer": "collector", "value": "build01"},
+        "message": "/home/dana/.mcp.json changed (mcp-config)",
+        "raw": {
+          "path": "/home/dana/.mcp.json",
+          "kind": "mcp-config",
+          "op": "changed",
+          "sha256": "dead10cc",
+          "size": "640",
+          "host": "build01",
+          "agents": "${agent}",
+          "agent": "${agent}"
+        }
+      }
+    },
+    {
+      "name": "first-use-of-the-changed-tool",
+      "at": 45,
+      "emit": {
+        "source": "otel/genai",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {"issuer": "otel", "value": "${agent}"},
+        "message": "execute_tool",
+        "raw": {
+          "operation": "execute_tool",
+          "tool": "shell_exec",
+          "status": "ok",
+          "trace_id": "${trace}",
+          "agent": "${agent}"
+        }
+      }
+    }
+  ],
+  "expects": [
+    {"kind": "rule", "id": "collector.agent-config-changed", "verdict": "must-alert"},
+    {"kind": "rule", "id": "collector.agent-config-changed-mapped", "verdict": "fires-quietly"},
+    {"kind": "correlation", "id": "corr.watch-then-call", "verdict": "must-alert"}
+  ],
+  "benign-twin": {
+    "id": "agent.unrelated-file-then-work",
+    "title": "A non-config file changed on the same mapped host, and the agent kept working",
+    "narrative": "The discrimination test: the recorder saw a file change and the agent called tools, but the file was not a config. The pack's own rule refuses to call every file change a rug pull, and the twin holds it to that — a stack that alerts here is drowning its analysts in developer noise.",
+    "steps": [
+      {
+        "name": "ordinary-file-change",
+        "at": 0,
+        "emit": {
+          "source": "collector/watch",
+          "class": 1001,
+          "disposition": 1,
+          "device": {"issuer": "collector", "value": "build01"},
+          "message": "/etc/app.conf changed (other)",
+          "raw": {
+            "path": "/etc/app.conf",
+            "kind": "other",
+            "op": "changed",
+            "sha256": "e6d0b442",
+            "size": "96",
+            "host": "build01",
+            "agents": "${agent}",
+            "agent": "${agent}"
+          }
+        }
+      },
+      {
+        "name": "agent-keeps-working",
+        "at": 45,
+        "emit": {
+          "source": "otel/genai",
+          "class": 6003,
+          "disposition": 1,
+          "actor": {"issuer": "otel", "value": "${agent}"},
+          "message": "execute_tool",
+          "raw": {
+            "operation": "execute_tool",
+            "tool": "shell_exec",
+            "status": "ok",
+            "trace_id": "${trace}",
+            "agent": "${agent}"
+          }
+        }
+      }
+    ]
+  },
+  "preflight": [
+    {"check": "source-emits", "source": "collector/watch"},
+    {"check": "source-emits", "source": "otel/genai"}
+  ],
+  "blind": "The watch stream carries a hash, never content, so nobody — including this scenario — can say what changed in the tool definition, only that it did. Who changed it is equally invisible: the recorder watches files, not processes. And a config change on a host nobody mapped to an agent fires the severity-3 rule but can never join the chain, because no declaration attributes it.",
+  "lateness": "measured"
+}

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vaigil/vaigil/internal/httpsig"
+	"github.com/aeroprove/aeroprove/internal/httpsig"
 )
 
 // A sender signs only the older Digest; somebody on the way replaces the

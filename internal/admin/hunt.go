@@ -13,17 +13,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/detect"
-	"github.com/vaigil/vaigil/internal/spool"
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/detect"
+	"github.com/aeroprove/aeroprove/internal/spool"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // Hunting: looking at the events before there is a rule.
 //
 // Stacking — sort by how rare a thing is and read the top — is the oldest
 // technique in security analysis and the one that keeps earning its place,
-// because malicious activity is rare by definition. `vaigil hunt` did it
+// because malicious activity is rare by definition. `aeroprove hunt` did it
 // over a file somebody exported. This does it over the store, where the
 // events are.
 //

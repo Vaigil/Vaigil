@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/analyst"
-	"github.com/vaigil/vaigil/internal/decide"
-	"github.com/vaigil/vaigil/internal/finding"
+	"github.com/aeroprove/aeroprove/internal/analyst"
+	"github.com/aeroprove/aeroprove/internal/decide"
+	"github.com/aeroprove/aeroprove/internal/finding"
 )
 
 // The runner: every case to a model, the answers to a document.

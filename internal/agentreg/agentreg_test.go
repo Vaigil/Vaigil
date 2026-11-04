@@ -22,7 +22,7 @@ var t0 = time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 func add(t *testing.T, s Store, name string) {
 	t.Helper()
 	if err := s.Add(Agent{Name: name, Owner: "dana@acme.example",
-		Allow: []string{"vaigil_read"}, CreatedBy: "dana"}, t0); err != nil {
+		Allow: []string{"aeroprove_read"}, CreatedBy: "dana"}, t0); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -33,7 +33,7 @@ func add(t *testing.T, s Store, name string) {
 func TestAddStoresTheReviewableUnit(t *testing.T) {
 	s := store(t)
 	if err := s.Add(Agent{Name: "watcher", Owner: " dana@acme.example ",
-		Allow: []string{"vaigil_read", "vaigil_write", "vaigil_read"},
+		Allow: []string{"aeroprove_read", "aeroprove_write", "aeroprove_read"},
 		Note:  "reads the queue overnight", CreatedBy: "dana"}, t0); err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestAddStoresTheReviewableUnit(t *testing.T) {
 	}
 	// Duplicates folded, order stable, so two adds typed differently store
 	// the same allowlist and a diff of the file means a change.
-	if strings.Join(a.Allow, ",") != "vaigil_read,vaigil_write" {
+	if strings.Join(a.Allow, ",") != "aeroprove_read,aeroprove_write" {
 		t.Errorf("allowlist stored as %v", a.Allow)
 	}
 	if !a.CreatedAt.Equal(t0) || a.CreatedBy != "dana" || !a.ChangedAt.Equal(t0) {
@@ -72,13 +72,13 @@ func TestAddStoresTheReviewableUnit(t *testing.T) {
 func TestAddRefusesWhatItCannotLookUpLater(t *testing.T) {
 	s := store(t)
 	for name, a := range map[string]Agent{
-		"uppercase":    {Name: "Watcher", Owner: "dana", Allow: []string{"vaigil_read"}},
-		"too short":    {Name: "w", Owner: "dana", Allow: []string{"vaigil_read"}},
-		"punctuated":   {Name: "watch er", Owner: "dana", Allow: []string{"vaigil_read"}},
-		"hyphen-first": {Name: "-watcher", Owner: "dana", Allow: []string{"vaigil_read"}},
-		"no owner":     {Name: "watcher", Owner: "   ", Allow: []string{"vaigil_read"}},
+		"uppercase":    {Name: "Watcher", Owner: "dana", Allow: []string{"aeroprove_read"}},
+		"too short":    {Name: "w", Owner: "dana", Allow: []string{"aeroprove_read"}},
+		"punctuated":   {Name: "watch er", Owner: "dana", Allow: []string{"aeroprove_read"}},
+		"hyphen-first": {Name: "-watcher", Owner: "dana", Allow: []string{"aeroprove_read"}},
+		"no owner":     {Name: "watcher", Owner: "   ", Allow: []string{"aeroprove_read"}},
 		"no tools":     {Name: "watcher", Owner: "dana"},
-		"unknown tool": {Name: "watcher", Owner: "dana", Allow: []string{"vaigil_read", "vaigil_decide"}},
+		"unknown tool": {Name: "watcher", Owner: "dana", Allow: []string{"aeroprove_read", "aeroprove_decide"}},
 		"all unknown":  {Name: "watcher", Owner: "dana", Allow: []string{"publish"}},
 	} {
 		if err := s.Add(a, t0); err == nil {
@@ -91,7 +91,7 @@ func TestAddRefusesWhatItCannotLookUpLater(t *testing.T) {
 		t.Fatalf("a refused add left something behind: %v %v", agents, err)
 	}
 	add(t, s, "watcher")
-	if err := s.Add(Agent{Name: "watcher", Owner: "dana", Allow: []string{"vaigil_read"}}, t0); err == nil {
+	if err := s.Add(Agent{Name: "watcher", Owner: "dana", Allow: []string{"aeroprove_read"}}, t0); err == nil {
 		t.Error("a duplicate name was accepted")
 	}
 }
@@ -186,31 +186,31 @@ func TestEnableRestoresWithoutGrantingACredential(t *testing.T) {
 func TestAllowAddsAndRemovesRealToolsOnly(t *testing.T) {
 	s := store(t)
 	add(t, s, "watcher")
-	if err := s.Allow("watcher", []string{"vaigil_write"}, nil, "dana", t0); err != nil {
+	if err := s.Allow("watcher", []string{"aeroprove_write"}, nil, "dana", t0); err != nil {
 		t.Fatal(err)
 	}
 	a, _, _ := s.Get("watcher")
-	if !a.MayUse("vaigil_write") || !a.MayUse("vaigil_read") {
+	if !a.MayUse("aeroprove_write") || !a.MayUse("aeroprove_read") {
 		t.Errorf("allow did not add: %v", a.Allow)
 	}
 	// Removing the last tool leaves a registered agent that may call
 	// nothing: the interface refuses it everything, which is a narrower
 	// leash than disable, not a broken one.
-	if err := s.Allow("watcher", nil, []string{"vaigil_read", "vaigil_write"}, "dana", t0); err != nil {
+	if err := s.Allow("watcher", nil, []string{"aeroprove_read", "aeroprove_write"}, "dana", t0); err != nil {
 		t.Fatal(err)
 	}
 	a, _, _ = s.Get("watcher")
-	if len(a.Allow) != 0 || a.MayUse("vaigil_read") {
+	if len(a.Allow) != 0 || a.MayUse("aeroprove_read") {
 		t.Errorf("removal left %v", a.Allow)
 	}
 	// Only the three real tools, and never a tool both ways at once.
-	if err := s.Allow("watcher", []string{"vaigil_decide"}, nil, "dana", t0); err == nil {
+	if err := s.Allow("watcher", []string{"aeroprove_decide"}, nil, "dana", t0); err == nil {
 		t.Error("an unknown tool was allowed")
 	}
-	if err := s.Allow("watcher", []string{"vaigil_read"}, []string{"vaigil_read"}, "dana", t0); err == nil {
+	if err := s.Allow("watcher", []string{"aeroprove_read"}, []string{"aeroprove_read"}, "dana", t0); err == nil {
 		t.Error("a tool was added and removed in one change")
 	}
-	if err := s.Allow("nobody", []string{"vaigil_read"}, nil, "dana", t0); err == nil {
+	if err := s.Allow("nobody", []string{"aeroprove_read"}, nil, "dana", t0); err == nil {
 		t.Error("an unregistered agent was allowed a tool")
 	}
 }

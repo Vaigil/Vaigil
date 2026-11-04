@@ -93,7 +93,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // dictAbsent reports whether field i's column needs a "no value" ordinal.

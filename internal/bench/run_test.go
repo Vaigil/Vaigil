@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/analyst"
+	"github.com/aeroprove/aeroprove/internal/analyst"
 )
 
 // fixedNow is the clock every stub run in this file is made on, so a test

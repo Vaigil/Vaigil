@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/oidc"
+	"github.com/aeroprove/aeroprove/internal/oidc"
 )
 
 // A sign-in's answer finishes only in the browser that started it: the
@@ -33,12 +33,12 @@ func TestAnOIDCSignInFinishesOnlyWhereItStarted(t *testing.T) {
 		if cookie != nil {
 			r.AddCookie(cookie)
 		}
-		_, _, err := o.callback(context.Background(), r, "vaigil_oidc")
+		_, _, err := o.callback(context.Background(), r, "aeroprove_oidc")
 		return err
 	}
 	for name, c := range map[string]*http.Cookie{
 		"no cookie":         nil,
-		"another browser's": {Name: "vaigil_oidc", Value: "somebody-elses"},
+		"another browser's": {Name: "aeroprove_oidc", Value: "somebody-elses"},
 	} {
 		pend()
 		if err := callback(c); err == nil || !strings.Contains(err.Error(), "another browser") {
@@ -56,10 +56,10 @@ func TestStartingAnOIDCSignInSetsItsCookie(t *testing.T) {
 	o := &OIDC{RedirectURI: "https://cms.example/auth/callback", ClientID: "cms",
 		Provider: &oidc.Provider{Discovery: oidc.Discovery{AuthorizationEndpoint: "https://idp.example/authorize"}}}
 	w := httptest.NewRecorder()
-	o.start(w, httptest.NewRequest(http.MethodGet, "/signin/oidc", nil), "vaigil_oidc", 8*time.Hour)
+	o.start(w, httptest.NewRequest(http.MethodGet, "/signin/oidc", nil), "aeroprove_oidc", 8*time.Hour)
 	var set *http.Cookie
 	for _, c := range w.Result().Cookies() {
-		if c.Name == "vaigil_oidc" {
+		if c.Name == "aeroprove_oidc" {
 			set = c
 		}
 	}
@@ -76,11 +76,11 @@ func TestStartingAnOIDCSignInSetsItsCookie(t *testing.T) {
 	}
 
 	srv, _ := setup(t)
-	if got := srv.oidcCookie(httptest.NewRequest(http.MethodGet, "http://cms.example/", nil)); got != "vaigil_oidc" {
+	if got := srv.oidcCookie(httptest.NewRequest(http.MethodGet, "http://cms.example/", nil)); got != "aeroprove_oidc" {
 		t.Errorf("without TLS: %q", got)
 	}
 	r := httptest.NewRequest(http.MethodGet, "https://cms.example/", nil)
-	if got := srv.oidcCookie(r); got != "__Host-vaigil_oidc" {
+	if got := srv.oidcCookie(r); got != "__Host-aeroprove_oidc" {
 		t.Errorf("with TLS: %q", got)
 	}
 }

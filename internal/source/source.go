@@ -51,8 +51,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/connector"
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/connector"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // Source is how one platform's records become events.

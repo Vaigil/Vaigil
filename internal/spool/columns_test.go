@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // columnEvent is one event of a corpus drawn for the dictionary columns'

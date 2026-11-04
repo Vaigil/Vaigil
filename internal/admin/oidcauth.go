@@ -14,15 +14,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/oidc"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/oidc"
 )
 
 // OIDC wires an identity provider into the admin.
 //
 // The division is deliberate: the provider says *who* somebody is, and this
 // program's own access policy says what they may do. A verified ID token is
-// exchanged for an ordinary vaigil session token, which means every existing
+// exchanged for an ordinary aeroprove session token, which means every existing
 // mechanism — the role ladder, path bindings, revocation, the audit trail —
 // applies unchanged and none of it had to learn about OIDC.
 //
@@ -337,9 +337,9 @@ func (s *Server) handleOIDCStart(w http.ResponseWriter, r *http.Request) {
 // the browser is on TLS, so no other path or subdomain can set it.
 func (s *Server) oidcCookie(r *http.Request) string {
 	if r.TLS != nil || s.behindTLSProxy() {
-		return "__Host-vaigil_oidc"
+		return "__Host-aeroprove_oidc"
 	}
-	return "vaigil_oidc"
+	return "aeroprove_oidc"
 }
 
 // handleOIDCCallback finishes one.
@@ -377,7 +377,7 @@ func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 		s.refuseSignIn(w, r,
 			fmt.Sprintf("%s signed in successfully, but is not in the access "+
 				"policy for this site.", principal),
-			fmt.Sprintf("An administrator can add them:  vaigil auth grant %s author",
+			fmt.Sprintf("An administrator can add them:  aeroprove auth grant %s author",
 				principal))
 		return
 	}
@@ -410,7 +410,7 @@ func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 	next := s.ssoNext(r, principal, proof)
 
 	http.SetCookie(w, &http.Cookie{
-		Name: "vaigil_token", Value: secret, Path: "/",
+		Name: "aeroprove_token", Value: secret, Path: "/",
 		HttpOnly: true, SameSite: http.SameSiteLaxMode,
 		// Lax rather than Strict, and only here: a redirect arriving from the
 		// identity provider is a cross-site navigation, and Strict would drop

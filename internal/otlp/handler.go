@@ -15,8 +15,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/source"
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/source"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // Handler answers POST /v1/traces.
@@ -240,7 +240,7 @@ func (h *Handler) authenticate(w http.ResponseWriter, r *http.Request) bool {
 	want, err := h.Token()
 	if err != nil || strings.TrimSpace(want) == "" {
 		h.refused("the endpoint has no push credential to check against " +
-			"(vaigil connect secret " + SecretName + ")")
+			"(aeroprove connect secret " + SecretName + ")")
 		h.fail(w, http.StatusServiceUnavailable, codeUnavailable,
 			"this endpoint has no push credential to check against")
 		return false

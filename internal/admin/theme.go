@@ -23,7 +23,7 @@ import (
 // already had.
 
 // ThemeCookie holds the choice. Absent means follow the system.
-const ThemeCookie = "vaigil_theme"
+const ThemeCookie = "aeroprove_theme"
 
 // themeOf resolves the request to a value for the root element's data-theme.
 //

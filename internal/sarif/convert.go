@@ -8,8 +8,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/vaigil/vaigil/internal/appsec"
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/appsec"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // Severity boundaries, as the platform publishes them.

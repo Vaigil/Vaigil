@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/config"
-	"github.com/vaigil/vaigil/internal/dual"
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/config"
+	"github.com/aeroprove/aeroprove/internal/dual"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // The rig every console test starts from.
@@ -185,7 +185,7 @@ func firstLines(s string, n int) string {
 // cookieFrom returns the session cookie a response set.
 func cookieFrom(w *httptest.ResponseRecorder) string {
 	for _, c := range w.Result().Cookies() {
-		if c.Name == "vaigil_token" {
+		if c.Name == "aeroprove_token" {
 			return c.Value
 		}
 	}

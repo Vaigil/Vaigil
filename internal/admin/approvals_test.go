@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/automate"
-	"github.com/vaigil/vaigil/internal/dual"
-	"github.com/vaigil/vaigil/internal/incident"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/automate"
+	"github.com/aeroprove/aeroprove/internal/dual"
+	"github.com/aeroprove/aeroprove/internal/incident"
 )
 
 // waitingCase is a case with an act on another platform waiting, asked for

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 var t0 = time.Date(2026, 9, 26, 9, 0, 0, 0, time.UTC)
@@ -699,7 +699,7 @@ func TestTheAnthropicAuditMapping(t *testing.T) {
 		"actor_kind":"admin_api_key_actor",
 		"acting_admin_key":"adminkey-1",
 		"actor":{"ip_address":"192.0.2.35",
-		"user_agent":"vaigil-connector/1"},
+		"user_agent":"aeroprove-connector/1"},
 		"type":"claude_user_role_updated","target_user":"user_01C",
 		"role_now":"admin","role_was":"member"}`))
 	if len(missed) != 0 {

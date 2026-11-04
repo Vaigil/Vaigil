@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/finding"
-	vmodel "github.com/vaigil/vaigil/internal/model"
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/finding"
+	vmodel "github.com/aeroprove/aeroprove/internal/model"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 var now = time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC)
@@ -305,7 +305,7 @@ func TestABarePemHeaderCannotEraseTheStateTheModelReads(t *testing.T) {
 			t.Errorf("%q was erased from the prompt: %s", keep, o.user)
 		}
 	}
-	if !strings.Contains(o.user, "<vaigil:secret:1>") {
+	if !strings.Contains(o.user, "<aeroprove:secret:1>") {
 		t.Errorf("the header itself was not masked: %s", o.user)
 	}
 }
@@ -325,7 +325,7 @@ func TestAClosedPemBlockIsMaskedAndTheStateSurvives(t *testing.T) {
 		t.Fatal(err)
 	}
 	if strings.Contains(o.user, "b3BlbnNza") ||
-		strings.Count(o.user, "<vaigil:secret:1>") != 1 {
+		strings.Count(o.user, "<aeroprove:secret:1>") != 1 {
 		t.Errorf("the key was not one placeholder: %s", o.user)
 	}
 	if !strings.Contains(o.user, "dana") ||

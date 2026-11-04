@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/automate"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/automate"
 )
 
 func wireAutomations(t *testing.T, srv *Server) *automate.Engine {
@@ -73,7 +73,7 @@ func TestAnEngineerCannotAutomatePeoplesAccess(t *testing.T) {
 	}
 }
 
-// An administrator of all of Vaigil may do all of it.
+// An administrator of all of AeroProve may do all of it.
 func TestASiteAdministratorAutomatesAccess(t *testing.T) {
 	srv, token := setup(t)
 	e := wireAutomations(t, srv)

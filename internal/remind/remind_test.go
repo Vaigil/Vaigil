@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/estate"
+	"github.com/aeroprove/aeroprove/internal/estate"
 )
 
 // Wednesday, mid-morning in London.

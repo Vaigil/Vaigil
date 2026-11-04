@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/aeroprove/aeroprove/internal/audit"
 )
 
 // Evidence packs: the mapping's second half, where a control stops being a
@@ -58,7 +58,7 @@ import (
 // whole reason the mapping exists.
 
 // PackSchema is the evidence document this package writes and reads.
-const PackSchema = "vaigil/evidence/v1"
+const PackSchema = "aeroprove/evidence/v1"
 
 // ErrUnmappedControl names a control the mapping has no entry for. Generation
 // refuses rather than emitting an empty pack, because a control this program

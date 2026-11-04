@@ -17,7 +17,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/vaigil/vaigil/internal/fetch"
+	"github.com/aeroprove/aeroprove/internal/fetch"
 	"os"
 	"path/filepath"
 	"sort"
@@ -26,7 +26,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/atomicfile"
+	"github.com/aeroprove/aeroprove/internal/atomicfile"
 )
 
 // Shipping: evidence leaves the endpoint in signed batches.
@@ -71,10 +71,10 @@ type Batch struct {
 
 // The headers both halves of the wire agree on.
 const (
-	HeaderToken     = "X-Vaigil-Token"     // the credential's name server-side
-	HeaderBatch     = "X-Vaigil-Batch"     // the batch id, for dedup
-	HeaderTime      = "X-Vaigil-Time"      // unix seconds, for replay refusal
-	HeaderSignature = "X-Vaigil-Signature" // hex HMAC-SHA256
+	HeaderToken     = "X-AeroProve-Token"     // the credential's name server-side
+	HeaderBatch     = "X-AeroProve-Batch"     // the batch id, for dedup
+	HeaderTime      = "X-AeroProve-Time"      // unix seconds, for replay refusal
+	HeaderSignature = "X-AeroProve-Signature" // hex HMAC-SHA256
 	// CollectorPath is the endpoint the batches POST to and the config is
 	// fetched from.
 	CollectorPath = "/v1/collector"

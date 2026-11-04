@@ -1,3 +1,5 @@
+> Written in October 2026, when this project was named Vaigil. The program is AeroProve now; the history below keeps its original name.
+
 # Vaigil master report — deep dive, prior work, and the road to the SOC for AI agents
 
 Date: 2026-10-24. Repo state: `main` @ 2751fac (split commit c023212). Sources: a full

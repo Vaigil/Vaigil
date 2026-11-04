@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/saml"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/saml"
 )
 
 // confirm is signIn from a session that has to prove its person: the same
@@ -55,7 +55,7 @@ func TestATokenAloneIsAFirstFactorOnly(t *testing.T) {
 	if session == "" {
 		t.Fatal("signing in with a token set no session")
 	}
-	c := &http.Cookie{Name: "vaigil_token", Value: session}
+	c := &http.Cookie{Name: "aeroprove_token", Value: session}
 	if w := browse(srv, http.MethodGet, "/today", c, nil); w.Code != http.StatusSeeOther ||
 		w.Header().Get("Location") != "/signin/verify" {
 		t.Fatalf("a token's session reached the admin: %d %s", w.Code, w.Header().Get("Location"))
@@ -73,7 +73,7 @@ func TestATokenAloneIsAFirstFactorOnly(t *testing.T) {
 	if both == "" || both == session {
 		t.Fatal("confirming did not replace the session")
 	}
-	if w := browse(srv, http.MethodGet, "/today", &http.Cookie{Name: "vaigil_token", Value: both}, nil); w.Code != http.StatusOK {
+	if w := browse(srv, http.MethodGet, "/today", &http.Cookie{Name: "aeroprove_token", Value: both}, nil); w.Code != http.StatusOK {
 		t.Fatalf("the confirmed session does not reach the admin: %d", w.Code)
 	}
 	tok, err := srv.Tokens.Authenticate(both, time.Now())
@@ -105,7 +105,7 @@ func TestATokenInAHeaderIsRefusedOnceTwoFactorsAreCompulsory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if w := browse(srv, http.MethodGet, "/today", &http.Cookie{Name: "vaigil_token", Value: legacy}, nil); w.Code == http.StatusOK {
+	if w := browse(srv, http.MethodGet, "/today", &http.Cookie{Name: "aeroprove_token", Value: legacy}, nil); w.Code == http.StatusOK {
 		t.Error("a session with no record of how it began reached the admin")
 	}
 }
@@ -116,14 +116,14 @@ func TestATokenInAHeaderIsRefusedOnceTwoFactorsAreCompulsory(t *testing.T) {
 // to it.
 func TestSingleSignOnRequiredHoldsOnEveryRequest(t *testing.T) {
 	srv, _ := setup(t)
-	for _, who := range []string{"dana@vaigil.example", "glass@vaigil.example"} {
+	for _, who := range []string{"dana@aeroprove.example", "glass@aeroprove.example"} {
 		if err := srv.Policy.Grant(auth.Binding{Principal: who, Role: auth.RoleAdmin, Resource: "/"}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	srv.SAML = &SAMLAdmin{Providers: func() ([]saml.Config, error) {
-		return []saml.Config{{Name: "okta", Required: true, Domains: []string{"vaigil.example"},
-			BreakGlass: []string{"glass@vaigil.example"}}}, nil
+		return []saml.Config{{Name: "okta", Required: true, Domains: []string{"aeroprove.example"},
+			BreakGlass: []string{"glass@aeroprove.example"}}}, nil
 	}}
 	session := func(who string, methods ...string) string {
 		s, _, err := srv.Tokens.IssueSession("s", who, auth.RoleAdmin, "/", time.Hour, auth.RoleAdmin, methods...)
@@ -132,14 +132,14 @@ func TestSingleSignOnRequiredHoldsOnEveryRequest(t *testing.T) {
 		}
 		return s
 	}
-	if w := get(t, srv, "/today", session("dana@vaigil.example", auth.MethodPasskey)); w.Code != http.StatusUnauthorized ||
+	if w := get(t, srv, "/today", session("dana@aeroprove.example", auth.MethodPasskey)); w.Code != http.StatusUnauthorized ||
 		!strings.Contains(w.Body.String(), "requires signing in through") {
 		t.Errorf("a passkey session went round single sign-on: %d", w.Code)
 	}
-	if w := get(t, srv, "/today", session("dana@vaigil.example", auth.MethodSSO)); w.Code != http.StatusOK {
+	if w := get(t, srv, "/today", session("dana@aeroprove.example", auth.MethodSSO)); w.Code != http.StatusOK {
 		t.Errorf("a single sign-on session was refused: %d", w.Code)
 	}
-	if w := get(t, srv, "/today", session("glass@vaigil.example", auth.MethodPasskey)); w.Code != http.StatusOK {
+	if w := get(t, srv, "/today", session("glass@aeroprove.example", auth.MethodPasskey)); w.Code != http.StatusOK {
 		t.Errorf("the break-glass account was held to single sign-on: %d", w.Code)
 	}
 }

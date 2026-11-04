@@ -53,7 +53,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/xmldsig"
+	"github.com/aeroprove/aeroprove/internal/xmldsig"
 )
 
 // Namespaces and fixed values from the SAML 2.0 core and bindings.

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/geo"
+	"github.com/aeroprove/aeroprove/internal/geo"
 )
 
 var (

@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/auth"
 )
 
 // The screen somebody sees first.
@@ -35,7 +35,7 @@ import (
 // A cookie rather than a stored flag on the person: onboarding is a fact
 // about a screen somebody has read. The cost is that a new machine shows it
 // again, which is the right failure.
-const StartDismissedCookie = "vaigil_started"
+const StartDismissedCookie = "aeroprove_started"
 
 // step is one thing to do, and whether this store shows it done.
 type step struct {

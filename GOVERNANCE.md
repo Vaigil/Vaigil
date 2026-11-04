@@ -2,7 +2,7 @@
 
 ## Where this project is, stated plainly
 
-Vaigil was written by one person. It is open not to collect patches for a
+AeroProve was written by one person. It is open not to collect patches for a
 project that stays under one person's control, but to find people who will
 take it over. That is the actual goal, so this document exists before there is
 anybody to govern.
@@ -35,7 +35,7 @@ the wait.
 **Changes to the structural claims** — the properties in the README and
 [SECURITY.md](SECURITY.md), the zero-dependency rule, or the licence — need
 explicit agreement from every maintainer, not silence. These are the reasons
-somebody would choose Vaigil. Removing one is allowed; removing one quietly is
+somebody would choose AeroProve. Removing one is allowed; removing one quietly is
 not.
 
 **Disagreement** that a discussion does not resolve goes to a simple majority of
@@ -63,7 +63,7 @@ must not disappear with them.
 
 ## The licence
 
-Vaigil is licensed under the [Apache License 2.0](LICENSE). Contributions are
+AeroProve is licensed under the [Apache License 2.0](LICENSE). Contributions are
 taken under the same licence with a [DCO](https://developercertificate.org/)
 sign-off. Copyright stays with each contributor; there is no contributor
 licence agreement and no assignment.
@@ -79,12 +79,12 @@ two factors — is in the version you can clone. A system that put its access co
 behind a licence key would be arguing that its users deserve less protection
 than its customers, and that is not an argument this project is willing to make.
 
-Money, if it comes, comes from **hosting and support**: running Vaigil for
+Money, if it comes, comes from **hosting and support**: running AeroProve for
 people who would rather not, and helping people who run it themselves.
 
 ## Moving to a foundation
 
-The intention is to place Vaigil under a neutral non-profit once it has a
+The intention is to place AeroProve under a neutral non-profit once it has a
 community to steward: a foundation exists for a community, and there is no
 shortcut that skips having one. Contributors first, foundation second.
 

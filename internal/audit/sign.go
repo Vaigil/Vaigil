@@ -65,7 +65,7 @@ import (
 // protocol and they can obtain a valid audit head from it. The version is in
 // the string so that a change to what gets signed cannot be confused with the
 // thing it replaced.
-const signatureContext = "vaigil/audit-head/v1"
+const signatureContext = "aeroprove/audit-head/v1"
 
 // SignedHead is a head with proof of who published it.
 type SignedHead struct {
@@ -398,7 +398,7 @@ type Statement struct {
 // statementMessage is the bytes a statement's signatures cover.
 func statementMessage(context string, msg []byte) []byte {
 	var b bytes.Buffer
-	b.WriteString("vaigil/statement/v1")
+	b.WriteString("aeroprove/statement/v1")
 	b.WriteByte(0)
 	writeField(&b, context)
 	writeField(&b, string(msg))

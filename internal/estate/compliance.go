@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/lifecycle"
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/lifecycle"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // Device compliance: what a machine is required to be, against what the

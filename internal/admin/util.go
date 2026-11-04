@@ -6,12 +6,12 @@ package admin
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"github.com/vaigil/vaigil/internal/throttle"
+	"github.com/aeroprove/aeroprove/internal/throttle"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/auth"
 )
 
 // humanBytes writes a file size the way somebody choosing a picture reads it.
@@ -37,7 +37,7 @@ func humanBytes(n int64) string {
 // which is the same as not having one.
 // brandName is what this console is called: on every page, and to a
 // passkey's authenticator as the party it is for.
-const brandName = "Vaigil"
+const brandName = "AeroProve"
 
 func nonce() (string, error) {
 	b := make([]byte, 16)

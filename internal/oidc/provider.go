@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/fetch"
+	"github.com/aeroprove/aeroprove/internal/fetch"
 )
 
 // Discovery is the subset of the provider metadata this needs.

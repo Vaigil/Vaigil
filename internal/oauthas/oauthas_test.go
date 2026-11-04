@@ -19,10 +19,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/agentreg"
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/dpop"
-	"github.com/vaigil/vaigil/internal/macaroon"
+	"github.com/aeroprove/aeroprove/internal/agentreg"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/dpop"
+	"github.com/aeroprove/aeroprove/internal/macaroon"
 )
 
 // A test rig: one agent in the registry, one person signed in, one policy
@@ -382,7 +382,7 @@ func TestTheClientIsARegisteredActiveAgent(t *testing.T) {
 // A scope is one bundle the registry carries whole: no invented words, no
 // half-covered bundles, and no cross-product of words.
 func TestAScopeIsOneBundleTheRegistryCarriesWhole(t *testing.T) {
-	r := newRig(t, "vaigil_find", "vaigil_read") // no vaigil_write
+	r := newRig(t, "aeroprove_find", "aeroprove_read") // no aeroprove_write
 	q, _ := r.ask("triage")
 	if w := r.get(t, AuthorizePath+"?"+q.Encode()); w.Code != http.StatusBadRequest ||
 		!strings.Contains(w.Body.String(), "whole") {
@@ -398,7 +398,7 @@ func TestAScopeIsOneBundleTheRegistryCarriesWhole(t *testing.T) {
 	// there too, rather than issuing a token for part of a word.
 	fresh := newRig(t)
 	code, verifier := fresh.consent(t, "triage")
-	if err := fresh.agents.Allow("watcher", nil, []string{"vaigil_write"}, "tester", time.Now()); err != nil {
+	if err := fresh.agents.Allow("watcher", nil, []string{"aeroprove_write"}, "tester", time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	w := fresh.redeem(t, code, verifier, fresh.proof(t))

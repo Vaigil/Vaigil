@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/correlate"
-	"github.com/vaigil/vaigil/internal/detect"
-	"github.com/vaigil/vaigil/internal/spool"
-	"github.com/vaigil/vaigil/internal/telemetry"
+	"github.com/aeroprove/aeroprove/internal/correlate"
+	"github.com/aeroprove/aeroprove/internal/detect"
+	"github.com/aeroprove/aeroprove/internal/spool"
+	"github.com/aeroprove/aeroprove/internal/telemetry"
 )
 
 // The shadow replay: the customer-side empirical gate, between verification
@@ -597,7 +597,7 @@ type installedRule struct {
 }
 
 // installedContent loads the rules and correlations already in the target
-// directory — the same files `vaigil detect run` walks, loaded here without
+// directory — the same files `aeroprove detect run` walks, loaded here without
 // installing anything, and refused for the same reasons the run refuses them
 // (a rule id held by two files, a correlation with no id), because a baseline
 // the run itself would not load is a measurement of nothing. A missing

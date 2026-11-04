@@ -17,8 +17,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/auth"
-	"github.com/vaigil/vaigil/internal/saml"
+	"github.com/aeroprove/aeroprove/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/saml"
 )
 
 // SAML sign-in, beside OIDC, passkeys and tokens. internal/saml decides
@@ -129,9 +129,9 @@ func randomToken(n int) (string, error) {
 // lock out.
 func (s *Server) samlCookie(r *http.Request) (name string, same http.SameSite) {
 	if r.TLS != nil || s.behindTLSProxy() {
-		return "__Host-vaigil_saml", http.SameSiteNoneMode
+		return "__Host-aeroprove_saml", http.SameSiteNoneMode
 	}
-	return "vaigil_saml", http.SameSiteLaxMode
+	return "aeroprove_saml", http.SameSiteLaxMode
 }
 
 // handleSAMLStart sends the browser to the identity provider.
@@ -226,7 +226,7 @@ func (s *Server) handleSAML(w http.ResponseWriter, r *http.Request) {
 	switch rest {
 	case "metadata":
 		w.Header().Set("Content-Type", "application/samlmetadata+xml")
-		w.Header().Set("Content-Disposition", `attachment; filename="vaigil-`+cfg.Name+`.xml"`)
+		w.Header().Set("Content-Disposition", `attachment; filename="aeroprove-`+cfg.Name+`.xml"`)
 		_, _ = w.Write(saml.ServiceMetadata(cfg.ServiceEntityID(), cfg.ACS(), time.Now().AddDate(1, 0, 0)))
 	case "acs":
 		s.samlACS(w, r, cfg)
@@ -346,7 +346,7 @@ func (s *Server) finishSSO(w http.ResponseWriter, r *http.Request, principal, ho
 		before()
 		s.refuseSignIn(w, r,
 			fmt.Sprintf("%s signed in successfully, but is not in the access policy for this site.", principal),
-			fmt.Sprintf("An administrator can add them:  vaigil auth grant %s author", principal))
+			fmt.Sprintf("An administrator can add them:  aeroprove auth grant %s author", principal))
 		return
 	}
 	if ttl < time.Minute {
@@ -383,7 +383,7 @@ func (s *Server) finishSSO(w http.ResponseWriter, r *http.Request, principal, ho
 	next := s.ssoNext(r, principal, proof)
 	before()
 	http.SetCookie(w, &http.Cookie{
-		Name: "vaigil_token", Value: secret, Path: "/", HttpOnly: true,
+		Name: "aeroprove_token", Value: secret, Path: "/", HttpOnly: true,
 		// Lax for the same reason as OIDC: the browser arrives here from
 		// the identity provider, and Strict would drop the cookie on the
 		// way in. Lax still keeps it off other sites' POSTs.

@@ -6,7 +6,7 @@ package admin
 import (
 	"testing"
 
-	"github.com/vaigil/vaigil/internal/auth"
+	"github.com/aeroprove/aeroprove/internal/auth"
 )
 
 // An access change made here is applied to the policy as stored, so a

@@ -12,7 +12,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/vaigil/vaigil/internal/atomicfile"
+	"github.com/aeroprove/aeroprove/internal/atomicfile"
 )
 
 // Building a pack for signing: the producer's half.

@@ -52,7 +52,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vaigil/vaigil/internal/audit"
+	"github.com/aeroprove/aeroprove/internal/audit"
 )
 
 // MaxReview is how long a vendor may go unreviewed before it stops meaning

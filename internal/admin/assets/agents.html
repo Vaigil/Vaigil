@@ -14,7 +14,7 @@
 
 <p class="chips">
   <span class="wf-word {{.Agent.StatusTone}}">{{.Agent.Status}}</span>
-  {{if .Agent.FromVaigil}}<span class="pill">vaigil/agent</span>{{end}}
+  {{if .Agent.FromSidecar}}<span class="pill">aeroprove/agent</span>{{end}}
   {{if .Agent.FromOtel}}<span class="pill">otel/genai</span>{{end}}
 </p>
 
@@ -35,9 +35,9 @@
 <h2>What the record holds about this agent</h2>
 <div class="card">
   <p>The identity is <code>{{.Agent.Key}}</code> —
-    {{if eq .Agent.Actor.Issuer "vaigil"}}the pseudonym the audit log gave the agent{{else if .Agent.FromOtel}}the identity its own telemetry carried{{else}}the actor its events carried{{end}},
+    {{if eq .Agent.Actor.Issuer "aeroprove"}}the pseudonym the audit log gave the agent{{else if .Agent.FromOtel}}the identity its own telemetry carried{{else}}the actor its events carried{{end}},
     shown as stored and never resolved into a name nobody recorded.</p>
-  <p>Seen from:{{if .Agent.FromVaigil}} <code>vaigil/agent</code>, {{plural .Agent.FromVaigil "event" "events"}}{{end}}{{if .Agent.FromOtel}} <code>otel/genai</code>, {{plural .Agent.FromOtel "event" "events"}}{{end}}.</p>
+  <p>Seen from:{{if .Agent.FromSidecar}} <code>aeroprove/agent</code>, {{plural .Agent.FromSidecar "event" "events"}}{{end}}{{if .Agent.FromOtel}} <code>otel/genai</code>, {{plural .Agent.FromOtel "event" "events"}}{{end}}.</p>
   {{if .Agent.Names}}<p>Events under this identity named the agent
     {{range $i, $n := .Agent.Names}}{{if $i}}, {{end}}<code>{{$n}}</code>{{end}}.</p>{{end}}
   {{if .Agent.MaybeSame}}
@@ -154,7 +154,7 @@
 {{if .Stream}}
 <h2 id="stream">Sidecar and analyst events — one stream</h2>
 {{/*
-  vaigil/agent events carry no trace id. The honest answer is one
+  aeroprove/agent events carry no trace id. The honest answer is one
   chronological stream, said as such: no session edge is invented for a
   section whose events never named one, and arrival order is never dressed
   up as a session's shape.
@@ -215,7 +215,7 @@
 
 <p class="lead">Every agent observed in the last seven days, from the two
   sources that watch them: the MCP sidecar and the analyst
-  (<code>vaigil/agent</code>), and GenAI telemetry pushed over OTLP
+  (<code>aeroprove/agent</code>), and GenAI telemetry pushed over OTLP
   (<code>otel/genai</code>). A row exists because an event named it, and
   never otherwise.</p>
 
@@ -258,14 +258,14 @@
     window. <a href="/security/agents">Show every source</a>.</p>
   {{else if .Stored}}<div class="notice warn">
     <p><strong>No agent has been observed.</strong> Events have arrived from
-      other sources — none from <code>vaigil/agent</code> or
+      other sources — none from <code>aeroprove/agent</code> or
       <code>otel/genai</code> — so an empty board here would be silence
       rather than a quiet estate of agents.</p></div>
   {{else}}<div class="notice warn">
     <p><strong>No agent has been observed.</strong> Nothing is in the store
       at all yet, which is not a quiet estate of agents — it is one nothing
       is watching. Agent events arrive from the MCP sidecar and the analyst
-      (<code>vaigil/agent</code>), and from GenAI telemetry pushed over OTLP
+      (<code>aeroprove/agent</code>), and from GenAI telemetry pushed over OTLP
       (<code>otel/genai</code>).</p></div>
   {{end}}
 {{else}}
@@ -321,7 +321,7 @@
 </table>
 </div>
 <p class="hint">Most recently active first. Identities are the actor each
-  event carried — a pseudonym under <code>vaigil/agent</code>, the SDK's
+  event carried — a pseudonym under <code>aeroprove/agent</code>, the SDK's
   identifier under <code>otel/genai</code> — and refused is the blocked
   disposition: the sidecar or a policy stopped the call. The registry column
   is joined in only where a row's own events carried a name the registry

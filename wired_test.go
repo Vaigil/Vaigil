@@ -42,7 +42,7 @@ func TestEveryPackageIsReachedBySomething(t *testing.T) {
 
 	var orphans []string
 	for p := range pkgs {
-		if imported[p] || p == "cmd/vaigil" {
+		if imported[p] || p == "cmd/aeroprove" {
 			continue
 		}
 		if reason, ok := notImported[p]; ok {
@@ -65,7 +65,7 @@ func TestEveryPackageIsReachedBySomething(t *testing.T) {
 // notImported is for packages that exist without being imported, with a
 // written reason each.
 //
-// A registry rather than a rule, the same shape as cmd/vaigil's coverage
+// A registry rather than a rule, the same shape as cmd/aeroprove's coverage
 // table: a pattern that excuses one package excuses the next one of that
 // shape, including the one that was an oversight.
 var notImported = map[string]string{
@@ -73,14 +73,18 @@ var notImported = map[string]string{
 	// the collector's whole job; nothing imports a main package, and the
 	// package it serves (internal/collector) is wired through this binary's
 	// inbound endpoint.
-	"cmd/vaigil-collector": "a binary, not a library: built beside this one, never imported",
+	"cmd/aeroprove-collector": "a binary, not a library: built beside this one, never imported",
+	// The wind tunnel's first phase, mid-build: its scenario corpus and
+	// generators stand; the runner and command that wire them are the
+	// next work, and this row retires with them.
+	"internal/windtunnel": "waiting for its runner: the phase that reads it is the next build",
 }
 
 // importGraph returns which packages are imported from outside themselves, and
 // every package in the tree.
 func importGraph(t *testing.T) (imported map[string]bool, pkgs map[string]bool) {
 	t.Helper()
-	const mod = "github.com/vaigil/vaigil/"
+	const mod = "github.com/aeroprove/aeroprove/"
 	imported = map[string]bool{}
 	pkgs = map[string]bool{}
 
