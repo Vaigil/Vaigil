@@ -1,21 +1,11 @@
 # AeroProve
 
-**The AI-agent wind tunnel: breach-and-attack simulation for deployed agent
-stacks, on a complete detection engine.** AeroProve replays scripted malicious
-agent sessions — tool poisoning, config rug-pulls, the read-then-exfiltrate
-chain, over-scoped credentials — through your own telemetry, measures
-honestly whether your controls caught them, and signs the scorecard a third
-party can verify. Everything underneath still stands: it collects what
-happens on the platforms your organisation runs, detects what is wrong, lets
-an AI analyst take the first pass without letting it decide anything, and
-keeps a tamper-evident record of every action a person took about it.
-
-The simulation is replay-first: a scenario splices into a recorded stream
-and cannot touch a production system, because there is nothing live to
-touch. The scenarios are data — closed sets, fixtures, no interpreters —
-the same discipline the detection pack ships under. A run is measured the
-way nothing on the market measures: miss rate first, with bounds, from an
-instrument whose own calibration is published.
+**The wind tunnel for AI agents: breach-and-attack simulation for deployed
+agent stacks, on a complete detection engine.** AeroProve replays scripted
+malicious agent sessions — tool poisoning, config rug-pulls, the
+read-then-exfiltrate chain, over-scoped credentials — through your own
+telemetry, measures honestly whether your controls caught them, and signs
+the scorecard a third party can verify with nothing but a public key.
 
 <p>
   <a href="https://github.com/AeroProve/AeroProve/actions/workflows/ci.yml"><img src="https://github.com/AeroProve/AeroProve/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
@@ -24,7 +14,8 @@ instrument whose own calibration is published.
   <a href="https://aeroprove.github.io/"><img src="https://img.shields.io/badge/manual-aeroprove.github.io-informational" alt="manual"></a>
 </p>
 
-[Quickstart](#quickstart) · [What it does](#what-it-does) ·
+[Quickstart](#quickstart) · [Why a wind tunnel](#why-a-wind-tunnel) ·
+[What it does](#what-it-does) ·
 [AI that cannot be talked into anything](#ai-that-cannot-be-talked-into-anything) ·
 [Integrations](#integrations) · [Roles](#roles) · [Three ways in](#three-ways-in) ·
 [Its own record](#its-own-record) · [Install](#install) ·
@@ -44,14 +35,39 @@ go build -o aeroprove ./cmd/aeroprove      # Go 1.27 or later, nothing to fetch
 ./aeroprove serve                          # the console, on http://localhost:8080
 ```
 
+The binary answers to **`apv`** as well — the short form, the way nobody types
+the long name twice: `ln -s aeroprove apv` (or `make install`, which installs
+both names) and then it is `apv serve`, `apv windtunnel run`, `apv anything`.
+
 Open the link `init` printed and add a passkey, and you are signed in. There
 is no default password and no default account. Nobody is an administrator
 until you say so, and everybody signs in with two factors.
 
-The first screen is **Today**: what is waiting for you to decide, then what is
-wrong in the parts of the estate you work in. **Get started** walks the four
-things that make it useful: bring events in, decide what counts as wrong, know
-the estate, and decide who else may do what.
+## Why a wind tunnel
+
+Every funded player tests whether an agent succumbs to an attack. Nobody
+measures whether **the organisation's own telemetry and detections caught
+it** — and the numbers that exist are inflated: the best independent
+detector catches about half of agent attacks at a two-percent false-positive
+rate, while vendors market 99.83%.
+
+AeroProve is the honest instrument. A scenario is data, never code — a
+malicious agent session as the security operations centre would see it,
+shipped with a benign twin that must raise nothing. Replayed through a
+recorded stream in a scratch store, nothing live is touched, because there
+is nothing live to touch. The scorecard reports what ran before how it
+went — scenario digests, the stream's digest, the pack's version — then
+the numbers, miss rate first with Wilson bounds, per family, signed with
+Ed25519 and ML-DSA so a third party verifies it offline with no store and
+no cooperation. Detections that are missed become drafted rules with
+fixtures, replay-validated before promotion — the loop only this codebase
+can close, because the detection engine, the replay machinery and the
+benchmark discipline were built together.
+
+Underneath stands everything the instrument runs on: collection, detection,
+an AI analyst that only suggests, a tamper-evident record, and the boards
+that watch the agents. The first screen is **Today**; **Get started** walks
+the four things that make it useful.
 
 ## What it does
 
