@@ -159,8 +159,10 @@ const (
 )
 
 // The scoring modes (decision 6). Reference mode is the calibrated
-// instrument and the only one this build runs; the their-controls modes are
-// named here so their refusal is a named refusal, not a missing feature.
+// instrument; their-Sigma mode imports the organisation's own rules
+// through the existing importer and joins at technique level, with the
+// join's fidelity limit stated on every document it seals; their-alerts
+// is named so its refusal is a named refusal, not a missing feature.
 const (
 	ModeReference  = "reference"
 	ModeTheirSigma = "their-sigma"
@@ -222,16 +224,21 @@ func Run(opts RunOptions) (*Scorecard, error) {
 	if mode == "" {
 		mode = ModeReference
 	}
+	var theirs *theirSigma
 	switch {
 	case mode == ModeReference:
 	case strings.HasPrefix(mode, ModeTheirSigma+":"):
-		return nil, fmt.Errorf("%s scoring arrives in phase 2: it imports the "+
-			"organisation's own Sigma rules through the existing importer and "+
-			"joins at technique level. Running it now would measure nothing "+
-			"while claiming to measure their controls, so it is refused "+
-			"rather than half-run. Reference mode — the default — measures "+
-			"what this program's own pack caught on the stream, as the "+
-			"calibrated instrument", ModeTheirSigma)
+		dir := strings.TrimSpace(strings.TrimPrefix(mode, ModeTheirSigma+":"))
+		if dir == "" {
+			return nil, fmt.Errorf("%s scoring names no directory: the mode "+
+				"is %s:DIR (or run --sigma DIR), where DIR is the "+
+				"organisation's Sigma rules", ModeTheirSigma, ModeTheirSigma)
+		}
+		loaded, err := loadTheirSigma(dir)
+		if err != nil {
+			return nil, err
+		}
+		theirs = loaded
 	case strings.HasPrefix(mode, ModeTheirAlert+":"):
 		return nil, fmt.Errorf("%s scoring arrives in phase 2: it reads the "+
 			"organisation's alert output for the replay window in OCSF and "+
@@ -239,10 +246,11 @@ func Run(opts RunOptions) (*Scorecard, error) {
 			"nothing while claiming to measure their pipeline, so it is "+
 			"refused rather than half-run. Reference mode — the default — "+
 			"measures what this program's own pack caught on the stream, as "+
-			"the calibrated instrument", ModeTheirAlert)
+			"the calibrated instrument; their-Sigma mode measures their own "+
+			"rules under this engine", ModeTheirAlert)
 	default:
 		return nil, fmt.Errorf("%q is not a scoring mode; the closed set is "+
-			"%s (this build), %s:DIR and %s:FILE (phase 2)", mode,
+			"%s and %s:DIR (this build), and %s:FILE (phase 2)", mode,
 			ModeReference, ModeTheirSigma, ModeTheirAlert)
 	}
 
@@ -254,6 +262,26 @@ func Run(opts RunOptions) (*Scorecard, error) {
 			return nil, err
 		}
 		ref = loaded
+	}
+	// The caller's own pack, not the shipped one the run just loaded on
+	// its own behalf: naming a reference directory and their Sigma rules
+	// in one run asks for two instruments, and a scorecard that mixed
+	// them would name neither.
+	if opts.Reference != nil && theirs != nil {
+		return nil, fmt.Errorf("two instruments were named: a reference " +
+			"pack and their Sigma rules. One run scores one instrument, " +
+			"and a scorecard that mixed them would name neither")
+	}
+	if theirs != nil {
+		// Their library is the instrument: replayed by the same passes,
+		// ambient-calibrated the same way, and — because it shares none
+		// of the pack's ids — joined to the corpus at technique level by
+		// the scorer below. The corpus loads loose (shape checks only):
+		// its pack-id expectations belong to reference mode, and holding
+		// their rules to the shipped pack's ids would refuse every
+		// scenario before anything ran.
+		ref = theirs.ref
+		shipped = false
 	}
 	corpus, err := loadCorpus(ref, shipped)
 	if err != nil {
@@ -315,8 +343,22 @@ func Run(opts RunOptions) (*Scorecard, error) {
 		Corpus: CorpusName, Seed: opts.Seed, Scratch: into,
 		GeneratedAt: opts.Now.UTC(),
 		Caveat:      attributionCaveat}
+	// The ambient count is sealed on the document so a diff between two
+	// scorecards can tell a rules finding from an estate finding: what the
+	// instrument raised on the base stream alone, before any session was
+	// spliced into it.
+	for _, n := range ambient.loud {
+		card.AmbientFires += n
+	}
+	for _, hits := range ambient.hits {
+		card.AmbientFires += len(hits)
+	}
+	if theirs != nil {
+		card.TheirSigma = theirs.report
+		card.ModeBlind = sigmaJoinBlind
+	}
 	for _, l := range selected {
-		row, err := runOne(l, ref, base, into, opts.Seed, ambient)
+		row, err := runOne(l, ref, base, into, opts.Seed, ambient, theirs != nil)
 		if err != nil {
 			return nil, err
 		}
@@ -343,9 +385,10 @@ func Run(opts RunOptions) (*Scorecard, error) {
 }
 
 // runOne runs one scenario and its twin over the base stream and scores
-// both by the id join.
+// both — by the id join in reference mode, by the technique join when the
+// instrument is their Sigma rules.
 func runOne(l *Loaded, ref *Reference, base []telemetry.Event, into string,
-	seed int64, ambient *passResult) (*Row, error) {
+	seed int64, ambient *passResult, their bool) (*Row, error) {
 
 	sc := l.Scenario
 	if err := Preflight(sc, base); err != nil {
@@ -388,11 +431,23 @@ func runOne(l *Loaded, ref *Reference, base []telemetry.Event, into string,
 	row := &Row{Scenario: sc.ID, Digest: l.Digest, Family: sc.Family,
 		Techniques: sc.Technique, SessionEvents: len(placed.Events),
 		Twin: TwinOutcome{ID: sc.Twin.ID, Outcome: TwinQuiet}}
-	for _, x := range sc.Expects {
-		row.Expects = append(row.Expects, *scoreExpect(sc, x, ref, attack,
-			ambient, placed))
+	if their {
+		// The technique join: one must-alert per rule of theirs that tags
+		// a technique this scenario stages, met when that rule fired
+		// above ambient. A rule can intersect and still not fire — those
+		// are the misses the mode reports in these rows, not hides; a
+		// scenario nothing of theirs even tags is the plain miss its note
+		// says it is.
+		row.Expects = joinByTechnique(sc, ref, attack, ambient)
+		row.Note = theirRowNote(sc, ref, attack, ambient, row.Expects)
+		row.Outcome = theirOutcome(row.Expects)
+	} else {
+		for _, x := range sc.Expects {
+			row.Expects = append(row.Expects, *scoreExpect(sc, x, ref, attack,
+				ambient, placed))
+		}
+		row.Outcome = outcomeOf(row.Expects)
 	}
-	row.Outcome = outcomeOf(row.Expects)
 
 	// The twin: any new alert is a false fire — the precision axis.
 	twinFired := false

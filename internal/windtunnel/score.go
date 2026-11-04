@@ -130,6 +130,10 @@ func (c *Scorecard) aggregate() error {
 		c.Techniques = append(c.Techniques, *techniques[t])
 	}
 
+	// The heatmap is the same rows as the technique grid, as words in a
+	// square — computed beside them so the two cannot drift.
+	c.Heatmap = buildHeatmap(c.Rows)
+
 	// A document with no must-alert scenario has no primary number, and
 	// rendering a 0% miss rate over nothing would be exactly the naked
 	// percentage this schema exists to refuse.

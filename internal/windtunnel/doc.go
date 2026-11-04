@@ -47,11 +47,16 @@
 // stream digest, reference pack digest, mode — then the numbers. A number
 // without those names is a claim rather than a measurement.
 //
-// 6. THREE SCORING MODES, ONE BUILT. Reference mode (this build) scores
-// against aertun's own pack as the calibrated instrument. their-Sigma and
-// their-alerts modes arrive in phase 2 and are refused here with messages
-// that say so, because a mode that half-runs would measure nothing while
-// claiming to measure the org's controls.
+// 6. THREE SCORING MODES, TWO BUILT. Reference mode scores against
+// aertun's own pack as the calibrated instrument. their-Sigma mode (phase
+// 2, shipped) imports the organisation's own Sigma rules through the
+// existing importer and joins at technique level, with the join's
+// fidelity limit stated on every document it seals and import refusals
+// counted rather than dropped. their-alerts mode is still refused with a
+// message that says so, because a mode that half-runs would measure
+// nothing while claiming to measure the org's controls. Modes are never
+// pooled: a scorecard names its mode, and the diff refuses to compare
+// across them.
 //
 // 7. THE DOCUMENT IS SEALED AND DUAL-SIGNED. sha256 self-digest over the
 // canonical form, then Ed25519 and ML-DSA-65 both, in the context

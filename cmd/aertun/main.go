@@ -48,6 +48,16 @@ type errBlocked struct{ error }
 
 func (e errBlocked) Unwrap() error { return e.error }
 
+// errUsage marks a command that cannot do its job with what it was handed
+// — the arguments, or the files they name. Kept distinct from a plain
+// failure because a caller branching on exit status must be able to tell
+// "the command was wrong" from "the command ran and found something":
+// diff's CI contract is 0 clean, 1 regression, 2 not runnable, and the
+// plain failure code belongs to the middle one.
+type errUsage struct{ error }
+
+func (e errUsage) Unwrap() error { return e.error }
+
 var version = "dev"
 
 func usage() {
@@ -89,7 +99,7 @@ Detecting and deciding
   aertun intel import FILE --source NAME | add VALUE --source NAME | list | remove ID
   aertun analyst plan | triage [--limit N] [--dry-run] | eval [--k 3]
   aertun bench run [--stub] [--out F] [--k N] | report FILE   the labelled corpus, and how the analyst scored on it
-  aertun windtunnel list-scenarios | preflight | run | scorecard | verify   breach simulation by replay, scored and signed
+  aertun windtunnel list-scenarios | preflight | run [--sigma DIR] | scorecard | diff OLD NEW | verify   breach simulation by replay, scored and signed; diff is the CI gate
   aertun automate list | templates | add TEMPLATE | runs   rules: when this happens, do this
   aertun automate mode ID watch|ask|act | on ID | off ID | remove ID | approve RUN | decline RUN
   aertun geo status | network add PREFIX NAME --kind office|vpn | network remove PREFIX | help   where sign-ins come from
@@ -415,6 +425,10 @@ func main() {
 		var blocked errBlocked
 		if errors.As(err, &blocked) {
 			os.Exit(out.ExitBlocked)
+		}
+		var usage errUsage
+		if errors.As(err, &usage) {
+			os.Exit(out.ExitUsage)
 		}
 		os.Exit(out.ExitFailure)
 	}

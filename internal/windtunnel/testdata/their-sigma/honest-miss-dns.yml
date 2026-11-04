@@ -1,0 +1,19 @@
+title: Agent session exfiltrated over a DNS tunnel
+id: their.egress-dns-tunnel
+status: test
+description: "A rule for the exfiltration technique that watches a channel this estate's sessions never use. It tags the same technique the mailroom trifecta stages and would not fire on it in a month of Mondays: the honest miss, a rule that intersects a scenario's techniques and still does not fire on its events."
+author: their-soc
+date: 2026-10-30
+logsource:
+    product: otel
+    service: genai
+detection:
+    selection:
+        tool: dns_tunnel
+        labels: egress
+    condition: selection
+falsepositives:
+    - Nameservers doing what nameservers do
+level: medium
+tags:
+    - attack.t1041

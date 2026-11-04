@@ -1,0 +1,18 @@
+title: Many egress calls from one agent trace
+id: their.egress-burst-aggregation
+status: test
+description: "An aggregation rule, the construct the importer refuses rather than half-compiles. It tags the exfiltration technique too, so a run that silently dropped it would under-count the library's claim on T1041; their-Sigma mode counts it as import-refused on the scorecard instead."
+author: their-soc
+date: 2026-10-30
+logsource:
+    product: otel
+    service: genai
+detection:
+    selection:
+        labels: egress
+    condition: selection | count() by trace_id > 5
+falsepositives:
+    - Batch exporters
+level: high
+tags:
+    - attack.t1041

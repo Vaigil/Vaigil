@@ -348,21 +348,39 @@ func TestRunRefusesALiveTargetInCode(t *testing.T) {
 	}
 }
 
-// The phase-2 scoring modes are refused with their names and their phase,
-// not silently fallen back to reference — a mode that half-runs would
-// measure nothing while claiming to measure the organisation's controls.
+// their-alerts is still phase 2 and refuses with its name, never silently
+// falling back to reference; their-Sigma runs now, so its refusals are the
+// honest ones about the library it was handed — an empty directory is not
+// an instrument that caught nothing, and scoring it would print the empty
+// 100% this package refuses to print.
 func TestRunRefusesThePhaseTwoScoringModesHonestly(t *testing.T) {
-	for _, mode := range []string{"their-sigma:./rules", "their-alerts:x.json"} {
-		_, err := Run(RunOptions{ScoreMode: mode, Scenarios: []string{
-			"agent.trifecta-mailroom-exfil"}})
-		if err == nil || !strings.Contains(err.Error(), "phase 2") {
-			t.Errorf("%s was not refused with its phase (%v)", mode, err)
-		}
+	_, err := Run(RunOptions{ScoreMode: "their-alerts:x.json", Scenarios: []string{
+		"agent.trifecta-mailroom-exfil"}})
+	if err == nil || !strings.Contains(err.Error(), "phase 2") {
+		t.Errorf("their-alerts was not refused with its phase (%v)", err)
 	}
-	_, err := Run(RunOptions{ScoreMode: "vibes", Scenarios: []string{
+	_, err = Run(RunOptions{ScoreMode: "vibes", Scenarios: []string{
 		"agent.trifecta-mailroom-exfil"}})
 	if err == nil || !strings.Contains(err.Error(), "not a scoring mode") {
 		t.Errorf("an unknown scoring mode gave %v", err)
+	}
+	_, err = Run(RunOptions{ScoreMode: ModeTheirSigma + ":",
+		Scenarios: []string{"agent.trifecta-mailroom-exfil"}})
+	if err == nil || !strings.Contains(err.Error(), "names no directory") {
+		t.Errorf("their-sigma with no directory gave %v", err)
+	}
+	empty := t.TempDir()
+	_, err = Run(RunOptions{ScoreMode: ModeTheirSigma + ":" + empty,
+		Scenarios: []string{"agent.trifecta-mailroom-exfil"}})
+	if err == nil || !strings.Contains(err.Error(), "holds none") {
+		t.Fatalf("an empty Sigma directory gave %v; the refusal is the "+
+			"honest answer, not a miss rate over nothing", err)
+	}
+	_, err = Run(RunOptions{ScoreMode: ModeTheirSigma + ":" +
+		filepath.Join(empty, "no-such-dir"),
+		Scenarios: []string{"agent.trifecta-mailroom-exfil"}})
+	if err == nil || !strings.Contains(err.Error(), "reading their Sigma rules") {
+		t.Errorf("a missing Sigma directory gave %v", err)
 	}
 }
 

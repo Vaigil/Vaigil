@@ -6,6 +6,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -276,8 +277,9 @@ func TestWindtunnelVerifyIsOfflineStoreFreeAndRefusesForgeries(t *testing.T) {
 }
 
 // The refusals the library makes are the refusals the command surfaces: a
-// live endpoint where a stream path belongs, and the phase-2 scoring modes
-// named as phase 2 rather than half-run.
+// live endpoint where a stream path belongs, their-alerts named as the
+// phase-2 mode it still is, and their-Sigma's own honest refusals about
+// the library it was handed.
 func TestWindtunnelRunRefusesLiveTargetsAndPhaseTwoScoring(t *testing.T) {
 	windtunnelOutput(t)
 	root := t.TempDir()
@@ -287,15 +289,221 @@ func TestWindtunnelRunRefusesLiveTargetsAndPhaseTwoScoring(t *testing.T) {
 		t.Fatalf("a URL as --over gave %v; replay is the safety story, and "+
 			"the refusal is in code", err)
 	}
-	err = cmdWindtunnel(root, []string{"run", "--score", "their-sigma:./rules"})
+	err = cmdWindtunnel(root, []string{"run", "--score", "their-alerts:x.json"})
 	if err == nil || !strings.Contains(err.Error(), "phase 2") {
-		t.Fatalf("a phase-2 scoring mode gave %v; it must be refused with its "+
-			"phase rather than half-run", err)
+		t.Fatalf("their-alerts gave %v; it must be refused with its phase "+
+			"rather than half-run", err)
+	}
+	// their-Sigma runs now; what it refuses is the empty library, which
+	// would otherwise score an empty 100%.
+	empty := t.TempDir()
+	err = cmdWindtunnel(root, []string{"run", "--sigma", empty})
+	if err == nil || !strings.Contains(err.Error(), "holds none") {
+		t.Fatalf("an empty Sigma directory gave %v; the honest answer is a "+
+			"refusal, not a miss rate over nothing", err)
 	}
 	// And --public-key without --key is a contradiction, not a courtesy.
 	err = cmdWindtunnel(root, []string{"run", "--public-key", "x.json"})
 	if err == nil || !strings.Contains(err.Error(), "needs --key") {
 		t.Fatalf("publishing the public half of nothing gave %v", err)
+	}
+}
+
+// theirSigmaDir points a command test at the fixture library the internal
+// tests score, without a second copy of the bytes to drift.
+func theirSigmaDir(sub string) string {
+	return filepath.Join("..", "..", "internal", "windtunnel", "testdata",
+		sub)
+}
+
+// The --sigma flag, end to end: the organisation's own rules score the
+// run, the document names the mode, the library's digest and the import
+// accounting — and the honest miss a library of one quiet rule leaves is
+// on the sealed document, not waved away.
+func TestWindtunnelSigmaFlagScoresTheirRules(t *testing.T) {
+	windtunnelOutput(t)
+	root := t.TempDir()
+	work := t.TempDir()
+
+	caught := filepath.Join(work, "caught.json")
+	if err := cmdWindtunnel(root, []string{"run", "--sigma",
+		theirSigmaDir("their-sigma"), "--scenario",
+		"agent.trifecta-mailroom-exfil", "--out", caught}); err != nil {
+		t.Fatalf("a their-Sigma run refused: %v", err)
+	}
+	b, err := os.ReadFile(caught)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var card windtunnel.Scorecard
+	if err := json.Unmarshal(b, &card); err != nil {
+		t.Fatal(err)
+	}
+	if err := card.Verify(); err != nil {
+		t.Fatalf("the their-Sigma document does not verify: %v", err)
+	}
+	if !strings.HasPrefix(card.ScoreMode, "their-sigma:") ||
+		card.TheirSigma == nil || card.TheirSigma.Read != 3 ||
+		card.TheirSigma.Imported != 2 || len(card.TheirSigma.Refused) != 1 {
+		t.Fatalf("score mode %q, report %+v; the document names the mode "+
+			"and carries the import accounting", card.ScoreMode,
+			card.TheirSigma)
+	}
+	if len(card.Rows) != 1 || card.Rows[0].Outcome != windtunnel.OutcomeCaughtAlert {
+		t.Fatalf("the row is %+v; the egress rule tags T1041 and fires",
+			card.Rows)
+	}
+
+	// The same library through the mode grammar, not the flag: one
+	// grammar, two ways in, and both refuse a second instrument.
+	err = cmdWindtunnel(root, []string{"run", "--score",
+		"their-sigma:" + theirSigmaDir("their-sigma"), "--sigma",
+		theirSigmaDir("their-sigma")})
+	if err == nil || !strings.Contains(err.Error(), "name one instrument") {
+		t.Fatalf("naming the instrument twice gave %v", err)
+	}
+}
+
+// The diff as the CI gate it is: a caught-then-missed pair exits with the
+// regression named, the same pair the other way round is a fix and stays
+// clean, identical documents are clean, and a command that cannot run —
+// wrong arguments, a missing file, an edited scorecard, two documents
+// that must never be pooled — is the usage code, never the regression
+// code. The exit contract is pinned by the error types main branches on.
+func TestWindtunnelDiffIsTheCIGate(t *testing.T) {
+	buf := windtunnelOutput(t)
+	root := t.TempDir()
+	work := t.TempDir()
+
+	// The pair, both their-Sigma over libraries that differ only in
+	// whether the T1041 rule can fire: same engine, same corpus, same
+	// mode — comparable documents, one caught, one honestly missed.
+	caught := filepath.Join(work, "caught.json")
+	if err := cmdWindtunnel(root, []string{"run", "--sigma",
+		theirSigmaDir("their-sigma"), "--scenario",
+		"agent.trifecta-mailroom-exfil", "--out", caught}); err != nil {
+		t.Fatal(err)
+	}
+	quietLib := t.TempDir()
+	missRule := "title: A rule that tags the technique and never fires\n" +
+		"id: their.never-fires\nstatus: test\n" +
+		"description: \"Intersects T1041, matches nothing.\"\n" +
+		"author: their-soc\ndate: 2026-10-30\nlogsource:\n" +
+		"    product: otel\n    service: genai\ndetection:\n" +
+		"    selection:\n        tool: dns_tunnel\n" +
+		"    condition: selection\nlevel: medium\ntags:\n    - attack.t1041\n"
+	if err := os.WriteFile(filepath.Join(quietLib, "never.yml"),
+		[]byte(missRule), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	missed := filepath.Join(work, "missed.json")
+	if err := cmdWindtunnel(root, []string{"run", "--sigma", quietLib,
+		"--scenario", "agent.trifecta-mailroom-exfil", "--out", missed}); err != nil {
+		t.Fatal(err)
+	}
+
+	// The regression: exit 1 through errRegressed, transition named on
+	// the screen before the status line.
+	buf.Reset()
+	err := cmdWindtunnel(root, []string{"diff", caught, missed})
+	var regressed errRegressed
+	if err == nil || !errors.As(err, &regressed) {
+		t.Fatalf("a caught-then-missed pair gave %v; the gate's regression "+
+			"code is main's plain failure exit behind errRegressed", err)
+	}
+	if !strings.Contains(err.Error(), "1 regression(s)") {
+		t.Errorf("the status line does not count the regressions: %v", err)
+	}
+	screen := buf.String()
+	if !strings.Contains(screen, "caught-alert → missed (regression)") ||
+		!strings.Contains(screen, "exit 1") {
+		t.Errorf("the screen does not name the transition and the gate:\n%s",
+			screen)
+	}
+
+	// The fix, same pair reversed: clean, exit 0.
+	buf.Reset()
+	if err := cmdWindtunnel(root, []string{"diff", missed, caught}); err != nil {
+		t.Fatalf("a missed-then-caught pair gave %v; a fix is a report, "+
+			"not a failure", err)
+	}
+	if !strings.Contains(buf.String(), "missed → caught-alert (fix)") ||
+		!strings.Contains(buf.String(), "exit 0") {
+		t.Errorf("the fix is not named with a clean verdict:\n%s", buf.String())
+	}
+
+	// Identical documents: CI-clean, and the screen says so.
+	buf.Reset()
+	if err := cmdWindtunnel(root, []string{"diff", caught, caught}); err != nil {
+		t.Fatalf("diffing a document with itself gave %v", err)
+	}
+	if !strings.Contains(buf.String(), "no scenario transition") ||
+		!strings.Contains(buf.String(), "exit 0") {
+		t.Errorf("an identical pair is not clean-and-said-so:\n%s",
+			buf.String())
+	}
+
+	// The usage bucket: everything that stops the command from running
+	// is exit 2 through errUsage, never the regression code.
+	for _, args := range [][]string{
+		{caught},
+		{},
+		{caught, filepath.Join(work, "no-such-card.json")},
+	} {
+		err := cmdWindtunnel(root, append([]string{"diff"}, args...))
+		var usage errUsage
+		if err == nil || !errors.As(err, &usage) {
+			t.Errorf("diff %v gave %v; what cannot run is the usage code, "+
+				"which is the one the regression never borrows", args, err)
+		}
+	}
+
+	// An edited scorecard is not runnable: the digest check refuses
+	// before any transition is read from it.
+	b, err := os.ReadFile(missed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tampered := strings.Replace(string(b), `"outcome": "missed"`,
+		`"outcome": "caught-telemetry"`, 1)
+	if tampered == string(b) {
+		t.Fatal("the edit found nothing to change; the test must be " +
+			"written against the document as written")
+	}
+	editedPath := filepath.Join(work, "edited.json")
+	if err := os.WriteFile(editedPath, []byte(tampered), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	err = cmdWindtunnel(root, []string{"diff", caught, editedPath})
+	var usage errUsage
+	if err == nil || !errors.As(err, &usage) ||
+		!strings.Contains(err.Error(), "edited since it was written") {
+		t.Fatalf("an edited scorecard diffed (%v); a transition quoted "+
+			"from an edited document is one somebody typed in", err)
+	}
+
+	// And two documents that must never be pooled: a reference-mode card
+	// and a their-Sigma card refuse with the reason.
+	reference := filepath.Join(work, "reference.json")
+	if err := cmdWindtunnel(root, []string{"run", "--scenario",
+		"agent.trifecta-mailroom-exfil", "--out", reference}); err != nil {
+		t.Fatal(err)
+	}
+	err = cmdWindtunnel(root, []string{"diff", reference, caught})
+	if err == nil || !errors.As(err, &usage) ||
+		!strings.Contains(err.Error(), "never pooled") {
+		t.Fatalf("a cross-mode diff ran (%v); the modes measure different "+
+			"subjects and a transition between them is a fact about the "+
+			"join, not the controls", err)
+	}
+
+	// The store root stays empty: the gate opens no store either.
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("the gate wrote %d entr(y/ies) into the store root", len(entries))
 	}
 }
 

@@ -1,0 +1,19 @@
+title: Every agent session that read mail
+id: their.untrusted-mail-read
+status: test
+description: "A deliberately over-broad rule for the second test library: it fires on every untrusted-content fetch, which the base stream's own refunder sessions produce, so its ambient count is non-zero and a catch is a fire above ambient."
+author: their-soc
+date: 2026-10-30
+logsource:
+    product: otel
+    service: genai
+detection:
+    selection:
+        tool: fetch
+        labels: untrusted-content
+    condition: selection
+falsepositives:
+    - The support desk reading its mail, which is the job
+level: low
+tags:
+    - attack.t1567

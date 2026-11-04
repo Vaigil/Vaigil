@@ -1,0 +1,19 @@
+title: Agent session exfiltrated to a destination it never used
+id: their.egress-fresh-destination
+status: test
+description: "The egress leg of a lethal trifecta: a tool call labelled egress over http_post. Written by the organisation's detection team, tagged with the exfiltration technique it watches for."
+author: their-soc
+date: 2026-10-30
+logsource:
+    product: otel
+    service: genai
+detection:
+    selection:
+        tool: http_post
+        labels: egress
+    condition: selection
+falsepositives:
+    - Legitimate integrations posting to their own destinations
+level: high
+tags:
+    - attack.t1041

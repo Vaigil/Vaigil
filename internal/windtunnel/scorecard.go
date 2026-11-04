@@ -77,6 +77,9 @@ type Row struct {
 	SessionEvents int         `json:"session_events"`
 	Expects       []ExpectRow `json:"expects"`
 	Twin          TwinOutcome `json:"twin"`
+	// Note carries a their-mode row's join particulars: a scenario nothing
+	// of theirs tags, fires the join recorded but could not credit.
+	Note string `json:"note,omitempty"`
 }
 
 // missKind is the scenario-level miss kind: the lateness kind when any
@@ -169,8 +172,29 @@ type Scorecard struct {
 	Aggregate  *Aggregate     `json:"aggregate"`
 	Families   []FamilyRow    `json:"families"`
 	Techniques []TechniqueRow `json:"techniques"`
-	Blinds     []Blind        `json:"blinds"`
-	Caveat     string         `json:"caveat"`
+	// Heatmap is the technique-by-scenario grid, the same rows as words in
+	// a square: every cell an outcome word, every row its margin counts,
+	// nothing perceivable only by colour. Sealed with the rest, because a
+	// grid that drifted from its rows would be a second opinion.
+	Heatmap []HeatRow `json:"heatmap,omitempty"`
+	Blinds  []Blind   `json:"blinds"`
+	Caveat  string    `json:"caveat"`
+
+	// TheirSigma is the import report when the run scored the
+	// organisation's own Sigma rules: what was read, what imported, what
+	// was refused with the construct named. Counted, never silently
+	// dropped — the refusal is a result.
+	TheirSigma *SigmaReport `json:"their_sigma,omitempty"`
+	// ModeBlind is the scoring mode's own fidelity limit, in the blind
+	// tradition: their-Sigma documents state the technique-join limit; a
+	// reference document needs none, because the id join has no join to
+	// caveat.
+	ModeBlind string `json:"mode_blind,omitempty"`
+	// AmbientFires is what the instrument raised over the base stream
+	// alone — the estate's own alerts. Zero on the quiet morning the
+	// fixture is; whatever it is, it is sealed, so a diff can tell a rules
+	// finding from an estate finding.
+	AmbientFires int `json:"ambient_fires,omitempty"`
 
 	// Scratch names where the scratch spools were written, so an operator
 	// can inspect the exact streams that were scored.
@@ -277,6 +301,20 @@ func (c *Scorecard) Summarize() string {
 		c.BaseEvents, shortDigest(c.BaseDigest))
 	fmt.Fprintf(&b, "  reference pack %s (digest %s), corpus %s, seed %d\n",
 		c.Pack, shortDigest(c.PackDigest), c.Corpus, c.Seed)
+	if ts := c.TheirSigma; ts != nil {
+		// The import accounting, first-class: what was read, what imported,
+		// what refused with the construct named. A refused rule cannot
+		// catch anything, and a scorecard that dropped it silently would
+		// be reporting on a library it did not read.
+		fmt.Fprintf(&b, "  their Sigma rules %s (digest %s): %d read, %d "+
+			"imported, %d refused at import — refused constructs are "+
+			"counted, never dropped\n", ts.Dir, shortDigest(ts.Digest),
+			ts.Read, ts.Imported, len(ts.Refused))
+		for _, s := range ts.Refused {
+			fmt.Fprintf(&b, "      refused %q: %s — %s\n", s.Rule, s.What,
+				wrap(refusalWhy(s)))
+		}
+	}
 	for _, s := range c.Scenarios {
 		fmt.Fprintf(&b, "      %-40s %s (twin %s)\n", s.ID,
 			shortDigest(s.Digest), s.Twin)
@@ -317,6 +355,9 @@ func (c *Scorecard) Summarize() string {
 			twin = "FALSE FIRE"
 		}
 		fmt.Fprintf(&b, "        twin %-38s %s\n", r.Twin.ID, twin)
+		if r.Note != "" {
+			fmt.Fprintf(&b, "        %s\n", wrap(r.Note))
+		}
 	}
 	a := c.Aggregate
 	fmt.Fprintf(&b, "  missed %d of %d must-alert scenario(s) (%s, 95%% "+
@@ -327,6 +368,10 @@ func (c *Scorecard) Summarize() string {
 		a.TelemetryOnly, a.WronglyQuiet, a.MissedLateness)
 	fmt.Fprintf(&b, "  benign twins: %d false fire(s) of %d\n", a.TwinFires,
 		a.Scenarios)
+	if c.AmbientFires > 0 {
+		fmt.Fprintf(&b, "  ambient: %d alert(s) on the base stream alone; "+
+			"every count above subtracts them\n", c.AmbientFires)
+	}
 	fmt.Fprintf(&b, "  families: ")
 	for i, f := range c.Families {
 		if i > 0 {
@@ -342,11 +387,15 @@ func (c *Scorecard) Summarize() string {
 		fmt.Fprintf(&b, "%s %d/%d", t.Technique, t.Caught, t.Tested)
 	}
 	fmt.Fprintf(&b, "\n")
+	renderHeatmap(&b, c.Heatmap)
 	if len(c.Blinds) > 0 {
 		fmt.Fprintf(&b, "  declared blinds:\n")
 		for _, bl := range c.Blinds {
 			fmt.Fprintf(&b, "    %s: %s\n", bl.Scenario, wrap(bl.Blind))
 		}
+	}
+	if c.ModeBlind != "" {
+		fmt.Fprintf(&b, "  scoring blind: %s\n", wrap(c.ModeBlind))
 	}
 	fmt.Fprintf(&b, "  %s\n", wrap(c.Caveat))
 	sig := "unsigned: no key was supplied, and this document makes no claim " +

@@ -46,7 +46,7 @@ func cmdWindtunnel(root string, args []string) error {
 		// No default: the one subcommand that writes a scratch spool and a
 		// signed document should never start because a bare word was typed.
 		return fmt.Errorf("windtunnel needs list-scenarios, preflight, run, " +
-			"scorecard or verify")
+			"scorecard, diff or verify")
 	}
 	switch args[0] {
 	case "list-scenarios":
@@ -57,13 +57,23 @@ func cmdWindtunnel(root string, args []string) error {
 		return windtunnelRun(args[1:])
 	case "scorecard":
 		return windtunnelScorecard(args[1:])
+	case "diff":
+		return windtunnelDiff(args[1:])
 	case "verify":
 		return windtunnelVerify(args[1:])
 	default:
 		return fmt.Errorf("unknown windtunnel command %q; try list-scenarios, "+
-			"preflight, run, scorecard or verify", args[0])
+			"preflight, run, scorecard, diff or verify", args[0])
 	}
 }
+
+// errRegressed marks a diff that found a regression: the report has been
+// rendered on stdout, the one-line status is this error, and main's plain
+// failure exit (1) is the CI gate's regression code. A gate refusing is a
+// different outcome from the command breaking, and this is the gate.
+type errRegressed struct{ error }
+
+func (e errRegressed) Unwrap() error { return e.error }
 
 // windtunnelCorpus loads the reference pack and the corpus validated against
 // it — the one loader every subcommand starts from, so a scenario meets the
@@ -181,7 +191,16 @@ func windtunnelRun(args []string) error {
 		"from; the same base stream, scenarios and seed splice to the "+
 		"same bytes")
 	score := fs.String("score", "", "the scoring mode: reference (the "+
-		"default) — this program's own pack as the calibrated instrument")
+		"default) — this program's own pack as the calibrated instrument; "+
+		"or their-sigma:DIR — the organisation's own Sigma rules in DIR, "+
+		"imported through the same importer as sigma import, replayed "+
+		"under this engine and joined at technique level (the --sigma "+
+		"flag is the same thing). their-alerts:FILE arrives in phase 2")
+	sigmaDir := fs.String("sigma", "", "score the organisation's own Sigma "+
+		"rules: DIR of .yml/.yaml files. The same mode as --score "+
+		"their-sigma:DIR — the rules the org already wrote, replayed and "+
+		"joined at technique level, with import refusals counted on the "+
+		"scorecard rather than dropped")
 	key := fs.String("key", "", "a dual key file to sign the scorecard with "+
 		"(both algorithms, in the wind tunnel's own context); without it "+
 		"the document is written unsigned and says so")
@@ -203,6 +222,15 @@ func windtunnelRun(args []string) error {
 		return fmt.Errorf("--public-key needs --key: the file it writes is " +
 			"the public half of the key that signed, and there is no " +
 			"point publishing the verification half of nothing")
+	}
+	// --sigma is the named way in; it lands in the one mode grammar the
+	// library already reads, and naming both instruments is a refusal.
+	if *sigmaDir != "" {
+		if *score != "" && *score != windtunnel.ModeReference {
+			return fmt.Errorf("--sigma and --score both name what scores " +
+				"the run; name one instrument")
+		}
+		*score = windtunnel.ModeTheirSigma + ":" + *sigmaDir
 	}
 	var ids []string
 	for _, id := range strings.Split(*scenario, ",") {
@@ -348,6 +376,86 @@ func windtunnelScorecard(args []string) error {
 		return nil
 	}
 	w.Human("%s", card.Summarize())
+	return nil
+}
+
+// windtunnelReadScorecard is the one reader a diff needs: the file, the
+// decode with unknown fields refused (a document from a later release
+// wearing this one's number renders nothing), and the digest check before
+// any of its numbers move — a transition quoted from an edited scorecard
+// is a transition somebody typed in.
+func windtunnelReadScorecard(path string) (*windtunnel.Scorecard, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var card windtunnel.Scorecard
+	dec := json.NewDecoder(strings.NewReader(string(b)))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&card); err != nil {
+		return nil, fmt.Errorf("%s is not a scorecard: %w", path, err)
+	}
+	if err := card.Verify(); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return &card, nil
+}
+
+// windtunnelDiff is the CI gate: two sealed scorecards in, the outcome
+// transitions between them out, and an exit code a job branches on —
+//
+//	0  clean, no regression (fixes and drift are reported, not gated)
+//	1  regression: a scenario that was caught is now missed, or a benign
+//	   twin that was quiet now false-fires
+//	2  the command could not run: wrong arguments, a file that is not a
+//	   verifiable scorecard, or two documents that must never be pooled
+//	   (different engines, scoring modes or corpora)
+//
+// The report is rendered before the gate returns, so a log carries the
+// named transitions whatever the exit code says — a gate that fails
+// without saying why is a gate nobody enables. Output is deterministic:
+// the same two files diff to the same bytes, so a CI job that diffs two
+// diff runs means something too.
+func windtunnelDiff(args []string) error {
+	fs := flag.NewFlagSet("windtunnel diff", flag.ContinueOnError)
+	if err := fs.Parse(args); err != nil {
+		return errUsage{err}
+	}
+	if fs.NArg() != 2 {
+		return errUsage{fmt.Errorf("diff takes two scorecard FILEs, the run " +
+			"before and the run after; the exit code is the gate (0 clean, " +
+			"1 regression, 2 the command could not run)")}
+	}
+	before, err := windtunnelReadScorecard(fs.Arg(0))
+	if err != nil {
+		return errUsage{err}
+	}
+	after, err := windtunnelReadScorecard(fs.Arg(1))
+	if err != nil {
+		return errUsage{err}
+	}
+	report, err := windtunnel.Diff(fs.Arg(0), before, fs.Arg(1), after)
+	if err != nil {
+		return errUsage{err}
+	}
+	if !w.JSON(report) {
+		w.Human("%s", report.Summarize())
+	}
+	if report.Regressions > 0 {
+		outcomeReg, twinReg := 0, 0
+		for _, s := range report.Scenarios {
+			if s.Kind == windtunnel.DiffRegression {
+				outcomeReg++
+			}
+			if s.TwinKind == windtunnel.DiffRegression {
+				twinReg++
+			}
+		}
+		return errRegressed{fmt.Errorf("%d regression(s) between %s and %s: "+
+			"%d scenario(s) newly missed, %d twin(s) newly false-firing; "+
+			"the transitions are named above", report.Regressions, fs.Arg(0),
+			fs.Arg(1), outcomeReg, twinReg)}
+	}
 	return nil
 }
 
