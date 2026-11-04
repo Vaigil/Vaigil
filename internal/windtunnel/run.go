@@ -189,6 +189,14 @@ type RunOptions struct {
 	ScoreMode string
 	// Now stamps the document.
 	Now time.Time
+	// Reference overrides the shipped pack as the instrument. Nil loads the
+	// shipped pack. When set, the corpus is shape-checked rather than
+	// co-validated: the strict co-test is the shipped pack's own fixture
+	// discipline, and a different instrument — the doctored reference a test
+	// scores, a pack a third party hands over — meets the scorecard's
+	// honesty rules instead, where every expectation the instrument lacks is
+	// reported as the miss it is. Nothing else about the run moves.
+	Reference *Reference
 	// Signer, when set, dual-signs the sealed scorecard in the wind tunnel's
 	// own context. Nil writes an unsigned document that says so.
 	Signer *pack.Key
@@ -238,11 +246,16 @@ func Run(opts RunOptions) (*Scorecard, error) {
 			ModeReference, ModeTheirSigma, ModeTheirAlert)
 	}
 
-	ref, err := LoadReference()
-	if err != nil {
-		return nil, err
+	ref := opts.Reference
+	shipped := ref == nil
+	if shipped {
+		loaded, err := LoadReference()
+		if err != nil {
+			return nil, err
+		}
+		ref = loaded
 	}
-	corpus, err := Corpus(ref)
+	corpus, err := loadCorpus(ref, shipped)
 	if err != nil {
 		return nil, err
 	}

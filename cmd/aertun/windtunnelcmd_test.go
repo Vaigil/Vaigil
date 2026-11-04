@@ -298,3 +298,133 @@ func TestWindtunnelRunRefusesLiveTargetsAndPhaseTwoScoring(t *testing.T) {
 		t.Fatalf("publishing the public half of nothing gave %v", err)
 	}
 }
+
+// The purple loop through the command: a run that drafts its misses writes
+// the ledger a person reads — over the shipped pack, two declared gaps, no
+// drafts, both refusal records on disk carrying the sentence the discipline
+// is named by. The scorecard beside them still verifies, and the store root
+// still stays empty: proposing writes one directory the operator named.
+func TestWindtunnelRunDraftsItsGapsIntoALedger(t *testing.T) {
+	buf := windtunnelOutput(t)
+	root := t.TempDir()
+	work := t.TempDir()
+	drafts := filepath.Join(work, "purple")
+	doc := filepath.Join(work, "scorecard.json")
+	if err := cmdWindtunnel(root, []string{"run", "--draft-misses", drafts,
+		"--out", doc}); err != nil {
+		t.Fatalf("a run with drafting refused: %v", err)
+	}
+	screen := buf.String()
+	// The refusal sentence arrives wrapped for a terminal, so the assertion
+	// reads it the way a person does: as words, not as one line.
+	flat := strings.Join(strings.Fields(screen), " ")
+	if !strings.Contains(screen, "purple loop: 0 draft(s), 2 declared gap(s)") {
+		t.Errorf("the screen does not state the loop's ledger: %q", screen)
+	}
+	if !strings.Contains(flat,
+		"a miss the telemetry cannot distinguish is a gap to declare, "+
+			"not a rule to force") {
+		t.Errorf("the refusal sentence is not on the screen; a gap honestly "+
+			"declared is a result and is printed as one: %q", screen)
+	}
+	entries, err := os.ReadDir(drafts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]bool{
+		"agent.slopsquat-install.refused.json":     true,
+		"agent.recorder-blind-window.refused.json": true,
+	}
+	if len(entries) != len(want) {
+		t.Fatalf("%d file(s) in the drafts directory; the shipped pack "+
+			"leaves exactly the two declared gaps and nothing to propose",
+			len(entries))
+	}
+	for _, e := range entries {
+		if !want[e.Name()] {
+			t.Errorf("%s is not a refusal this run owes; the loop wrote a "+
+				"file nobody asked for", e.Name())
+		}
+		var rec windtunnel.DraftRecord
+		body, err := os.ReadFile(filepath.Join(drafts, e.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(body, &rec); err != nil {
+			t.Fatalf("%s does not decode as an audit record: %v", e.Name(),
+				err)
+		}
+		if rec.Schema != windtunnel.DraftSchema ||
+			rec.Outcome != windtunnel.DraftOutcomeRefused ||
+			rec.RuleID != "" {
+			t.Errorf("%s is %+v; a declared gap carries the schema, the "+
+				"refusal and no rule id", e.Name(), rec)
+		}
+	}
+	b, err := os.ReadFile(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var card windtunnel.Scorecard
+	if err := json.Unmarshal(b, &card); err != nil {
+		t.Fatal(err)
+	}
+	if err := card.Verify(); err != nil {
+		t.Fatalf("the scorecard a drafting run wrote does not verify: %v",
+			err)
+	}
+	// And the loop wrote nowhere else: the store root is empty, and the
+	// work directory holds the ledger and the document and nothing else.
+	store, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(store) != 0 {
+		t.Fatalf("the wind tunnel wrote %d entr(y/ies) into the store root"+
+			"; drafting needs no store either", len(store))
+	}
+	held, err := os.ReadDir(work)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(held) != 2 { // the scorecard file and the purple directory
+		t.Fatalf("%d entr(y/ies) beside the scorecard; the loop's whole "+
+			"footprint is the directory it was given", len(held))
+	}
+}
+
+// The drafted half of the ledger screen, pinned where the shipped pack
+// cannot reach it (it catches everything it carries a rule for): the counts
+// a person reads before promoting, and the sentence that says the promotion
+// is theirs, not the loop's.
+func TestWindtunnelDraftScreenNamesThePromotionAndTheCounts(t *testing.T) {
+	buf := windtunnelOutput(t)
+	windtunnelPurpleScreen([]windtunnel.DraftRecord{
+		{Scenario: "agent.trifecta-mailroom-exfil",
+			Outcome:       windtunnel.DraftOutcomeDrafted,
+			RuleID:        "draft.trifecta-mailroom-exfil",
+			MatchFixtures: 1, RefuseFixtures: 3,
+			CaughtFires: 1, AmbientFires: 0},
+		{Scenario: "agent.slopsquat-install",
+			Outcome: windtunnel.DraftOutcomeRefused,
+			Reason: "agent.slopsquat-install: every event its session " +
+				"emitted is identical to its benign twin's on every closed " +
+				"field, and a miss the telemetry cannot distinguish is a " +
+				"gap to declare, not a rule to force"},
+	}, "purple")
+	screen := buf.String()
+	for _, want := range []string{
+		"purple loop: 1 draft(s), 1 declared gap(s)",
+		"draft.trifecta-mailroom-exfil",
+		"purple/draft.trifecta-mailroom-exfil.json",
+		"fixtures 1 matched, 3 refused",
+		"ambient 0 on the base stream",
+		"promote by copying the proposal into the pack, on the record",
+		"the loop deploys nothing",
+		"refused agent.slopsquat-install",
+	} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("the ledger screen never says %q: %s", want, screen)
+		}
+	}
+}

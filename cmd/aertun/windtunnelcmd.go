@@ -188,6 +188,14 @@ func windtunnelRun(args []string) error {
 	publicKey := fs.String("public-key", "", "with --key, where to write "+
 		"the public half for the verifiers you hand the scorecard to")
 	out := fs.String("out", "", "write the scorecard document to FILE")
+	drafts := fs.String("draft-misses", "", "after the run, draft a "+
+		"detection for every miss whose events the telemetry carried: a "+
+		"proposal rule per draft in DIR, in the pack's own format, with "+
+		"must-match fixtures from the scenario's own events and "+
+		"must-not-match from its benign twin's, plus the audit record. The "+
+		"loop proposes and never deploys — a person promotes through the "+
+		"ring — and a miss the telemetry cannot distinguish from its twin "+
+		"is declared a gap, not forced into a rule")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -215,6 +223,24 @@ func windtunnelRun(args []string) error {
 	if err != nil {
 		return err
 	}
+	// The purple loop, when it was asked for: the run's misses drafted into
+	// proposals in the named directory. It runs after the scorecard is
+	// sealed because its fixtures are the run's own placed events and its
+	// replay is over the run's own scratch spools — the draft is a function
+	// of evidence the scorecard attests, and drafting anywhere else in the
+	// command would be drafting from a memory.
+	var purple []windtunnel.DraftRecord
+	if *drafts != "" {
+		ref, err := windtunnel.LoadReference()
+		if err != nil {
+			return err
+		}
+		purple, err = windtunnel.Draft(card, ref, windtunnel.DraftOptions{
+			Dir: *drafts})
+		if err != nil {
+			return fmt.Errorf("drafting the run's misses: %w", err)
+		}
+	}
 	doc, err := card.Document()
 	if err != nil {
 		return err
@@ -233,10 +259,20 @@ func windtunnelRun(args []string) error {
 			return err
 		}
 	}
-	if w.JSON(card) {
+	// The JSON shape grows the loop's records when drafting was asked for,
+	// and stays exactly the scorecard when it was not — a caller's parse
+	// should not move because a flag it never passed exists.
+	if purple == nil {
+		if w.JSON(card) {
+			return nil
+		}
+	} else if w.JSON(map[string]any{"scorecard": card, "purple": purple}) {
 		return nil
 	}
 	w.Human("%s", card.Summarize())
+	if purple != nil {
+		windtunnelPurpleScreen(purple, *drafts)
+	}
 	if *out != "" {
 		w.Human("  %swritten to %s; render it again with windtunnel "+
 			"scorecard%s\n", dim, *out, reset)
@@ -247,6 +283,39 @@ func windtunnelRun(args []string) error {
 			*publicKey, reset)
 	}
 	return nil
+}
+
+// windtunnelPurpleScreen renders the loop's ledger under the scorecard it
+// answered: each draft with the counts a person reads before promoting, each
+// declared gap with its sentence. The refusal is printed as prominently as
+// the draft — a gap honestly declared is a result, not an apology.
+func windtunnelPurpleScreen(purple []windtunnel.DraftRecord, dir string) {
+	drafted, refused := 0, 0
+	for _, r := range purple {
+		if r.Outcome == windtunnel.DraftOutcomeDrafted {
+			drafted++
+			continue
+		}
+		refused++
+	}
+	w.Human("  purple loop: %d draft(s), %d declared gap(s)\n", drafted,
+		refused)
+	for _, r := range purple {
+		if r.Outcome == windtunnel.DraftOutcomeDrafted {
+			w.Human("    %sdrafted %s%s — %s/%s.json\n", bold, r.RuleID,
+				reset, dir, r.RuleID)
+			w.Human("      %sfixtures %d matched, %d refused; caught the "+
+				"session %d fire(s) above ambient; ambient %d on the "+
+				"base stream%s\n", dim, r.MatchFixtures, r.RefuseFixtures,
+				r.CaughtFires, r.AmbientFires, reset)
+			w.Human("      %spromote by copying the proposal into the "+
+				"pack, on the record — the loop deploys nothing%s\n", dim,
+				reset)
+			continue
+		}
+		w.Human("    %srefused %s%s\n", bold, r.Scenario, reset)
+		w.Human("%s\n", wrapAt(r.Reason, 72, "      "))
+	}
 }
 
 func windtunnelScorecard(args []string) error {

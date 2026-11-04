@@ -15,7 +15,7 @@
 // are internal/pack's discipline in a new context. The wind tunnel is a new
 // subject for all of it.
 //
-// # The ten decisions this package is built on
+// # The eleven decisions this package is built on
 //
 // 1. A SCENARIO IS DATA, NEVER CODE. A malicious agent session, as the SOC
 // sees it, is a sequence of events — not a program. Nothing here executes:
@@ -74,4 +74,19 @@
 // store; the corpus is embedded and synthetic; verify is offline. A benchmark
 // that could not run in CI could not gate anything, and a bare word on a
 // command line can neither start a live run nor spend anything.
+//
+// 11. THE PURPLE LOOP CLOSES, AND ONLY EVER PROPOSES. A miss whose events
+// the telemetry carried — a content miss, or a session nothing alerted on —
+// is drafted into a candidate rule by deterministic code, never a model: the
+// narrowest predicate tree over the closed vocabulary the boundary declares
+// (source, message, operation, tool, labels, disposition, issuer) that
+// matches the session's separable events and refuses the twin's, proven by
+// the engine's own Validate with the scenario's events as must-match
+// fixtures and its twin's as must-not-match, then replayed over every spool
+// the run wrote. A miss the telemetry cannot distinguish from its twin is
+// declared a gap, not forced into a rule; a draft that fires on the base
+// stream is refused with its count; and the proposal lands as a file a human
+// promotes through the ring — the loop never writes the pack, because a
+// detector that edits its own controls is the thing the ring exists to
+// prevent.
 package windtunnel

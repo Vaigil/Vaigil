@@ -45,7 +45,23 @@ type Loaded struct {
 // pack. A scenario that fails validation refuses the load: a corpus that
 // half-loads would run the scenarios it liked and say nothing about the
 // rest, which is the silent-dropping failure every loader here refuses.
+//
+// This is the strict reading, and it is the shipped pack's own: the corpus
+// and the pack are each other's fixtures, so a scenario naming a detection
+// the pack lacks is a build broken loudly. A different instrument — the
+// doctored reference a test scores, a third-party pack — meets the loose
+// reading instead (loadCorpus with strict false): the shape checks only,
+// and every expectation the instrument lacks is scored as the miss it is,
+// by the honesty rules the scorer already carries.
 func Corpus(ref *Reference) ([]*Loaded, error) {
+	return loadCorpus(ref, true)
+}
+
+// loadCorpus is Corpus with the strictness named. Strict checks each
+// scenario's expectations against the reference's ids; loose passes nil ids,
+// which is Scenario.Validate's own way of saying "check everything that does
+// not need the pack".
+func loadCorpus(ref *Reference, strict bool) ([]*Loaded, error) {
 	entries, err := scenarioFS.ReadDir("scenarios")
 	if err != nil {
 		return nil, err
@@ -70,7 +86,11 @@ func Corpus(ref *Reference) ([]*Loaded, error) {
 			return nil, fmt.Errorf("scenarios/%s is not a scenario: %w", name,
 				err)
 		}
-		if err := sc.Validate(ref.ids()); err != nil {
+		ids := ref.ids()
+		if !strict {
+			ids = nil
+		}
+		if err := sc.Validate(ids); err != nil {
 			return nil, fmt.Errorf("scenarios/%s: %w", name, err)
 		}
 		sum := sha256.Sum256(body)
@@ -168,7 +188,48 @@ func LoadReference() (*Reference, error) {
 	if err != nil {
 		return nil, err
 	}
-	ref := &Reference{Name: "shipped",
+	return loadReference("shipped", files)
+}
+
+// LoadReferenceDir loads a pack from a directory: the installed rules a
+// promotion lands beside, or a third-party pack asked the same questions.
+// The same walker loads both it and the shipped pack, so a directory of
+// rules meets the refusals the shipped pack meets — every rule validated,
+// every correlation parsed, nothing silently dropped.
+func LoadReferenceDir(dir string) (*Reference, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var files []detect.PackFile
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if !strings.HasSuffix(name, ".json") && !strings.HasSuffix(name, ".yml") &&
+			!strings.HasSuffix(name, ".yaml") {
+			continue
+		}
+		body, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, detect.PackFile{Name: name, Body: body})
+	}
+	if len(files) == 0 {
+		return nil, fmt.Errorf("%s holds no .json rules and no .yml "+
+			"correlations; a pack directory is files in the shipped pack's "+
+			"own format", dir)
+	}
+	return loadReference(filepath.Base(dir), files)
+}
+
+// loadReference is the one walker behind the shipped pack and a directory
+// of it. The digest covers every file it was handed, in name order, so a
+// scorecard's pack digest means the same bytes wherever the pack lived.
+func loadReference(name string, files []detect.PackFile) (*Reference, error) {
+	ref := &Reference{Name: name,
 		ruleQuiet: map[string]bool{}, corrIDs: map[string]bool{}}
 	h := sha256.New()
 	for _, f := range files {
@@ -201,9 +262,9 @@ func LoadReference() (*Reference, error) {
 		}
 	}
 	if len(ref.Rules) == 0 || len(ref.Corrs) == 0 {
-		return nil, fmt.Errorf("the shipped pack loaded %d rule(s) and %d "+
+		return nil, fmt.Errorf("the pack at %s loaded %d rule(s) and %d "+
 			"correlation(s); the wind tunnel has no instrument to replay",
-			len(ref.Rules), len(ref.Corrs))
+			name, len(ref.Rules), len(ref.Corrs))
 	}
 	ref.Digest = hex.EncodeToString(h.Sum(nil))
 	return ref, nil
