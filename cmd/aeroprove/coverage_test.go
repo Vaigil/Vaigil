@@ -186,6 +186,22 @@ var coverage = map[string]surfaces{
 			"and a document an agent generates about its own performance " +
 			"is the one nobody should be able to hand somebody",
 	},
+
+	// Breach simulation by replay: scripted malicious-agent sessions spliced
+	// into a recorded stream, scored against the reference pack, sealed and
+	// signed.
+	"windtunnel": {
+		Why: "a scorecard is a document that carries its own digest and two " +
+			"signatures, read the way a benchmark's results are read — by " +
+			"the people deciding whether the detections changed between " +
+			"runs; the screen worth building is the trend over scorecards, " +
+			"which arrives when there are scorecards to trend",
+		NoMCP: "running an attack simulation is not an operation an agent " +
+			"performs: an agent firing the wind tunnel would be the thing " +
+			"under test choosing what gets tested, and a scorecard an " +
+			"agent generates about the controls that watch it is the one " +
+			"nobody should be able to hand somebody",
+	},
 	"action": {GUI: "/security/cases",
 		Why: "an action is asked for and approved on the incident's page; " +
 			"installing one and giving it a credential are the operator's",

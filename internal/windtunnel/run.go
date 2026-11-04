@@ -254,8 +254,8 @@ func Run(opts RunOptions) (*Scorecard, error) {
 			l := ByID(corpus, id)
 			if l == nil {
 				return nil, fmt.Errorf("there is no scenario called %q in the "+
-					"seed corpus; list what ships with the windtunnel list "+
-					"command", id)
+					"seed corpus; windtunnel list-scenarios names what ships",
+					id)
 			}
 			selected = append(selected, l)
 		}

@@ -51,7 +51,8 @@ func (e errBlocked) Unwrap() error { return e.error }
 var version = "dev"
 
 func usage() {
-	fmt.Print(`aeroprove — security operations for the systems your organisation runs
+	fmt.Print(`aeroprove — the wind tunnel for AI agents
+  (the short name apv runs this same binary: apv serve, apv windtunnel run)
 
   aeroprove init [--admin NAME]               create a store, and its first administrator
   aeroprove serve [--addr HOST:PORT]          the console, on loopback by default
@@ -89,6 +90,7 @@ Detecting and deciding
   aeroprove intel import FILE --source NAME | add VALUE --source NAME | list | remove ID
   aeroprove analyst plan | triage [--limit N] [--dry-run] | eval [--k 3]
   aeroprove bench run [--stub] [--out F] [--k N] | report FILE   the labelled corpus, and how the analyst scored on it
+  aeroprove windtunnel list-scenarios | preflight | run | scorecard | verify   breach simulation by replay, scored and signed
   aeroprove automate list | templates | add TEMPLATE | runs   rules: when this happens, do this
   aeroprove automate mode ID watch|ask|act | on ID | off ID | remove ID | approve RUN | decline RUN
   aeroprove geo status | network add PREFIX NAME --kind office|vpn | network remove PREFIX | help   where sign-ins come from
@@ -340,6 +342,8 @@ func main() {
 		err = cmdAnalyst(root, cmdArgs)
 	case "bench":
 		err = cmdBench(root, cmdArgs)
+	case "windtunnel":
+		err = cmdWindtunnel(root, cmdArgs)
 	case "vendor":
 		err = cmdVendor(root, cmdArgs)
 	case "access":

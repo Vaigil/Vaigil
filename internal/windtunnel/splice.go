@@ -46,10 +46,13 @@ import (
 type histogram map[int]int64
 
 // latenessHistogram builds the base stream's arrival-delay histogram, the
-// same way spool.observe does for every event that arrives. Events whose
-// source clock runs ahead are counted in their negative bucket, which floors
-// at zero here exactly as it floors at bucket zero there; a fast fleet is an
-// operational fact, not absence of delay.
+// same bucketing spool.observe keeps for every event that arrives. One
+// stated difference: the spool counts a fast source clock in its separate
+// Ahead counter and keeps it out of the lateness histogram, while here an
+// ahead event floors at bucket zero and stays — a base stream's histogram
+// is the distribution new arrivals are drawn from, and an event that
+// arrived before it happened is still an event that arrived; dropping it
+// would lean every quantile toward the late tail.
 func latenessHistogram(base []telemetry.Event) histogram {
 	h := histogram{}
 	for _, e := range base {

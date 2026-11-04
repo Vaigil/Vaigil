@@ -190,6 +190,13 @@ var commandNeeds = map[string]need{
 	// Rendering a document somebody already has is only reading.
 	"bench":        {action: auth.ActTune},
 	"bench report": {action: auth.ActView},
+	// The wind tunnel replays synthetic attack sessions over an embedded
+	// or operator-named stream: it opens no store, contacts nobody, and
+	// spends nothing — the scratch spools are files nobody reads back but
+	// the operator. The signature a run may add is the compliance-evidence
+	// weight, a signed statement about a test this program ran, and the
+	// key it signs with is one the caller named on the command line.
+	"windtunnel": {action: auth.ActView},
 	// An action changes something in somebody else's tool.
 	"action":           {action: auth.ActGrant},
 	"action catalogue": {action: auth.ActView},
@@ -616,6 +623,7 @@ var commandAreas = map[string]string{
 	"sigma": auth.AreaSecurity, "correlate": auth.AreaSecurity, "telemetry": auth.AreaSecurity,
 	"siem": auth.AreaLog, "automate": auth.AreaSecurity, "inbound": auth.AreaSecurity,
 	"auditlog": auth.AreaLog, "compliance": auth.AreaLog, "bench": auth.AreaSecurity,
+	"windtunnel": auth.AreaSecurity,
 }
 
 // commandArea is the area a command works in, if it works in one.

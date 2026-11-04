@@ -106,6 +106,25 @@ func DefaultBase() []telemetry.Event {
 					"labels": "sensitive-data", "rows": "3"}))
 	}
 
+	// The refunder also works tickets: one issue read from the public
+	// tracker, answered from the runbook. Reading an issue is ordinary
+	// support work — the label says who could have written it, not that
+	// anything was wrong — and the session's only other act is a write, so
+	// the ordered chain cannot complete on it. This is also the honest
+	// precondition for the injection scenario: a stream whose ingest
+	// boundary has stamped read_issue untrusted has declared the tool, and
+	// one that never did cannot host a session that reads one.
+	out = append(out,
+		genai("refunder", "execute_tool", at(9, 0), next(),
+			map[string]string{"operation": "execute_tool", "tool": "read_issue",
+				"status": "ok", "trace_id": "5e77b3aa1c2d4f09b7e6a8c5d3f20117",
+				"labels": "untrusted-content", "issue": "repo-help#391"}),
+		genai("refunder", "execute_tool", at(9, 40), next(),
+			map[string]string{"operation": "execute_tool",
+				"tool": "filesystem.write", "status": "ok",
+				"trace_id": "5e77b3aa1c2d4f09b7e6a8c5d3f20117",
+				"path": "replies/391.md"}))
+
 	// The reporter's runs: webhooks and posts to the destinations the
 	// integration owns. Egress alone in its traces — the reporting agent
 	// never reads untrusted content first, so the ordered chain cannot

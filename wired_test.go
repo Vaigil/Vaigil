@@ -74,10 +74,6 @@ var notImported = map[string]string{
 	// package it serves (internal/collector) is wired through this binary's
 	// inbound endpoint.
 	"cmd/aeroprove-collector": "a binary, not a library: built beside this one, never imported",
-	// The wind tunnel's first phase, mid-build: its scenario corpus and
-	// generators stand; the runner and command that wire them are the
-	// next work, and this row retires with them.
-	"internal/windtunnel": "waiting for its runner: the phase that reads it is the next build",
 }
 
 // importGraph returns which packages are imported from outside themselves, and
