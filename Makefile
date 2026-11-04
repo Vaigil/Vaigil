@@ -67,10 +67,12 @@ install: build
 	$(INSTALL) -d "$(DESTDIR)$(bindir)"
 	$(INSTALL_PROGRAM) bin/aeroprove "$(DESTDIR)$(bindir)/aeroprove"
 	$(INSTALL_PROGRAM) bin/aeroprove-collector "$(DESTDIR)$(bindir)/aeroprove-collector"
-	@echo "installed $(DESTDIR)$(bindir)/aeroprove and aeroprove-collector"
+	# apv is the short form: the same bytes, a second name for the fingers.
+	ln -f "$(DESTDIR)$(bindir)/aeroprove" "$(DESTDIR)$(bindir)/apv"
+	@echo "installed $(DESTDIR)$(bindir)/aeroprove, apv and aeroprove-collector"
 
 uninstall:
-	rm -f "$(DESTDIR)$(bindir)/aeroprove" "$(DESTDIR)$(bindir)/aeroprove-collector"
+	rm -f "$(DESTDIR)$(bindir)/aeroprove" "$(DESTDIR)$(bindir)/apv" "$(DESTDIR)$(bindir)/aeroprove-collector"
 
 # check is the standard name for what this project already spelled `test`.
 # Both, because the muscle memory here is `make test` and a packager's is
