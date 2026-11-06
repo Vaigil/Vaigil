@@ -209,10 +209,13 @@ func checkRunCaveats(root string, c *Caller, tool string) error {
 				"is refused without the caveats it was minted with: the "+
 				"caveats are the credential, not a decoration on it", c.Run, c.Agent))
 	}
-	key, err := loadRunKey(root)
+	// The verifier uses only the public half of the run key: the private
+	// half can mint, and the tool gate has no business minting.
+	privKey, err := loadRunKey(root)
 	if err != nil {
 		return recordCaveatRefusal(root, c, tool, "chain", err.Error())
 	}
+	key := macaroon.VerifyKey(privKey[32:])
 	// The chain's id must name this credential's own agent and run: a
 	// chain minted for another run — however it came to ride this
 	// credential's secret half — is a grant this credential was never

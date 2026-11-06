@@ -4,7 +4,6 @@
 package admin
 
 import (
-	"crypto/rand"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -48,10 +47,11 @@ func onBehalf(t *testing.T, allow []string, scope string) *oboRig {
 	}
 	AgentRegistry = agents
 	consents := oauthas.Store{Path: filepath.Join(dir, "consents.json")}
-	runKey := make([]byte, 32)
-	if _, err := rand.Read(runKey); err != nil {
-		t.Fatal(err)
+	mintKey, _, mkErr := macaroon.GenerateMintKey()
+	if mkErr != nil {
+		t.Fatal(mkErr)
 	}
+	runKey := []byte(mintKey)
 	srv.Consents = consents
 	srv.RunKey = func() ([]byte, error) { return runKey, nil }
 

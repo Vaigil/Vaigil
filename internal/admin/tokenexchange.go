@@ -395,13 +395,14 @@ func (s *Server) exchangeOnBehalf(w http.ResponseWriter, r *http.Request,
 	// intersection.
 	actorTools := map[string]bool{}
 	if isRun {
-		key, kerr := runKey()
+		privKey, kerr := runKey()
 		if kerr != nil {
 			refuse("invalid_grant", kerr)
 			return
 		}
+		pubKey := macaroon.VerifyKey(privKey[32:])
 		var expired error
-		perr := macaroon.Verify(actorPresented, key, func(cv macaroon.Caveat) error {
+		perr := macaroon.Verify(actorPresented, pubKey, func(cv macaroon.Caveat) error {
 			switch cv.Kind {
 			case macaroon.KindTool:
 				for _, t := range cv.Tools() {

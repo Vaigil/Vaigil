@@ -79,6 +79,7 @@
 package macaroon
 
 import (
+	"crypto/ed25519"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -93,16 +94,25 @@ import (
 // a version in it so a change to the grammar cannot be misread as the thing
 // it replaced. It never appears in a token secret (the store's alphabet has
 // no dots), so the first occurrence is the separator.
-const marker = ".vgt1."
+// vgt1 is the HMAC-rooted format; vgt2 roots the chain in an Ed25519
+// signature so a verifier needs only the public key.
+const (
+	markerV1 = ".vgt1."
+	markerV2 = ".vgt2."
+	marker   = markerV2
+)
 
 // Domain separation, the same discipline the audit head signatures use
 // (internal/audit/sign.go): a MAC made for one purpose must not be a MAC
 // made for another, and the version rides in the string so a change to what
 // is signed is not confused with the thing it replaced.
 const (
-	rootDomain    = "aertun/macaroon/root/v1"
+	rootDomainV1  = "aertun/macaroon/root/v1"
+	rootDomainV2  = "aertun/macaroon/root/v2"
+	rootDomain    = rootDomainV2
 	caveatDomain  = "aertun/macaroon/caveat/v1"
-	runKeyLength  = 32
+	runKeyLength  = 32 // v1 HMAC root; v2 uses Ed25519 instead
+	sigLength     = 64 // Ed25519 signature in the v2 root
 	maxSecret     = 200
 	maxID         = 128
 	maxCaveats    = 16 // at mint; attenuation may take it to maxTotal
@@ -114,6 +124,24 @@ const (
 	maxPayload    = 1024
 	maxToken      = 2048
 )
+
+// MintKey is the Ed25519 private key that mints run tokens. Whoever holds
+// it can create tokens; the public half is all a verifier needs.
+type MintKey = ed25519.PrivateKey
+
+// VerifyKey is the Ed25519 public key that verifies run tokens. Whoever
+// holds it can check a token was minted by the matching private key, and
+// nothing else — they cannot mint, and they cannot forge a root signature.
+type VerifyKey = ed25519.PublicKey
+
+// GenerateMintKey makes a new minting key pair.
+func GenerateMintKey() (MintKey, VerifyKey, error) {
+	pub, priv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	return priv, pub, nil
+}
 
 // Kind is what a caveat constrains. A closed set, and refusing anything else
 // is the point rather than a limitation: an allowlist that accepted a kind
@@ -281,7 +309,8 @@ type Token struct {
 	secret  string
 	id      string
 	caveats []Caveat
-	tag     []byte
+	rootSig []byte // the Ed25519 root signature (v2)
+	tag     []byte // the last HMAC in the caveat chain
 }
 
 // ID is the minter's name for the run — agent name and run id — which is
@@ -299,14 +328,15 @@ func (t Token) Caveats() []Caveat { return append([]Caveat(nil), t.caveats...) }
 // The id names its minter — agent name and run id — because the audit trail
 // has to answer "which run was this minted for" from the token alone, with
 // no store lookup that revocation could break.
-func Mint(secret string, rootSecret []byte, id string, caveats ...Caveat) (string, error) {
+func Mint(secret string, mint MintKey, id string, caveats ...Caveat) (string, error) {
 	if secret == "" || len(secret) > maxSecret || strings.ContainsAny(secret, ".") {
 		return "", fmt.Errorf("a run token wraps a credential secret: short, " +
 			"and dot-free so the halves cannot be confused")
 	}
-	if len(rootSecret) != runKeyLength {
-		return "", fmt.Errorf("the run key is %d bytes; a chain under anything "+
-			"else is a chain under a key nobody agreed on", runKeyLength)
+	if len(mint) != ed25519.PrivateKeySize {
+		return "", fmt.Errorf("the minting key is an Ed25519 private key "+
+			"(%d bytes), not the %d-byte run key the v1 format used",
+			ed25519.PrivateKeySize, len(mint))
 	}
 	if !runID(id) {
 		return "", fmt.Errorf("%q is not a run id: 1 to 128 letters, digits, "+
@@ -331,11 +361,12 @@ func Mint(secret string, rootSecret []byte, id string, caveats ...Caveat) (strin
 		}
 		seen[c.Kind] = true
 	}
-	sig := rootSig(rootSecret, id)
+	rootSigBytes := ed25519.Sign(mint, []byte(rootDomainV2+id))
+	sig := chainKey(rootSigBytes)
 	for _, c := range caveats {
 		sig = bindSig(sig, c)
 	}
-	return envelope(secret, payload(id, caveats, sig)), nil
+	return envelopeV2(secret, payloadV2(id, caveats, rootSigBytes, sig)), nil
 }
 
 // Split is the credential half of a presented run token, and whether the
@@ -364,6 +395,25 @@ func Parse(token string) (Token, bool) {
 	raw, err := base64.RawURLEncoding.DecodeString(enc)
 	if err != nil || len(raw) > maxPayload {
 		return Token{}, false
+	}
+	// v2 carries the Ed25519 root signature beside the tag; v1 has only
+	// the tag. A v2 token is what this program mints now; v1 is read for
+	// the cut-over and verified by the v1 Verify, not this package's.
+	if strings.Contains(token, markerV2) {
+		id, caveats, rootSig, tag, err := frameV2(raw)
+		if err != nil {
+			return Token{}, false
+		}
+		if !runID(id) {
+			return Token{}, false
+		}
+		for _, c := range caveats {
+			if !validCaveat(c) {
+				return Token{}, false
+			}
+		}
+		return Token{secret: secret, id: id, caveats: caveats,
+			rootSig: rootSig, tag: tag}, true
 	}
 	id, caveats, tag, err := frame(raw)
 	if err != nil {
@@ -423,6 +473,9 @@ func Attenuate(token string, more ...Caveat) (string, error) {
 	for _, c := range more {
 		sig = bindSig(sig, c)
 	}
+	if t.rootSig != nil {
+		return envelopeV2(t.secret, payloadV2(t.id, cs, t.rootSig, sig)), nil
+	}
 	return envelope(t.secret, payload(t.id, cs, sig)), nil
 }
 
@@ -432,23 +485,28 @@ func Attenuate(token string, more ...Caveat) (string, error) {
 // how many calls so far. A discharge refusal names its caveat; the chain
 // failure names nobody, because a token that does not verify is not a
 // decision about the call but a string.
-func Verify(token string, rootSecret []byte, discharge func(Caveat) error) error {
+func Verify(token string, verifyKey VerifyKey, discharge func(Caveat) error) error {
 	t, ok := Parse(token)
 	if !ok {
 		return fmt.Errorf("the token is not shaped like something this " +
 			"program minted: the halves, a kind or a value is wrong")
 	}
-	if len(rootSecret) != runKeyLength {
-		return fmt.Errorf("the run key is not the %d bytes this store mints "+
-			"with, so nothing minted by it can be verified here", runKeyLength)
+	if len(verifyKey) != ed25519.PublicKeySize {
+		return fmt.Errorf("the verification key is an Ed25519 public key "+
+			"(%d bytes)", ed25519.PublicKeySize)
 	}
-	sig := rootSig(rootSecret, t.id)
+	if !ed25519.Verify(verifyKey, []byte(rootDomainV2+t.id), t.rootSig) {
+		return fmt.Errorf("the root signature does not verify under this " +
+			"public key, so the token was not minted by the key pair this " +
+			"store trusts")
+	}
+	sig := chainKey(t.rootSig)
 	for _, c := range t.caveats {
 		sig = bindSig(sig, c)
 	}
 	if !hmac.Equal(sig, t.tag) {
-		return fmt.Errorf("the caveat chain does not verify under this " +
-			"store's run key, so the token is not as it was minted")
+		return fmt.Errorf("the caveat chain does not verify, so the token " +
+			"is not as it was minted")
 	}
 	for _, c := range t.caveats {
 		if err := discharge(c); err != nil {
@@ -460,11 +518,22 @@ func Verify(token string, rootSecret []byte, discharge func(Caveat) error) error
 
 // -- the chain ------------------------------------------------------------
 
+// rootSig is the v1 format's HMAC root, kept for reading tokens minted
+// before the asymmetric root replaced it. Not used for minting.
 func rootSig(rootSecret []byte, id string) []byte {
 	m := hmac.New(sha256.New, rootSecret)
-	m.Write([]byte(rootDomain))
+	m.Write([]byte(rootDomainV1))
 	m.Write([]byte(id))
 	return m.Sum(nil)
+}
+
+// chainKey derives the HMAC chain's starting key from the Ed25519 root
+// signature: the signature is public (it is in the token), and what it
+// proves is that the minting key signed this id — the chain that follows
+// proves the caveats were not changed since.
+func chainKey(rootSig []byte) []byte {
+	h := sha256.Sum256(rootSig)
+	return h[:]
 }
 
 func bindSig(prev []byte, c Caveat) []byte {
@@ -543,6 +612,59 @@ func frame(raw []byte) (id string, caveats []Caveat, tag []byte, err error) {
 	return id, caveats, raw[n:], nil
 }
 
+// frameV2 reads the v2 payload: the caveats, then the 64-byte Ed25519
+// root signature, then the 32-byte HMAC tag.
+func frameV2(raw []byte) (id string, caveats []Caveat, rootSig, tag []byte, err error) {
+	if len(raw) < 2+1+1+1+sigLength+32 {
+		return "", nil, nil, nil, fmt.Errorf("the payload is shorter than the " +
+			"v2 format can hold")
+	}
+	n := 0
+	idLen := int(raw[n])<<8 | int(raw[n+1])
+	n += 2
+	if idLen == 0 || n+idLen > len(raw) {
+		return "", nil, nil, nil, fmt.Errorf("the id length is wrong")
+	}
+	id = string(raw[n : n+idLen])
+	n += idLen
+	if n >= len(raw) {
+		return "", nil, nil, nil, fmt.Errorf("the payload ends before the caveats")
+	}
+	count := int(raw[n])
+	n++
+	caveats = make([]Caveat, 0, count)
+	for i := 0; i < count; i++ {
+		if n >= len(raw) {
+			return "", nil, nil, nil, fmt.Errorf("the payload ends mid-caveat")
+		}
+		kindLen := int(raw[n])
+		n++
+		if n+kindLen > len(raw) {
+			return "", nil, nil, nil, fmt.Errorf("the caveat kind is truncated")
+		}
+		kind := Kind(raw[n : n+kindLen])
+		n += kindLen
+		if n+2 > len(raw) {
+			return "", nil, nil, nil, fmt.Errorf("the caveat value length is truncated")
+		}
+		valLen := int(raw[n])<<8 | int(raw[n+1])
+		n += 2
+		if n+valLen > len(raw) {
+			return "", nil, nil, nil, fmt.Errorf("the caveat value is truncated")
+		}
+		caveats = append(caveats, Caveat{Kind: kind, Value: string(raw[n : n+valLen])})
+		n += valLen
+	}
+	if n+sigLength+32 != len(raw) {
+		return "", nil, nil, nil, fmt.Errorf("the payload has %d bytes where the "+
+			"root signature and tag should end it", len(raw)-n)
+	}
+	rootSig = raw[n : n+sigLength]
+	n += sigLength
+	tag = raw[n:]
+	return id, caveats, rootSig, tag, nil
+}
+
 // halves splits a presented string at the marker and checks only what the
 // loosest reader — the credential path — needs: both halves present, both
 // within their caps, the payload decodable. Shared by Split and Parse so
@@ -551,11 +673,21 @@ func halves(presented string) (secret, enc string, ok bool) {
 	if len(presented) == 0 || len(presented) > maxToken {
 		return "", "", false
 	}
-	i := strings.Index(presented, marker)
+	// v2 first (it is what this program mints), v1 for the cut-over.
+	i := strings.Index(presented, markerV2)
 	if i <= 0 || i > maxSecret {
-		return "", "", false
+		i = strings.Index(presented, markerV1)
+		if i <= 0 || i > maxSecret {
+			return "", "", false
+		}
 	}
-	secret, enc = presented[:i], presented[i+len(marker):]
+	secret = presented[:i]
+	for _, m := range []string{markerV1, markerV2} {
+		if strings.HasPrefix(presented[i:], m) {
+			enc = presented[i+len(m):]
+			break
+		}
+	}
 	if enc == "" || len(enc) > maxToken {
 		return "", "", false
 	}
@@ -567,6 +699,30 @@ func halves(presented string) (secret, enc string, ok bool) {
 
 func envelope(secret string, p []byte) string {
 	return secret + marker + base64.RawURLEncoding.EncodeToString(p)
+}
+
+// payloadV2 frames id, the caveats, the Ed25519 root signature and the
+// HMAC tag with explicit lengths:
+//
+//	u16 id length | id | u8 count | (u8 kind length | kind | u16 value
+//	length | value)* | 64-byte rootSig | 32-byte tag
+func payloadV2(id string, caveats []Caveat, rootSig, tag []byte) []byte {
+	b := make([]byte, 0, len(id)+len(caveats)*12+sigLength+32)
+	b = append(b, byte(len(id)>>8), byte(len(id)))
+	b = append(b, id...)
+	b = append(b, byte(len(caveats)))
+	for _, c := range caveats {
+		b = append(b, byte(len(c.Kind)))
+		b = append(b, c.Kind...)
+		b = append(b, byte(len(c.Value)>>8), byte(len(c.Value)))
+		b = append(b, c.Value...)
+	}
+	b = append(b, rootSig...)
+	return append(b, tag...)
+}
+
+func envelopeV2(secret string, p []byte) string {
+	return secret + markerV2 + base64.RawURLEncoding.EncodeToString(p)
 }
 
 // -- validation ------------------------------------------------------------

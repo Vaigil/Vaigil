@@ -6,7 +6,6 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
 	"flag"
 	"fmt"
 	"os"
@@ -490,10 +489,10 @@ func issueRunToken(root string, caller *Caller, name, run string,
 // thing nobody but the minter and the verifier may hold.
 func runKeyPath(root string) string { return filepath.Join(root, "agents.key") }
 
-// runKeyBytes is the one length a run key is: 256 bits from the CSPRNG,
-// the same size as a token secret, and for the same reason — there is no
-// dictionary to grind, so length is the whole of it.
-const runKeyBytes = 32
+// runKeyBytes is the Ed25519 private key size: the v2 run key is a key
+// pair, not the 32-byte HMAC key the v1 format used, and the private half
+// is the half the minter holds.
+const runKeyBytes = 64
 
 // parseRunKey reads a run key file, or explains why what is there cannot
 // be one. A wrong-length key is refused rather than padded or truncated:
@@ -501,10 +500,10 @@ const runKeyBytes = 32
 // refused by, and the honest time to say so is now.
 func parseRunKey(path string, b []byte) ([]byte, error) {
 	if len(b) != runKeyBytes {
-		return nil, fmt.Errorf("the run key at %s is %d bytes, not %d; it is "+
-			"not the key this store minted with, so nothing minted as a run "+
-			"token would verify. Move it aside and mint again to create a "+
-			"fresh one", path, len(b), runKeyBytes)
+		return nil, fmt.Errorf("the run key at %s is %d bytes, not the %d "+
+			"an Ed25519 private key is; it is not the key this store minted "+
+			"with, so nothing minted as a run token would verify. Move it "+
+			"aside and mint again to create a fresh one", path, len(b), runKeyBytes)
 	}
 	return b, nil
 }
@@ -524,14 +523,17 @@ func ensureRunKey(root string) ([]byte, error) {
 	} else if !os.IsNotExist(err) {
 		return nil, err
 	}
-	raw := make([]byte, runKeyBytes)
-	if _, err := rand.Read(raw); err != nil {
-		return nil, fmt.Errorf("cannot generate a run key: %w", err)
+	// v2: the run key is an Ed25519 private key (64 bytes), not the
+	// 32-byte HMAC key the v1 format used. The chain it roots is the
+	// same HMAC construction; what changed is who can start one.
+	priv, _, err := macaroon.GenerateMintKey()
+	if err != nil {
+		return nil, fmt.Errorf("cannot generate a run key pair: %w", err)
 	}
-	if err := atomicfile.Write(path, raw, 0o600); err != nil {
+	if err := atomicfile.Write(path, priv, 0o600); err != nil {
 		return nil, err
 	}
-	return raw, nil
+	return priv, nil
 }
 
 // loadRunKey is ensureRunKey's read-only half: the verifier's, which never
