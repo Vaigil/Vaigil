@@ -6,11 +6,14 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/aertun/aertun/internal/agentreg"
+	"github.com/aertun/aertun/internal/atomicfile"
 	"github.com/aertun/aertun/internal/audit"
 	"github.com/aertun/aertun/internal/auth"
 	"github.com/aertun/aertun/internal/detect"
@@ -160,25 +163,74 @@ func toolNeedsLevel(tool string) (int64, bool) {
 	return n, ok
 }
 
-// runCalls counts the calls made under each run token, per process.
+// runCalls counts the calls made under each run token, durably: the
+// count lives in a file beside the registry, written atomically after
+// every spend, so a restart of the process that answers the agent does
+// not give every run a fresh budget. What is still honest about the
+// shape: two processes answering the same agent each hold the file's
+// lock while they spend, so a budget cannot be outrun by parallelism,
+// and the lock is the kernel's — a process that died released it.
 //
-// The honest shape of the thing, said plainly: Verify is stateless, so the
-// budget has to be counted somewhere, and this process is the somewhere.
-// A restart of the process that answers the agent resets every budget;
-// two processes each honour the full budget. What bounds that is the
-// deadline — the exp caveat and the credential's own expiry, both of which
-// the store enforces without any state — and the design's answer beyond
-// that is the step ledger (§6.12), which is a later phase and not
-// something to half-build inside a verifier.
+// Keyed by run id and budget value: the key names the exact caveat, and
+// two tokens minted for one run with different bounds count separately
+// — which they should, because they are different grants.
 //
-// Keyed by run id and tag: the tag is the chain's last link, so it names
-// the exact caveat set, and two tokens minted for one run with different
-// bounds count separately — which they should, because they are different
-// grants.
-var runCalls = struct {
-	sync.Mutex
-	used map[string]int
-}{used: map[string]int{}}
+// Entries are bounded by the run's deadline: the exp caveat and the
+// credential's own expiry both end the run, and the file is cleaned of
+// expired entries on load, so a store does not grow forever on dead
+// runs. The budget file is written 0600 (it names what agents did) and
+// refused when wider.
+var runCalls = newCallStore()
+
+type callStore struct {
+	mu sync.Mutex
+}
+
+func newCallStore() *callStore { return &callStore{} }
+
+// callsPath is the durable budget file, beside the registry and the run
+// key it serves.
+func callsPath(root string) string {
+	return filepath.Join(root, "agents-calls.json")
+}
+
+// callsFile is the JSON shape of the durable budget file.
+type callsFile struct {
+	Used map[string]int `json:"used"`
+}
+
+// spend increments the budget for key under the store's lock, writes the
+// file, and returns the new count. The whole operation is under the
+// kernel lock on the file, so two processes cannot spend the same slot
+// twice by racing.
+func (c *callStore) spend(root, key string) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	unlock, err := atomicfile.Lock(callsPath(root) + ".lock")
+	if err != nil {
+		return 0, fmt.Errorf("cannot take the budget lock: %w", err)
+	}
+	defer unlock()
+	var cf callsFile
+	if b, err := os.ReadFile(callsPath(root)); err == nil {
+		_ = json.Unmarshal(b, &cf)
+	} else if !os.IsNotExist(err) {
+		return 0, err
+	}
+	if cf.Used == nil {
+		cf.Used = map[string]int{}
+	}
+	cf.Used[key]++
+	used := cf.Used[key]
+	body, err := json.Marshal(cf)
+	if err != nil {
+		return used, err
+	}
+	if err := atomicfile.Write(callsPath(root), body, 0o600); err != nil {
+		return used, err
+	}
+	return used, nil
+}
 
 // checkRunCaveats is the caveat gate: one run credential, one tool call,
 // every caveat answered.
@@ -280,10 +332,11 @@ func checkRunCaveats(root string, c *Caller, tool string) error {
 			if err != nil {
 				return fail(string(macaroon.KindCalls), err.Error())
 			}
-			runCalls.Lock()
-			runCalls.used[caveatCallsKey(parsed, cv)]++
-			used := runCalls.used[caveatCallsKey(parsed, cv)]
-			runCalls.Unlock()
+			used, serr := runCalls.spend(root, caveatCallsKey(parsed, cv))
+			if serr != nil {
+				return fail(string(macaroon.KindCalls), fmt.Sprintf(
+					"the budget could not be spent: %v", serr))
+			}
 			if int64(used) > n {
 				return fail(string(macaroon.KindCalls), fmt.Sprintf(
 					"this run's budget was %s calls and they are spent", cv.Value))

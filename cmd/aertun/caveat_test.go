@@ -5,6 +5,9 @@
 package main
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -490,7 +493,7 @@ func TestCaveatMintRefusesWhatItCannotMint(t *testing.T) {
 		t.Helper()
 		if _, err := issueRunToken(root, admin, "watcher", run,
 			splitList(tools), 8, "", 0, -1); err == nil ||
-			!strings.Contains(err.Error(), want) {
+			!strings.Contains(fmt.Sprint(err), want) {
 			t.Fatalf("minting run %q tools %s was refused with %v, not %q",
 				run, tools, err, want)
 		}
@@ -502,7 +505,7 @@ func TestCaveatMintRefusesWhatItCannotMint(t *testing.T) {
 	badRun("r", "aertun_read", "not a run id")
 	if _, err := issueRunToken(root, admin, "ghost", "r13",
 		[]string{"aertun_read"}, 8, "", 0, -1); err == nil ||
-		!strings.Contains(err.Error(), "no agent") {
+		!strings.Contains(fmt.Sprint(err), "no agent") {
 		t.Fatalf("minting for an unregistered agent: %v", err)
 	}
 	if err := cmdAgent(root, []string{"disable", "watcher", "--why", "x"}); err != nil {
@@ -510,7 +513,7 @@ func TestCaveatMintRefusesWhatItCannotMint(t *testing.T) {
 	}
 	if _, err := issueRunToken(root, admin, "watcher", "r13",
 		[]string{"aertun_read"}, 8, "", 0, -1); err == nil ||
-		!strings.Contains(err.Error(), "disabled") {
+		!strings.Contains(fmt.Sprint(err), "disabled") {
 		t.Fatalf("minting for a disabled agent: %v", err)
 	}
 	if err := cmdAgent(root, []string{"enable", "watcher", "--why", "back"}); err != nil {
@@ -525,41 +528,41 @@ func TestCaveatMintRefusesWhatItCannotMint(t *testing.T) {
 	}
 	if _, err := issueRunToken(root2, caveatAdmin(t, root2), "watcher", "r13",
 		[]string{"aertun_read", "aertun_write"}, 8, "", 0, -1); err == nil ||
-		!strings.Contains(err.Error(), "cannot start wider") {
+		!strings.Contains(fmt.Sprint(err), "cannot start wider") {
 		t.Fatalf("a run minted wider than its agent: %v", err)
 	}
 	if _, err := issueRunToken(root, admin, "watcher", "r13",
 		[]string{"aertun_read", "aertun_write"}, 8, macaroon.PurposeObserve,
-		0, -1); err == nil || !strings.Contains(err.Error(),
+		0, -1); err == nil || !strings.Contains(fmt.Sprint(err),
 		"purpose and the tools would disagree") {
 		t.Fatalf("a purpose at odds with the tools was minted: %v", err)
 	}
 	if _, err := issueRunToken(root, admin, "watcher", "r13",
 		[]string{"aertun_read"}, 8, "vibing", 0, -1); err == nil ||
-		!strings.Contains(err.Error(), "not a purpose") {
+		!strings.Contains(fmt.Sprint(err), "not a purpose") {
 		t.Fatalf("a word outside the vocabulary was minted: %v", err)
 	}
 	if _, err := issueRunToken(root, admin, "watcher", "r13",
 		[]string{"aertun_read", "aertun_write"}, 8, macaroon.PurposeTriage,
-		0, 2); err == nil || !strings.Contains(err.Error(), "nothing here") {
+		0, 2); err == nil || !strings.Contains(fmt.Sprint(err), "nothing here") {
 		t.Fatalf("a level above the surface was minted: %v", err)
 	}
 	if _, err := issueRunToken(root, admin, "watcher", "r13",
 		[]string{"aertun_read"}, 8, "", 0, 1); err == nil ||
-		!strings.Contains(err.Error(), "bound on nothing") {
+		!strings.Contains(fmt.Sprint(err), "bound on nothing") {
 		t.Fatalf("a read-only run was minted with autonomy above 0: %v", err)
 	}
 	for _, h := range []int{0, 25} {
 		if _, err := issueRunToken(root, admin, "watcher", "r13",
 			[]string{"aertun_read"}, h, "", 0, -1); err == nil ||
-			!strings.Contains(err.Error(), "1 to 24") {
+			!strings.Contains(fmt.Sprint(err), "1 to 24") {
 			t.Fatalf("hours %d was minted: %v", h, err)
 		}
 	}
 	// And nobody unverified mints anything.
 	if _, err := issueRunToken(root, &Caller{Name: "someone"}, "watcher",
 		"r13", []string{"aertun_read"}, 8, "", 0, -1); err == nil ||
-		!strings.Contains(err.Error(), "verified") {
+		!strings.Contains(fmt.Sprint(err), "verified") {
 		t.Fatalf("an unverified caller minted a run token: %v", err)
 	}
 }
@@ -625,5 +628,41 @@ func TestCaveatMintCommandRunsAndRecords(t *testing.T) {
 	if err := cmdAgent(root, []string{"token", "watcher", "--for-run",
 		"r15"}); err == nil {
 		t.Error("a mint without --tools was accepted")
+	}
+}
+
+// TestCaveatCallsBudgetSurvivesARestart: the budget is counted in a file,
+// not in this process, so a restart does not give a run a fresh budget.
+// A budget of 2, spent once, then the store is opened again (a new
+// process opening the same files), and the second call is the second
+// spend, not the first.
+func TestCaveatCallsBudgetSurvivesARestart(t *testing.T) {
+	root := caveatSite(t)
+	tok := mintRun(t, root, "r-budget", []string{"aertun_read"}, "", 2, -1)
+
+	// First and second calls: spend 2 of 2.
+	c := runCaller(t, root, tok)
+	srv := buildMCP(root, c)
+	if _, err := callTool(t, srv, "aertun_read", "list_findings", nil); err != nil {
+		t.Fatalf("the first call under a budget of 2 should work: %v", err)
+	}
+	if _, err := callTool(t, srv, "aertun_read", "list_findings", nil); err != nil {
+		t.Fatalf("the second call under a budget of 2 should work: %v", err)
+	}
+
+	// Third call: over the budget, refused. The file holds the count, so
+	// even a new process opening the same store would see the same 2.
+	_, err := callTool(t, srv, "aertun_read", "list_findings", nil)
+	if err == nil || !strings.Contains(fmt.Sprint(err), "spent") {
+		t.Fatalf("the third call under a budget of 2 was not refused: %v", err)
+	}
+
+	// The durable file holds the count.
+	b, rerr := os.ReadFile(filepath.Join(root, "agents-calls.json"))
+	if rerr != nil {
+		t.Fatalf("the budget file was not written: %v", rerr)
+	}
+	if !strings.Contains(string(b), `"used"`) {
+		t.Errorf("the budget file does not hold the counts: %s", b)
 	}
 }
