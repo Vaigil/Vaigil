@@ -26,13 +26,27 @@ import (
 //	the shapes                       size-capped, halves unconfusable
 
 // aKey is a run key of the one length Mint and Verify accept.
-func aKey() []byte {
-	k := make([]byte, runKeyLength)
-	for i := range k {
-		k[i] = byte(i + 1)
+// aKeyPair is the Ed25519 pair every test in this file mints and verifies
+// with, generated once so the tests are deterministic within a run.
+var aKeyPair = func() struct {
+	priv MintKey
+	pub  VerifyKey
+} {
+	priv, pub, err := GenerateMintKey()
+	if err != nil {
+		panic(err)
 	}
-	return k
-}
+	return struct {
+		priv MintKey
+		pub  VerifyKey
+	}{priv, pub}
+}()
+
+// aKey is the private half, the role the old 32-byte HMAC key played.
+func aKey() MintKey { return aKeyPair.priv }
+
+// aPub is the public half, what a verifier holds.
+func aPub() VerifyKey { return aKeyPair.pub }
 
 // minted builds a token carrying one of every kind, the shape the command
 // mints when an operator names every bound there is.
@@ -85,7 +99,7 @@ func TestMintVerifyRoundTripEachKind(t *testing.T) {
 		}
 	}
 	seen := 0
-	err := Verify(tok, aKey(), func(c Caveat) error {
+	err := Verify(tok, aPub(), func(c Caveat) error {
 		seen++
 		return nil
 	})
@@ -102,10 +116,9 @@ func TestMintVerifyRoundTripEachKind(t *testing.T) {
 // bound to the store that minted it. A run key is not a formality another
 // store's verifier can waive.
 func TestMintedUnderOneKeyFailsUnderAnother(t *testing.T) {
-	other := aKey()
-	other[0] ^= 0xff
-	if err := Verify(minted(t), other, func(Caveat) error { return nil }); err == nil {
-		t.Fatal("a token verified under a run key it was not minted with")
+	_, otherPub, _ := GenerateMintKey()
+	if err := Verify(minted(t), otherPub, func(Caveat) error { return nil }); err == nil {
+		t.Fatal("a token verified under a public key it was not minted with")
 	}
 }
 
@@ -141,7 +154,7 @@ func TestAnyChangedPayloadByteIsRefused(t *testing.T) {
 				skipped++
 				continue
 			}
-			if err := Verify(tok[:len(tok)-len(enc)]+forged, aKey(),
+			if err := Verify(tok[:len(tok)-len(enc)]+forged, aPub(),
 				func(Caveat) error { return nil }); err == nil {
 				t.Fatalf("changing payload character %d to %c left the "+
 					"token verifying", i, sub)
@@ -172,14 +185,14 @@ func TestTamperedFramingIsRefused(t *testing.T) {
 		{"no payload", "vg_testsecret" + marker},
 		{"no credential half", strings.TrimPrefix(tok, "vg_testsecret")},
 		{"payload not base64", "vg_testsecret" + marker + "!!!!"},
-		{"marker misspelled", strings.Replace(tok, marker, ".vgt2.", 1)},
+		{"marker misspelled", strings.Replace(tok, marker, ".vgt9.", 1)},
 		{"empty", ""},
 	} {
 		if _, ok := Parse(mangle.tok); ok {
 			t.Errorf("%s parsed; a mangled token is not one this program "+
 				"minted", mangle.name)
 		}
-		if err := Verify(mangle.tok, aKey(), func(Caveat) error { return nil }); err == nil {
+		if err := Verify(mangle.tok, aPub(), func(Caveat) error { return nil }); err == nil {
 			t.Errorf("%s verified", mangle.name)
 		}
 	}
@@ -194,7 +207,7 @@ func TestTamperedFramingIsRefused(t *testing.T) {
 	if _, ok := Parse(forged); ok {
 		t.Error("a caveat of an unknown kind parsed; the set is closed")
 	}
-	if err := Verify(forged, aKey(), func(Caveat) error { return nil }); err == nil {
+	if err := Verify(forged, aPub(), func(Caveat) error { return nil }); err == nil {
 		t.Error("a caveat of an unknown kind verified; the set is closed")
 	}
 }
@@ -218,7 +231,7 @@ func TestAttenuationNarrows(t *testing.T) {
 		t.Fatalf("a narrowing attenuation was refused: %v", err)
 	}
 	seen := map[Kind]int{}
-	if err := Verify(child, aKey(), func(c Caveat) error {
+	if err := Verify(child, aPub(), func(c Caveat) error {
 		seen[c.Kind]++
 		switch c.Kind {
 		case KindTool:
@@ -237,7 +250,7 @@ func TestAttenuationNarrows(t *testing.T) {
 	if seen[KindTool] != 2 || seen[KindPurpose] != 2 {
 		t.Fatalf("the child carries %v; both bounds must survive attenuation", seen)
 	}
-	if err := Verify(parent, aKey(), func(Caveat) error { return nil }); err != nil {
+	if err := Verify(parent, aPub(), func(Caveat) error { return nil }); err != nil {
 		t.Fatalf("attenuating a token changed the parent: %v", err)
 	}
 	// Attenuating the child narrows past its bounds, which is the algebra
@@ -350,7 +363,7 @@ func TestDischargeRefusalNamesTheCaveat(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = Verify(tok, aKey(), func(c Caveat) error {
+	err = Verify(tok, aPub(), func(c Caveat) error {
 		return errRefused("aertun_write is not in the allowed set")
 	})
 	if err == nil || !strings.Contains(err.Error(), "caveat tool:") ||
@@ -387,7 +400,7 @@ func TestMintRefusesWhatItCannotMean(t *testing.T) {
 		}, []string{"not a run id"}},
 		{"a short key", func() (string, error) {
 			return Mint("vg_s", aKey()[:31], "agent:watcher/run-1", tools)
-		}, []string{"32 bytes"}},
+		}, []string{"bytes"}},
 	} {
 		tok, err := mangle.mint()
 		if err == nil {
