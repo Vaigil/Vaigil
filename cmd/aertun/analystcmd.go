@@ -20,6 +20,7 @@ import (
 	"github.com/aertun/aertun/internal/analyst"
 	"github.com/aertun/aertun/internal/audit"
 	"github.com/aertun/aertun/internal/auth"
+	"github.com/aertun/aertun/internal/bakeoff"
 	"github.com/aertun/aertun/internal/decide"
 	"github.com/aertun/aertun/internal/finding"
 	"github.com/aertun/aertun/internal/forge"
@@ -442,6 +443,7 @@ func humanCount(n int) string {
 
 // The forge exports what the analyst saw and decided, for training.
 var _ = forge.SanitizeFacts
+var _ = bakeoff.PredicateURI
 
 func analystTriage(root string, args []string) error {
 	fs := flag.NewFlagSet("triage", flag.ContinueOnError)
