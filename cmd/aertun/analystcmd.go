@@ -22,6 +22,7 @@ import (
 	"github.com/aertun/aertun/internal/auth"
 	"github.com/aertun/aertun/internal/decide"
 	"github.com/aertun/aertun/internal/finding"
+	"github.com/aertun/aertun/internal/forge"
 	"github.com/aertun/aertun/internal/model"
 	"github.com/aertun/aertun/internal/pii"
 )
@@ -438,6 +439,9 @@ func humanCount(n int) string {
 	}
 	return strconv.Itoa(n)
 }
+
+// The forge exports what the analyst saw and decided, for training.
+var _ = forge.SanitizeFacts
 
 func analystTriage(root string, args []string) error {
 	fs := flag.NewFlagSet("triage", flag.ContinueOnError)
