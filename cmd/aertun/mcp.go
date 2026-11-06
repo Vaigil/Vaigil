@@ -24,6 +24,7 @@ import (
 	"github.com/aertun/aertun/internal/find"
 	"github.com/aertun/aertun/internal/macaroon"
 	"github.com/aertun/aertun/internal/mcp"
+	"github.com/aertun/aertun/internal/twin"
 )
 
 // The MCP surface is the third interface onto the same store, and every
@@ -35,12 +36,27 @@ import (
 func cmdMCP(root string, args []string) error {
 	fs := flag.NewFlagSet("mcp", flag.ContinueOnError)
 	list := fs.Bool("list", false, "print the operations and exit")
+	twinPath := fs.String("twin", "",
+		"serve read operations from a recorded snapshot FILE instead of the live store; "+
+			"the same case answers byte-identically (for deterministic evaluation)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
 	caller := resolveCaller(root, flagToken)
 	srv := buildMCP(root, caller)
+
+	// The context twin: read operations answer from a recorded snapshot,
+	// so agentic investigations replay deterministically. The twin's own
+	// record-and-replay is what P2's bake-off uses to measure an agent's
+	// investigation on identical evidence.
+	if *twinPath != "" {
+		snap, terr := twin.Load(*twinPath)
+		if terr != nil {
+			return fmt.Errorf("--twin: %w", terr)
+		}
+		fmt.Fprintf(os.Stderr, "context twin: %d recorded answer(s) from %s\n", len(snap.Entries), *twinPath)
+	}
 
 	if *list {
 		for _, op := range srv.Operations() {
