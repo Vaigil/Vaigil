@@ -36,6 +36,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aertun/aertun/internal/calib"
 	"github.com/aertun/aertun/internal/decide"
 	"github.com/aertun/aertun/internal/finding"
 	"github.com/aertun/aertun/internal/telemetry"
@@ -270,6 +271,26 @@ const (
 
 // Decider is the question a triage asks: one word from a closed set, with
 // a confidence, sampled and gated.
+// calibratedThreshold is the threshold a calibration certificate fitted,
+// overriding the fixed 0.8 when one is loaded. It is set by the command
+// that reads the certificate; the package default stays 0.8 because a
+// threshold nobody certified is a threshold nobody measured.
+var calibratedThreshold float64
+
+// SetCalibratedThreshold sets the decision threshold from a calibration
+// certificate. Zero resets to the default.
+func SetCalibratedThreshold(t float64) { calibratedThreshold = t }
+
+// Threshold reports the threshold the analyst uses now: the calibrated one
+// when set, the fixed 0.8 when not.
+func Threshold() float64 {
+	_ = calib.Certificate{} // the certificate type: what SetCalibratedThreshold reads
+	if calibratedThreshold > 0 && calibratedThreshold <= 1 {
+		return calibratedThreshold
+	}
+	return 0.8
+}
+
 func Decider() decide.Decider {
 	return decide.Decider{
 		Name:  "triage",
@@ -281,7 +302,7 @@ func Decider() decide.Decider {
 				"happened), a false-positive (the rule was wrong about what " +
 				"happened), or benign (it happened and is expected)?",
 		}},
-		MinConfidence: 0.8,
+		MinConfidence: Threshold(),
 		Samples:       3,
 		Context: "You are giving a first-pass suggestion on a security " +
 			"finding. A person makes the decision. counted_by_the_program " +

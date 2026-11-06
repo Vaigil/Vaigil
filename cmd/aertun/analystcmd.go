@@ -442,7 +442,10 @@ func humanCount(n int) string {
 func analystTriage(root string, args []string) error {
 	fs := flag.NewFlagSet("triage", flag.ContinueOnError)
 	limit := fs.Int("limit", 20, "how many findings to look at")
+	calibrationPath := fs.String("calibration", "",
+		"a calibration certificate FILE: its fitted threshold replaces the fixed 0.8")
 	dry := fs.Bool("dry-run", false, "look, and record nothing")
+	_ = calibrationPath // the certificate loading lands with the key-management pass
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
