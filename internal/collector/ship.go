@@ -327,6 +327,30 @@ func (s *Shipper) spoolFiles() []string {
 	return out
 }
 
+// quarantine moves a file the drain cannot process out of the spool's
+// listing, so the loop that reads it does not see it again and spin. The
+// file is renamed with a leading dot and a .quarantine suffix inside the
+// same directory: the evidence is never deleted, only set aside where
+// nothing will list it, and the count tells the operator it happened.
+func (s *Shipper) quarantine(name, why string) {
+	aside := "." + name + ".quarantine"
+	if err := os.Rename(filepath.Join(s.Dir, name), filepath.Join(s.Dir, aside)); err != nil {
+		// The rename can fail on a read-only directory, in which case
+		// the loop would spin on the same file next pass. Back off, so
+		// the recorder breathes between attempts even here, and say so.
+		s.mu.Lock()
+		s.counts.Dropped++
+		s.mu.Unlock()
+		s.logf("cannot quarantine %s (%s): %v; backing off", name, why, err)
+		s.sleep(context.Background(), s.backoff())
+		return
+	}
+	s.mu.Lock()
+	s.counts.Dropped++
+	s.mu.Unlock()
+	s.logf("quarantined %s: %s (kept as %s)", name, why, aside)
+}
+
 // Resume starts the batch sequence past whatever the spool already holds,
 // once, before anything is sealed or sent. A restart that reset to zero
 // would seal a file named below the ones already waiting, and "oldest
@@ -381,9 +405,23 @@ func (s *Shipper) drain(ctx context.Context) {
 			return
 		}
 		name := files[0]
+		// The name is %016x-<32 hex>.json: sixteen hex digits, a dash,
+		// the batch id, the extension. Anything shorter cannot carry an
+		// id to answer the server with, and slicing into it would read
+		// a piece of the prefix as though it were the id — so a name
+		// that is not that shape is quarantined beside the evidence,
+		// not interpreted.
+		if len(name) < 17+len(".json") || name[16] != '-' {
+			s.quarantine(name, "the name does not carry a batch id")
+			continue
+		}
 		body, err := os.ReadFile(filepath.Join(s.Dir, name))
 		if err != nil {
-			// Gone — a previous process or an operator. Not ours to send.
+			// Unreadable but still listed: without acting, the loop
+			// would see it again next pass and never sleep — the spin
+			// the old code had. Quarantine it aside so the directory
+			// no longer lists it, and let the operator find it there.
+			s.quarantine(name, fmt.Sprintf("cannot read it: %v", err))
 			continue
 		}
 		id := strings.TrimSuffix(name[17:], ".json")
