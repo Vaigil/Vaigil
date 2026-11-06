@@ -50,6 +50,9 @@ func (s *Server) proposeSecond(p principal, kind, what string, payload any, why 
 		return false, "", errors.New("this server keeps no requests for a second administrator, so this change cannot be made here")
 	}
 	alone := s.onlyAdministrator(p.Name)
+	if alone && strings.TrimSpace(why) == "" {
+		return false, "a change made alone needs a reason: write one before asking", errors.New("a solo change without a reason is a change nobody can read the why of")
+	}
 	r, err := s.Dual.Store.Propose(kind, what, payload, why, p.Name, alone, time.Now())
 	if err != nil {
 		return false, "", err
