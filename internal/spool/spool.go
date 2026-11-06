@@ -226,44 +226,6 @@ func Open(dir string, o Options) (*Spool, error) {
 	return s, nil
 }
 
-// lockWait is how long one writer waits for another's lock; lockStale is
-// how old a lock file must be before it is taken to be from a process that
-// died holding it.
-const (
-	lockWait  = 5 * time.Second
-	lockStale = time.Minute
-)
-
-// lockFile takes a lock file, waiting a little for another holder and taking
-// over one left by a process that died.
-//
-// Created exclusively rather than advised, so it works the same on every
-// platform this builds for, and aged by mtime because a crashed holder can
-// tell nobody it crashed — the same discipline as internal/automate and the
-// finding register.
-func lockFile(path string, wait, stale time.Duration) (func(), error) {
-	deadline := time.Now().Add(wait)
-	for {
-		f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-		if err == nil {
-			_ = f.Close()
-			return func() { _ = os.Remove(path) }, nil
-		}
-		if !os.IsExist(err) {
-			return nil, err
-		}
-		if fi, serr := os.Stat(path); serr == nil &&
-			time.Since(fi.ModTime()) > stale {
-			_ = os.Remove(path)
-			continue
-		}
-		if time.Now().After(deadline) {
-			return nil, fmt.Errorf("%s is held by another writer", path)
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-}
-
 // lock takes the store for one writer and brings this handle back in step
 // with what other writers did while it held nothing.
 //
@@ -272,16 +234,18 @@ func lockFile(path string, wait, stale time.Duration) (func(), error) {
 // every save writes the whole index, so without this the second save
 // discards the first's events, its histogram, or a whole segment entry, and
 // nothing reports an error. Taken per operation and never held between
-// them, so a reader never waits and a writer that takes long enough to look
-// dead is waited for rather than duplicated.
+// them, so a reader never waits. The lock is the kernel's (atomicfile.Lock):
+// a writer that died released it as it died, so there is no lock file to
+// age, no takeover, and no moment two writers both hold it; and a writer
+// waiting for it is woken when it is free rather than polling for a gap the
+// writer before it keeps closing.
 //
 // The writes are Append, Seal, Release, Close, and the retention operations
 // Hold, Lift and Apply in retention.go: every path that mutates the index
 // passes through here, so a save can never be built on a copy of the index
 // another writer has already replaced.
 func (s *Spool) lock() (func(), error) {
-	unlock, err := lockFile(filepath.Join(s.dir, "index.json.lock"),
-		lockWait, lockStale)
+	unlock, err := atomicfile.Lock(filepath.Join(s.dir, "index.json.lock"))
 	if err != nil {
 		return nil, err
 	}

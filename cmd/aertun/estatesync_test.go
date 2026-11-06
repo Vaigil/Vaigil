@@ -7,12 +7,12 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/aertun/aertun/internal/atomicfile"
 	"github.com/aertun/aertun/internal/audit"
 	"github.com/aertun/aertun/internal/mcp"
 )
@@ -89,7 +89,7 @@ func TestASyncReadsEveryToolAndBuilds(t *testing.T) {
 	if rep.Found == 0 {
 		t.Error("the leaver's laptop was not found by the build")
 	}
-	if _, err := os.Stat(filepath.Join(estateDir(root), "sync.lock")); err == nil {
+	if atomicfile.Held(filepath.Join(estateDir(root), "sync.lock")) {
 		t.Error("the sync lock was left behind")
 	}
 }

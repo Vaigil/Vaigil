@@ -5,6 +5,7 @@ package atomicfile
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -172,4 +173,30 @@ func TestALockIsHeldByOneAtATimeAndFreedByItsHolder(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("the lock was not freed")
 	}
+}
+
+// TryLock takes a free lock, refuses a held one at once with ErrHeld, and
+// Held reports which without keeping it.
+func TestTryLockRefusesAHeldLockAtOnce(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "x.lock")
+	unlock, err := TryLock(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !Held(path) {
+		t.Error("a held lock was reported free")
+	}
+	start := time.Now()
+	if _, err := TryLock(path); !errors.Is(err, ErrHeld) || time.Since(start) > time.Second {
+		t.Fatalf("a second TryLock on a held lock: %v after %s", err, time.Since(start))
+	}
+	unlock()
+	if Held(path) {
+		t.Error("a released lock was reported held")
+	}
+	again, err := TryLock(path)
+	if err != nil {
+		t.Fatalf("a released lock could not be taken: %v", err)
+	}
+	again()
 }

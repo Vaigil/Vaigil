@@ -439,19 +439,11 @@ func (e *Engine) save(st *state) error {
 	return atomicfile.Write(e.Path, b, 0o600)
 }
 
-// lockWait is how long a change waits for another process's; lockStale is
-// how old a lock file must be to be taken as abandoned by a process that
-// died holding it.
-const (
-	lockWait  = 5 * time.Second
-	lockStale = time.Minute
-)
-
 // change runs fn on the state under both locks, and saves when it says to.
 func (e *Engine) change(fn func(*state) (bool, error)) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	unlock, err := lockFile(e.Path+".lock", lockWait, lockStale)
+	unlock, err := atomicfile.Lock(e.Path + ".lock")
 	if err != nil {
 		return err
 	}
@@ -465,30 +457,6 @@ func (e *Engine) change(fn func(*state) (bool, error)) error {
 		return err
 	}
 	return e.save(st)
-}
-
-// lockFile takes a lock file, waiting a little for another holder and
-// taking over one left by a process that died.
-func lockFile(path string, wait, stale time.Duration) (func(), error) {
-	deadline := time.Now().Add(wait)
-	for {
-		f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-		if err == nil {
-			_ = f.Close()
-			return func() { _ = os.Remove(path) }, nil
-		}
-		if !os.IsExist(err) {
-			return nil, err
-		}
-		if fi, serr := os.Stat(path); serr == nil && time.Since(fi.ModTime()) > stale {
-			_ = os.Remove(path)
-			continue
-		}
-		if time.Now().After(deadline) {
-			return nil, fmt.Errorf("%s is held by another process", path)
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
 }
 
 func newID() string {

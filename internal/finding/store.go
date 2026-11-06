@@ -5,6 +5,7 @@ package finding
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -134,32 +135,15 @@ func View(reg *Register, decisions []Decision, now time.Time) []Finding {
 // save discards the first run's findings and its cursor, and the next run
 // counts those events again.
 //
-// A lock file created exclusively, not an advisory lock, so it works the same
-// on every platform this builds for. One older than StaleLock is from a run
-// that died and is taken over, because a crash should not stop detection
+// The kernel's lock (atomicfile.TryLock), taken without waiting: a second
+// run is told one is already going rather than queued behind it, and a run
+// that died released the lock as it died, so a crash never stops detection
 // until somebody notices a file.
 func Lock(path string) (unlock func(), err error) {
-	lock := path + ".lock"
-	for attempt := 0; attempt < 2; attempt++ {
-		f, err := os.OpenFile(lock, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-		if err == nil {
-			fmt.Fprintf(f, "%d\n", os.Getpid())
-			f.Close()
-			return func() { _ = os.Remove(lock) }, nil
-		}
-		if !os.IsExist(err) {
-			return nil, err
-		}
-		fi, serr := os.Stat(lock)
-		if serr != nil || time.Since(fi.ModTime()) < StaleLock {
-			return nil, fmt.Errorf(
-				"another run is writing the finding register (%s exists). "+
-					"Wait for it, or remove the file if no run is going", lock)
-		}
-		_ = os.Remove(lock)
+	unlock, err = atomicfile.TryLock(path + ".lock")
+	if errors.Is(err, atomicfile.ErrHeld) {
+		return nil, fmt.Errorf("another run is writing the finding register " +
+			"now; wait for it to finish")
 	}
-	return nil, fmt.Errorf("could not take %s", lock)
+	return unlock, err
 }
-
-// StaleLock is how old a lock has to be before it is assumed abandoned.
-const StaleLock = 15 * time.Minute

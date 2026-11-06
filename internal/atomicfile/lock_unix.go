@@ -24,3 +24,13 @@ func lockExclusive(f *os.File) error {
 func unlockFile(f *os.File) {
 	_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
 }
+
+// tryLockExclusive takes the lock without waiting, reporting held when
+// another descriptor has it.
+func tryLockExclusive(f *os.File) (held bool, err error) {
+	err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+	if err == syscall.EWOULDBLOCK {
+		return true, nil
+	}
+	return false, err
+}

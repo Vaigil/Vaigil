@@ -5,6 +5,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -113,43 +114,26 @@ func loadSyncReport(root string) (*syncReport, error) {
 	return &r, nil
 }
 
-// SyncLockStale is how long a sync lock is honoured. Two hours, not the
-// quarter hour the finding register's lock allows: a sync over a large
-// estate paced to the tools' limits takes longer than that, and a second
-// sync starting beside it would fetch its own Vanta token and revoke the
-// first one's.
-const SyncLockStale = 2 * time.Hour
-
+// lockSync takes the estate sync's lock without waiting: a second sync
+// started beside a running one would fetch its own Vanta token and revoke
+// the first one's, so it is refused instead. The kernel's lock
+// (atomicfile.TryLock), so a sync that died released it as it died, however
+// long a sync over a large estate takes.
 func lockSync(root string) (func(), error) {
 	if err := os.MkdirAll(estateDir(root), 0o700); err != nil {
 		return nil, err
 	}
-	lock := filepath.Join(estateDir(root), "sync.lock")
-	for attempt := 0; attempt < 2; attempt++ {
-		f, err := os.OpenFile(lock, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-		if err == nil {
-			fmt.Fprintf(f, "%d\n", os.Getpid())
-			f.Close()
-			return func() { _ = os.Remove(lock) }, nil
-		}
-		if !os.IsExist(err) {
-			return nil, err
-		}
-		fi, serr := os.Stat(lock)
-		if serr != nil || time.Since(fi.ModTime()) < SyncLockStale {
-			return nil, fmt.Errorf("a sync is already running (%s exists)",
-				lock)
-		}
-		_ = os.Remove(lock)
+	unlock, err := atomicfile.TryLock(syncLockPath(root))
+	if errors.Is(err, atomicfile.ErrHeld) {
+		return nil, fmt.Errorf("a sync is already running")
 	}
-	return nil, fmt.Errorf("could not take %s", lock)
+	return unlock, err
 }
 
+func syncLockPath(root string) string { return filepath.Join(estateDir(root), "sync.lock") }
+
 // syncRunning reports whether a sync holds the lock now.
-func syncRunning(root string) bool {
-	fi, err := os.Stat(filepath.Join(estateDir(root), "sync.lock"))
-	return err == nil && time.Since(fi.ModTime()) < SyncLockStale
-}
+func syncRunning(root string) bool { return atomicfile.Held(syncLockPath(root)) }
 
 // syncStatus is what the workforce screen says about reading the tools.
 func syncStatus(root string) (admin.SyncStatus, error) {

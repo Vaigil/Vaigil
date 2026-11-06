@@ -5,6 +5,7 @@ package automate
 
 import (
 	"errors"
+	"github.com/aertun/aertun/internal/atomicfile"
 	"os"
 	"path/filepath"
 	"strings"
@@ -314,24 +315,38 @@ func TestTwoRulesMayNotShareAName(t *testing.T) {
 	}
 }
 
-// A lock left by a process that died is taken over, not waited on for ever.
-func TestAnAbandonedLockIsTakenOver(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "x.lock")
-	if err := os.WriteFile(path, nil, 0o600); err != nil {
+// A lock file left by a process that died blocks nobody — the lock is the
+// kernel's and was released when the process ended — and a change waits
+// for a live holder rather than writing beside it.
+func TestALeftoverLockFileBlocksNobodyAndALiveOneIsWaitedFor(t *testing.T) {
+	e, _ := engine(t)
+	if err := os.WriteFile(e.Path+".lock", []byte("12345\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	old := time.Now().Add(-2 * time.Minute)
-	_ = os.Chtimes(path, old, old)
-	unlock, err := lockFile(path, 100*time.Millisecond, time.Minute)
+	base := Rule{Name: "Impossible travel", Enabled: true, Mode: "act", When: "signin", Then: []Step{{Action: "step-up"}}}
+	if _, err := e.Save(base, "boss"); err != nil {
+		t.Fatalf("a leftover lock file blocked a change: %v", err)
+	}
+	unlock, err := atomicfile.Lock(e.Path + ".lock")
 	if err != nil {
-		t.Fatalf("an abandoned lock was not taken: %v", err)
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		other := base
+		other.Name = "Second"
+		_, err := e.Save(other, "boss")
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("a change was made while another holder had the lock: %v", err)
+	case <-time.After(200 * time.Millisecond):
 	}
 	unlock()
-	held, _ := lockFile(path, time.Second, time.Minute)
-	if _, err := lockFile(path, 50*time.Millisecond, time.Minute); err == nil {
-		t.Error("a held lock was taken twice")
+	if err := <-done; err != nil {
+		t.Fatalf("the waiting change failed once the lock was free: %v", err)
 	}
-	held()
 }
 
 // A sign-in carries all its signals; a condition on one finds it among

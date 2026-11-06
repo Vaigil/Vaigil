@@ -5,6 +5,7 @@ package spool
 
 import (
 	"fmt"
+	"github.com/aertun/aertun/internal/atomicfile"
 	"os"
 	"path/filepath"
 	"strings"
@@ -684,22 +685,18 @@ func TestTwoWritersKeepEveryEvent(t *testing.T) {
 	}
 }
 
-// TestAStaleLockDoesNotBlockForever: a writer that died holding the lock
-// must not stop ingestion until somebody notices a file. The lock is aged by
-// mtime, because a crashed holder can tell nobody it crashed.
-func TestAStaleLockDoesNotBlockForever(t *testing.T) {
+// TestALeftoverLockFileDoesNotBlock: a writer that died left its lock file
+// behind, and ingestion carries on at once. The lock is the kernel's, held
+// by an open descriptor and released when the process ended; the file is
+// only where it lives.
+func TestALeftoverLockFileDoesNotBlock(t *testing.T) {
 	c := &clock{at: base}
 	s, dir := openAt(t, c, Options{})
 	defer s.Close()
 	lock := filepath.Join(dir, "index.json.lock")
-	if err := os.WriteFile(lock, nil, 0o600); err != nil {
+	if err := os.WriteFile(lock, []byte("12345\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	dead := time.Now().Add(-2 * lockStale)
-	if err := os.Chtimes(lock, dead, dead); err != nil {
-		t.Fatal(err)
-	}
-
 	done := make(chan error, 1)
 	go func() {
 		_, err := s.Append(event(base, base, "after the crash"))
@@ -710,32 +707,36 @@ func TestAStaleLockDoesNotBlockForever(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-	case <-time.After(3 * lockWait):
-		t.Fatal("a lock from a dead holder still blocks the writer")
-	}
-	if _, err := os.Stat(lock); !os.IsNotExist(err) {
-		t.Errorf("the taken-over lock was left behind")
+	case <-time.After(5 * time.Second):
+		t.Fatal("a lock file nobody holds blocked the writer")
 	}
 }
 
-// TestALockAnotherWriterHoldsIsWaitedForNotIgnored: a lock too young to be
-// stale belongs to a live writer, and the second must fail rather than
-// write beside it.
+// TestALockAnotherWriterHoldsIsWaitedForNotIgnored: while a live writer
+// holds the lock the second waits, and writes once it is free — never
+// beside it.
 func TestALockAnotherWriterHoldsIsWaitedForNotIgnored(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "index.json.lock")
-	unlock, err := lockFile(path, 50*time.Millisecond, lockStale)
+	c := &clock{at: base}
+	s, dir := openAt(t, c, Options{})
+	defer s.Close()
+	unlock, err := atomicfile.Lock(filepath.Join(dir, "index.json.lock"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := lockFile(path, 50*time.Millisecond, lockStale); err == nil {
-		t.Fatal("a second writer took a lock the first still holds")
+	done := make(chan error, 1)
+	go func() {
+		_, err := s.Append(event(base, base, "waits its turn"))
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("a writer wrote while another held the lock: %v", err)
+	case <-time.After(200 * time.Millisecond):
 	}
 	unlock()
-	again, err := lockFile(path, 50*time.Millisecond, lockStale)
-	if err != nil {
-		t.Fatalf("a released lock was not given up: %v", err)
+	if err := <-done; err != nil {
+		t.Fatalf("the waiting writer failed once the lock was free: %v", err)
 	}
-	again()
 }
 
 // TestTheLockIsHeldPerOperationAndReleasedOnClose: readers never wait on a
@@ -748,7 +749,7 @@ func TestTheLockIsHeldPerOperationAndReleasedOnClose(t *testing.T) {
 	if _, err := s.Append(event(base, base, "one")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(lock); !os.IsNotExist(err) {
+	if atomicfile.Held(lock) {
 		t.Fatal("the writer's lock outlived the append")
 	}
 	// Reading takes nothing, so a reader never waits on a writer.
@@ -762,13 +763,13 @@ func TestTheLockIsHeldPerOperationAndReleasedOnClose(t *testing.T) {
 		func(telemetry.Event) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(lock); !os.IsNotExist(err) {
+	if atomicfile.Held(lock) {
 		t.Fatal("reading the spool took the writer's lock")
 	}
 	if err := s.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(lock); !os.IsNotExist(err) {
+	if atomicfile.Held(lock) {
 		t.Fatal("Close left the writer's lock behind")
 	}
 
