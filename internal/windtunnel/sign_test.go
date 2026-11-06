@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 Anthropic PBC
+// SPDX-FileCopyrightText: 2026 Rashik Adhikari
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -176,10 +176,10 @@ func TestSignPublicKeyFileRoundTripsAndRefusesHalf(t *testing.T) {
 	_, k := signedRun(t)
 	dir := t.TempDir()
 	path := filepath.Join(dir, "scorecard-pub.json")
-	if err := WritePublicKey(path, k.PublicKey()); err != nil {
+	if err := pack.WritePublicKey(path, k.PublicKey()); err != nil {
 		t.Fatal(err)
 	}
-	pub, err := LoadPublicKey(path)
+	pub, err := pack.LoadPublicKey(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +189,7 @@ func TestSignPublicKeyFileRoundTripsAndRefusesHalf(t *testing.T) {
 	if err := os.WriteFile(path, []byte(`{"ed25519":"AAAA"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := LoadPublicKey(path); err == nil ||
+	if _, err := pack.LoadPublicKey(path); err == nil ||
 		!strings.Contains(err.Error(), "half a dual key") {
 		t.Errorf("a public key with one half loaded (%v)", err)
 	}

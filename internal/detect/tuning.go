@@ -5,7 +5,6 @@ package detect
 
 import (
 	"fmt"
-	"math"
 	"regexp"
 	"sort"
 	"strings"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/aertun/aertun/internal/audit"
 	"github.com/aertun/aertun/internal/finding"
+	"github.com/aertun/aertun/internal/stats"
 	"github.com/aertun/aertun/internal/telemetry"
 )
 
@@ -280,7 +280,7 @@ func (s Stats) Useful() (rate, low, high float64, enough bool) {
 		return 0, 0, 0, false
 	}
 	rate = float64(s.Real) / float64(n)
-	low, high = wilson(s.Real, n)
+	low, high = stats.Wilson(s.Real, n)
 	return rate, low, high, n >= MinVerdicts
 }
 
@@ -291,24 +291,6 @@ func (s Stats) Precision() (rate float64, enough bool) {
 		return 0, false
 	}
 	return float64(s.Real) / float64(n), s.Decided() >= MinVerdicts
-}
-
-// wilson is the 95% Wilson score interval for k successes in n.
-//
-// Wilson rather than the normal approximation, which gives an interval of
-// zero width at 0 and at 100% — exactly where a small sample most needs one.
-func wilson(k, n int) (low, high float64) {
-	if n == 0 {
-		return 0, 1
-	}
-	const z = 1.959964
-	p := float64(k) / float64(n)
-	nn := float64(n)
-	denom := 1 + z*z/nn
-	centre := p + z*z/(2*nn)
-	margin := z * math.Sqrt(p*(1-p)/nn+z*z/(4*nn*nn))
-	low, high = (centre-margin)/denom, (centre+margin)/denom
-	return math.Max(0, low), math.Min(1, high)
 }
 
 // Measure counts verdicts per rule from the findings, with decisions

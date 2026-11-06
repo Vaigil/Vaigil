@@ -57,7 +57,8 @@ func TestMakingAnAdministratorOnTheScreenTakesTwo(t *testing.T) {
 }
 
 // A weaker setting from the Settings screen waits too, and is made when
-// approved; the only administrator makes theirs at once.
+// approved. The only administrator's own request waits out its delay: the
+// screen offers them Decline at once and Approve only once it has passed.
 func TestAWeakerSettingOnTheScreenTakesTwo(t *testing.T) {
 	srv, editor := setup(t)
 	// Read and written as bytes, as the file is: a change the handler
@@ -67,12 +68,28 @@ func TestAWeakerSettingOnTheScreenTakesTwo(t *testing.T) {
 		Load: func() (*config.Config, error) { return config.Parse(saved) },
 		Save: func(c *config.Config) error { b, err := c.Bytes(); saved = b; return err }}
 	weaken := url.Values{"key": {"siem.stream.reveal"}, "value": {"true"}, "reason": {"the SIEM holds names already"}}.Encode()
-	if w := postForm(t, srv, "/settings/save", editor, weaken); w.Code != http.StatusSeeOther {
-		t.Fatalf("alone: %d", w.Code)
+	w := postForm(t, srv, "/settings/save", editor, weaken)
+	if loc, _ := url.QueryUnescape(w.Header().Get("Location")); w.Code != http.StatusSeeOther ||
+		!strings.Contains(loc, "You are the only administrator") {
+		t.Fatalf("alone: %d %s", w.Code, loc)
 	}
-	cfg, _ := srv.Settings.Load()
-	if !cfg.Bool("siem.stream.reveal") {
-		t.Fatal("the only administrator could not weaken a setting")
+	if cfg, _ := srv.Settings.Load(); cfg.Bool("siem.stream.reveal") {
+		t.Fatal("the only administrator weakened a setting with no delay")
+	}
+	solo, _ := srv.Dual.Store.Pending(time.Now())
+	if len(solo) != 1 || solo[0].NotBefore.IsZero() {
+		t.Fatalf("pending: %+v", solo)
+	}
+	page := get(t, srv, "/people", editor).Body.String()
+	if strings.Contains(page, `value="approve"`) || !strings.Contains(page, `value="decline"`) {
+		t.Error("during the delay the only administrator should be offered Decline and not Approve")
+	}
+	rows := srv.pendingRows(principal{Name: "editor"}, solo[0].NotBefore)
+	if len(rows) != 1 || !rows[0].CanDecide {
+		t.Errorf("after the delay the only administrator cannot approve: %+v", rows)
+	}
+	if _, err := srv.Dual.Store.Decide(solo[0].ID, "editor", false, true, time.Now()); err != nil {
+		t.Fatal(err)
 	}
 	saved = []byte("{}")
 	if err := srv.Policy.Grant(auth.Binding{Principal: "lee", Role: auth.RoleAdmin, Resource: "/"}); err != nil {

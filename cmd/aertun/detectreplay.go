@@ -4,13 +4,11 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/aertun/aertun/internal/audit"
@@ -33,9 +31,6 @@ import (
 // them. It holds real events — real account names — so it belongs in the
 // same repository the rules are in and nowhere more public.
 
-// MaxCorpusLine bounds one entry.
-const MaxCorpusLine = 256 << 10
-
 func corpusPath(root, dir, given string) string {
 	if given != "" {
 		return given
@@ -52,21 +47,11 @@ func loadCorpus(path string) ([]detect.Labelled, error) {
 		return nil, err
 	}
 	defer f.Close()
-	var out []detect.Labelled
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 0, 64<<10), MaxCorpusLine)
-	for n := 1; sc.Scan(); n++ {
-		line := strings.TrimSpace(sc.Text())
-		if line == "" {
-			continue
-		}
-		var l detect.Labelled
-		if uerr := json.Unmarshal([]byte(line), &l); uerr != nil {
-			return nil, fmt.Errorf("%s line %d: %w", path, n, uerr)
-		}
-		out = append(out, l)
+	out, err := detect.ParseCorpus(f)
+	if err != nil {
+		return nil, fmt.Errorf("%s %w", path, err)
 	}
-	return out, sc.Err()
+	return out, nil
 }
 
 func detectReplay(root string, args []string) error {

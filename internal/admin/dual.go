@@ -42,9 +42,9 @@ func (s *Server) onlyAdministrator(name string) bool {
 	return len(admins) == 0 || (len(admins) == 1 && admins[strings.ToLower(name)])
 }
 
-// proposeSecond records a privileged change made on a screen. It reports
-// whether to make it now, because the proposer is the only administrator,
-// and otherwise what to tell them.
+// proposeSecond records a privileged change made on a screen, and what to
+// tell its proposer. Nothing is made now: a request waits for another
+// administrator or, made by the only one, for its delay (dual.SoloDelay).
 func (s *Server) proposeSecond(p principal, kind, what string, payload any, why string) (bool, string, error) {
 	if s.Dual == nil || s.Dual.Store == nil {
 		return false, "", errors.New("this server keeps no requests for a second administrator, so this change cannot be made here")
@@ -57,8 +57,11 @@ func (s *Server) proposeSecond(p principal, kind, what string, payload any, why 
 	detail := map[string]string{"by": p.Name, "request": r.ID, "kind": kind, "what": what}
 	if alone {
 		detail["alone"] = "true"
-		s.audit("dual.approved", "/", detail)
-		return true, "", nil
+		detail["not_before"] = r.NotBefore.UTC().Format(time.RFC3339)
+		s.audit("dual.proposed", "/", detail)
+		return false, fmt.Sprintf("You are the only administrator, so %s waits until %s, "+
+			"and then you approve it here (request %s). Until then it can be declined from any administrator's session, yours included.",
+			what, r.NotBefore.UTC().Format("15:04 MST on 2 Jan"), r.ID), nil
 	}
 	s.audit("dual.proposed", "/", detail)
 	return false, fmt.Sprintf("%s waits for a second administrator, who approves it here (request %s).", what, r.ID), nil
@@ -96,6 +99,12 @@ func (s *Server) applyDual(r dual.Request, by string) error {
 			return err
 		}
 		return s.Settings.Save(cfg)
+	case dual.Owner:
+		var ch dual.OwnerChange
+		if err := json.Unmarshal(r.Payload, &ch); err != nil {
+			return err
+		}
+		return s.changePolicy(func(p *auth.Policy) error { return p.TransferOwner(r.By, ch.To) })
 	case dual.Token:
 		// Issued to whoever asked, on the command line: aertun pending redeem.
 		return nil
@@ -108,8 +117,8 @@ func (s *Server) applyDual(r dual.Request, by string) error {
 
 type pendingRow struct {
 	dual.Request
-	Words                  string
-	CanDecide, CanTakeBack bool
+	Words                              string
+	CanDecide, CanDecline, CanTakeBack bool
 }
 
 // pendingRows are the requests waiting, for the People screen, with what p
@@ -126,8 +135,16 @@ func (s *Server) pendingRows(p principal, now time.Time) []pendingRow {
 	var out []pendingRow
 	for _, r := range pend {
 		mine := strings.EqualFold(r.By, p.Name)
+		// Anybody may decline; approving one's own request needs being the
+		// only administrator and the delay having passed.
+		// A transfer of ownership is confirmed only by whoever asked, a day
+		// on (dual.Decide).
+		canApprove := !mine || (alone && !now.Before(r.AloneFrom()))
+		if r.Kind == dual.Owner {
+			canApprove = mine && !now.Before(r.AloneFrom())
+		}
 		out = append(out, pendingRow{Request: r, Words: dual.StateWords(r, now),
-			CanDecide: r.Open(now) && (!mine || alone), CanTakeBack: mine})
+			CanDecide: r.Open(now) && canApprove, CanDecline: r.Open(now), CanTakeBack: mine})
 	}
 	return out
 }

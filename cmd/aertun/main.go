@@ -63,7 +63,7 @@ var version = "dev"
 func usage() {
 	fmt.Print(`aertun — the wind tunnel for AI agents
 
-  aertun init [--admin NAME]               create a store, and its first administrator
+  aertun init [--owner NAME]               create a store, and its Owner
   aertun serve [--addr HOST:PORT]          the console, on loopback by default
   aertun mcp [--list]                      the agent interface, over stdio
 
@@ -100,6 +100,7 @@ Detecting and deciding
   aertun analyst plan | triage [--limit N] [--dry-run] | eval [--k 3]
   aertun bench run [--stub] [--out F] [--k N] | report FILE   the labelled corpus, and how the analyst scored on it
   aertun windtunnel list-scenarios | preflight | run [--sigma DIR] | scorecard | diff OLD NEW | verify   breach simulation by replay, scored and signed; diff is the CI gate
+  aertun proof detection --rule F [--corpus F] --key F | verify FILE --key F   a rule checked against evidence its author did not write, signed; verify is the CI gate
   aertun automate list | templates | add TEMPLATE | runs   rules: when this happens, do this
   aertun automate mode ID watch|ask|act | on ID | off ID | remove ID | approve RUN | decline RUN
   aertun geo status | network add PREFIX NAME --kind office|vpn | network remove PREFIX | help   where sign-ins come from
@@ -136,6 +137,7 @@ The estate and its people
   aertun access open ID [FILE] --scope S | items ID | decide ID ACCOUNT VERDICT | close ID [FILE] | list
 
 People, sign-in and changes
+  aertun auth owner [transfer WHO]         who owns the store; a transfer the Owner confirms a day later
   aertun auth grant WHO ROLE [--on PATH]   viewer | analyst | responder | admin
   aertun auth grant WHO JOB [--for 30d]    engineer | vuln-manager | auditor (must end)
   aertun auth deny|revoke WHO ROLE [--on PATH] | explain WHO [ACTION] | list | roles
@@ -353,6 +355,8 @@ func main() {
 		err = cmdBench(root, cmdArgs)
 	case "windtunnel":
 		err = cmdWindtunnel(root, cmdArgs)
+	case "proof":
+		err = cmdProof(cmdArgs)
 	case "vendor":
 		err = cmdVendor(root, cmdArgs)
 	case "access":

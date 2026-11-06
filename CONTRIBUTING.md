@@ -14,7 +14,7 @@ cd aertun
 go build -o aertun ./cmd/aertun
 
 mkdir /tmp/try && cd /tmp/try
-../aertun init --admin you@example.com   # prints the link that adds your passkey
+../aertun init --owner you@example.com   # prints the link that adds your passkey
 ../aertun serve                          # the console, on http://localhost:8080
 ```
 

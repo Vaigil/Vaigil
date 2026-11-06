@@ -1,0 +1,105 @@
+{
+  "id": "aertun.ownership-transfer-requested",
+  "title": "Somebody asked for ownership of aertun to move",
+  "why": "ownership is the one access nobody else can take away, and a transfer waits a day so the Owner can see the request and decline it; a stolen Owner session that wants the store for good starts here",
+  "blind": "an Owner who confirms a transfer they did not mean to ask for, and changes made on the machine itself, outside aertun",
+  "sources": [
+    "aertun/audit"
+  ],
+  "severity": 4,
+  "when": {
+    "all": [
+      {
+        "match": {
+          "field": "raw.action",
+          "op": "equals",
+          "values": [
+            "dual.proposed"
+          ]
+        }
+      },
+      {
+        "match": {
+          "field": "raw.kind",
+          "op": "equals",
+          "values": [
+            "owner"
+          ]
+        }
+      }
+    ]
+  },
+  "technique": [
+    "T1098"
+  ],
+  "fixtures": [
+    {
+      "name": "the Owner asks to pass ownership on",
+      "match": true,
+      "event": {
+        "source": "aertun/audit",
+        "time": "2026-11-06T09:00:00Z",
+        "received": "2026-11-06T09:00:02Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "aertun",
+          "value": "p_1a2b3c"
+        },
+        "message": "dual.proposed",
+        "raw": {
+          "action": "dual.proposed",
+          "outcome": "success",
+          "resource": "/",
+          "kind": "owner",
+          "to": "lee",
+          "not_before": "2026-11-07T09:00:00Z"
+        }
+      }
+    },
+    {
+      "name": "an ordinary privileged request",
+      "match": false,
+      "event": {
+        "source": "aertun/audit",
+        "time": "2026-11-06T09:00:00Z",
+        "received": "2026-11-06T09:00:02Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "aertun",
+          "value": "p_1a2b3c"
+        },
+        "message": "dual.proposed",
+        "raw": {
+          "action": "dual.proposed",
+          "outcome": "success",
+          "resource": "/",
+          "kind": "grant"
+        }
+      }
+    },
+    {
+      "name": "the transfer confirmed a day later",
+      "match": false,
+      "event": {
+        "source": "aertun/audit",
+        "time": "2026-11-07T09:05:00Z",
+        "received": "2026-11-07T09:05:02Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "aertun",
+          "value": "p_1a2b3c"
+        },
+        "message": "dual.approved",
+        "raw": {
+          "action": "dual.approved",
+          "outcome": "success",
+          "resource": "/",
+          "kind": "owner"
+        }
+      }
+    }
+  ]
+}

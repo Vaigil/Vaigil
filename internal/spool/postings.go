@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Rashik Adhikari
-// SPDX-FileCopyrightText: 2026 Anthropic PBC
+// SPDX-FileCopyrightText: 2026 Rashik Adhikari
 // SPDX-License-Identifier: Apache-2.0
 
 // The inverted index: whole-value postings over the fields equality-heavy

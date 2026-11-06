@@ -1,17 +1,19 @@
 # Build output
 bin/
-# Anchored to the root, because the binary and the command's source directory
-# now share a name. An unanchored `aeroprove` matches any path segment, so it
-# swallowed cmd/aeroprove/ — git silently refused to add 48 source files, and a
-# commit that deleted cmd/scrivet/ without adding its replacement looked
-# perfectly normal in `git status`.
-/aeroprove
+# Anchored to the root, because each binary and its command's source
+# directory share a name: an unanchored `aertun` would match cmd/aertun/ and
+# git would silently refuse to add the source beside it.
+/aertun
+/aertun-collector
+# The binary this tree was built as before it was renamed, so a stale build
+# left in a working copy is never committed again.
+/vaigil
 *.exe
 
-# A store, which is data and not source. `aeroprove init` makes one in the
+# A store, which is data and not source. `aertun init` makes one in the
 # working directory, so this is the file every contributor would otherwise
 # commit on their first run.
-.aeroprove/
+.aertun/
 
 # What a running site writes beside its store.
 #
@@ -29,14 +31,7 @@ bin/
 # from the one this project ships under and nobody noticed for months.
 *.egg-info/
 
-# Wheels, which have no business here. scripts/agentdojo needs AgentDojo
-# installed to regenerate its corpus, and a `pip download` run in this directory
-# once put thirty-eight megabytes of third-party packages into a commit on a
-# project whose argument is that it has none. Install into a virtual environment
-# instead — scripts/agentdojo/README.md says how.
+# Wheels and Python caches, which have no business in a project whose
+# argument is that it has no third-party code.
 *.whl
 __pycache__/
-
-# built by "make submission"
-submission/
-aeroprove-submission-*.zip

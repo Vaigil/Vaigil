@@ -46,7 +46,7 @@ A container from source
 -----------------------
 
      docker build -t aertun .
-     docker run --rm -v aertun:/srv aertun --root /srv/store init --admin you@example.com
+     docker run --rm -v aertun:/srv aertun --root /srv/store init --owner you@example.com
      docker run -p 8080:8080 -v aertun:/srv aertun
 
 The first command prints the link that adds your passkey; open it once the
@@ -81,9 +81,9 @@ Checking the build
 
      make check
 
-That runs the whole test suite: eighty packages, including several that walk
-this program's own source and fail when a command has no screen or no machine
-interface without a written reason, or declares no privilege.
+That runs the whole test suite: eighty-two packages, including several that
+walk this program's own source and fail when a command has no screen or no
+machine interface without a written reason, or declares no privilege.
 
 A test counts the packages and fails naming the right number when this one is
 wrong.
@@ -92,7 +92,7 @@ wrong.
 A first run
 ===========
 
-     aertun init --admin you@example.com
+     aertun init --owner you@example.com
      aertun serve
 
 Then open the link `init` printed, add a passkey, and follow Get started.

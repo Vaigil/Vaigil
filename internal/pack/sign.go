@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 Anthropic PBC
+// SPDX-FileCopyrightText: 2026 Rashik Adhikari
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -13,6 +13,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -106,29 +107,44 @@ func (k *Key) PublicKey() KeyPublic {
 	}
 }
 
-// KeyID is a short fingerprint of a dual public key: sha256 over the
-// context and both halves, first 16 hex characters.
+// KeyID is a short fingerprint of a dual public key in the content plane's
+// own context. See KeyIDIn.
+func KeyID(pub KeyPublic) (string, error) { return KeyIDIn(signatureContext, pub) }
+
+// KeyIDIn is a short fingerprint of a dual public key within one signing
+// context: sha256 over the context and both halves, first 16 hex characters.
 //
 // Over both, so a pair with one key swapped is a different identity — the
 // same reason internal/audit's KeyID hashes both halves. The context is in
-// the hash so a content key and an audit key that happened to share halves
-// still could not share a name.
-func KeyID(pub KeyPublic) (string, error) {
-	ed, err := base64.StdEncoding.DecodeString(pub.Ed25519)
-	if err != nil || len(ed) != ed25519.PublicKeySize {
-		return "", fmt.Errorf("the Ed25519 public key is not readable base64")
-	}
-	ml, err := base64.StdEncoding.DecodeString(pub.MLDSA65)
+// the hash so the same key halves are a different identity in each domain
+// that signs with them, and a scorecard key, a proof key and a content key
+// never borrow each other's name.
+func KeyIDIn(context string, pub KeyPublic) (string, error) {
+	ed, ml, err := pub.decode()
 	if err != nil {
-		return "", fmt.Errorf("the ML-DSA public key is not readable base64")
+		return "", err
 	}
 	h := sha256.New()
-	h.Write([]byte(signatureContext))
+	h.Write([]byte(context))
 	h.Write([]byte{0})
 	h.Write(ed)
 	h.Write([]byte{0})
 	h.Write(ml)
 	return hex.EncodeToString(h.Sum(nil))[:16], nil
+}
+
+// decode reads both halves of a published key, refusing a half that is
+// not the length its algorithm requires.
+func (pub KeyPublic) decode() (ed, ml []byte, err error) {
+	ed, err = base64.StdEncoding.DecodeString(pub.Ed25519)
+	if err != nil || len(ed) != ed25519.PublicKeySize {
+		return nil, nil, fmt.Errorf("the Ed25519 public key is not readable base64")
+	}
+	ml, err = base64.StdEncoding.DecodeString(pub.MLDSA65)
+	if err != nil {
+		return nil, nil, fmt.Errorf("the ML-DSA public key is not readable base64")
+	}
+	return ed, ml, nil
 }
 
 // signMetadata produces both signatures over a metadata body.
@@ -137,17 +153,9 @@ func (k *Key) signMetadata(body any) (Signature, error) {
 	if err != nil {
 		return Signature{}, err
 	}
-	ed := ed25519.NewKeyFromSeed(k.edSeed)
-	ml, err := mldsa.NewPrivateKey(mldsa.MLDSA65(), k.mlSeed)
+	edSig, mlSig, err := k.DualSign(msg, signatureContext)
 	if err != nil {
-		return Signature{}, fmt.Errorf("the ML-DSA key is unusable: %w", err)
-	}
-	// Deterministic, so signing the same body twice produces the same
-	// bytes — a metadata document is a commitment, and two different
-	// signatures over one body invite the question of which is real.
-	mlSig, err := ml.SignDeterministic(msg, &mldsa.Options{Context: signatureContext})
-	if err != nil {
-		return Signature{}, fmt.Errorf("the ML-DSA signature failed: %w", err)
+		return Signature{}, err
 	}
 	id, err := KeyID(k.PublicKey())
 	if err != nil {
@@ -155,7 +163,7 @@ func (k *Key) signMetadata(body any) (Signature, error) {
 	}
 	return Signature{
 		KeyID:   id,
-		Ed25519: base64.StdEncoding.EncodeToString(ed25519.Sign(ed, msg)),
+		Ed25519: base64.StdEncoding.EncodeToString(edSig),
 		MLDSA65: base64.StdEncoding.EncodeToString(mlSig),
 	}, nil
 }
@@ -206,50 +214,111 @@ func VerifyMetadata(body any, sig Signature, pub KeyPublic) error {
 		return fmt.Errorf("this was signed by key %s and the key trusted "+
 			"here is %s", sig.KeyID, id)
 	}
-	if sig.Ed25519 == "" || sig.MLDSA65 == "" {
-		missing := "neither signature"
-		switch {
-		case sig.Ed25519 != "":
-			missing = "no ML-DSA-65 signature"
-		case sig.MLDSA65 != "":
-			missing = "no Ed25519 signature"
-		}
-		return fmt.Errorf("this metadata carries %s. Both are required: one "+
-			"of them is the half that survives whichever algorithm turns "+
-			"out to be broken", missing)
-	}
 	msg, err := metadataMessage(body)
 	if err != nil {
 		return err
 	}
-	edSig, err := base64.StdEncoding.DecodeString(sig.Ed25519)
+	return DualVerifyBase64(msg, signatureContext, sig.Ed25519, sig.MLDSA65, pub)
+}
+
+// DualVerifyBase64 is DualVerify for signatures carried as base64 text,
+// which is how every document here carries them. A missing half is named
+// in the error, so whoever reads it knows which half to go and find.
+func DualVerifyBase64(msg []byte, context, edB64, mlB64 string, pub KeyPublic) error {
+	if edB64 == "" || mlB64 == "" {
+		missing := "neither signature"
+		switch {
+		case edB64 != "":
+			missing = "no ML-DSA-65 signature"
+		case mlB64 != "":
+			missing = "no Ed25519 signature"
+		}
+		return fmt.Errorf("this document carries %s. Both are required: one "+
+			"of them is the half that survives whichever algorithm turns "+
+			"out to be broken", missing)
+	}
+	edSig, err := base64.StdEncoding.DecodeString(edB64)
 	if err != nil {
 		return fmt.Errorf("the Ed25519 signature is not base64: %w", err)
 	}
-	edKey, err := base64.StdEncoding.DecodeString(pub.Ed25519)
-	if err != nil || len(edKey) != ed25519.PublicKeySize {
-		return fmt.Errorf("the trusted Ed25519 public key is unreadable")
-	}
-	if !ed25519.Verify(ed25519.PublicKey(edKey), msg, edSig) {
-		return fmt.Errorf("the Ed25519 signature does not verify")
-	}
-	mlSig, err := base64.StdEncoding.DecodeString(sig.MLDSA65)
+	mlSig, err := base64.StdEncoding.DecodeString(mlB64)
 	if err != nil {
 		return fmt.Errorf("the ML-DSA signature is not base64: %w", err)
 	}
-	mlKey, err := base64.StdEncoding.DecodeString(pub.MLDSA65)
+	return DualVerify(msg, context, edSig, mlSig, pub)
+}
+
+// DualVerify checks both signatures DualSign made over exact bytes in a
+// caller-named context. Both, always, and in the same order every time,
+// so no caller can build a verifier that accepts one: the Ed25519 half
+// over the bytes, then the ML-DSA-65 half over the same bytes in the
+// context. The context binds the ML-DSA half to its domain; callers bind
+// the Ed25519 half by putting the context, or an encoding that cannot
+// collide with another domain's, inside the bytes themselves.
+func DualVerify(msg []byte, context string, edSig, mlSig []byte, pub KeyPublic) error {
+	edKey, mlKey, err := pub.decode()
 	if err != nil {
-		return fmt.Errorf("the trusted ML-DSA public key is not base64")
+		return fmt.Errorf("the trusted key is unreadable: %w", err)
+	}
+	if len(edSig) != ed25519.SignatureSize ||
+		!ed25519.Verify(ed25519.PublicKey(edKey), msg, edSig) {
+		return fmt.Errorf("the Ed25519 signature does not verify")
 	}
 	mlPub, err := mldsa.NewPublicKey(mldsa.MLDSA65(), mlKey)
 	if err != nil {
 		return fmt.Errorf("the trusted ML-DSA public key is unreadable: %w", err)
 	}
 	if err := mldsa.Verify(mlPub, msg, mlSig, &mldsa.Options{
-		Context: signatureContext}); err != nil {
+		Context: context}); err != nil {
 		return fmt.Errorf("the ML-DSA-65 signature does not verify: %w", err)
 	}
 	return nil
+}
+
+// MaxPublicKeyFile bounds a published public key file. Both halves in
+// base64 are under three kilobytes; anything far larger is not one.
+const MaxPublicKeyFile = 64 << 10
+
+// LoadPublicKey reads a published dual public key — the file a verifier is
+// handed, holding both halves and no secrets — refusing one that carries
+// only half, or halves of the wrong length.
+func LoadPublicKey(path string) (KeyPublic, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return KeyPublic{}, err
+	}
+	defer f.Close()
+	body, err := io.ReadAll(io.LimitReader(f, MaxPublicKeyFile+1))
+	if err != nil {
+		return KeyPublic{}, err
+	}
+	if len(body) > MaxPublicKeyFile {
+		return KeyPublic{}, fmt.Errorf("%s is larger than any public key file", path)
+	}
+	var pub KeyPublic
+	if err := json.Unmarshal(body, &pub); err != nil {
+		return KeyPublic{}, fmt.Errorf("%s is not a public key file: %w", path, err)
+	}
+	if pub.Ed25519 == "" || pub.MLDSA65 == "" {
+		return KeyPublic{}, fmt.Errorf("%s carries only half a dual key. A "+
+			"verifier needs both halves: one of them is the half that "+
+			"survives whichever algorithm turns out to be broken", path)
+	}
+	if _, _, err := pub.decode(); err != nil {
+		return KeyPublic{}, fmt.Errorf("%s: %w", path, err)
+	}
+	return pub, nil
+}
+
+// WritePublicKey writes a published dual public key, for the operator who
+// hands a verifier something to verify with. It holds no secret, so it is
+// written world-readable, and atomically, so a verifier never reads half.
+func WritePublicKey(path string, pub KeyPublic) error {
+	body, err := json.MarshalIndent(pub, "", "  ")
+	if err != nil {
+		return err
+	}
+	return atomicfile.Write(path, append(body, '\n'), 0o644)
 }
 
 // StoredKey is a key file on disk: two seeds, base64. The release key's

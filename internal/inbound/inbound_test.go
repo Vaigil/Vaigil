@@ -213,3 +213,21 @@ func TestOktaEventsThatMeanSomethingBecomeSignals(t *testing.T) {
 		t.Error("Okta signals are weighed wrongly")
 	}
 }
+
+// A delivery recorded as seen and then not taken is forgotten, so the
+// sender's retry is taken rather than answered as a duplicate and lost.
+func TestAForgottenDeliveryIsTakenOnRetry(t *testing.T) {
+	s := &Seen{}
+	now := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	if !s.First("okta:evt-1", now) {
+		t.Fatal("a new id was not first")
+	}
+	s.Forget("okta:evt-1")
+	if !s.First("okta:evt-1", now.Add(time.Second)) {
+		t.Error("a forgotten id was answered as a duplicate")
+	}
+	if s.First("okta:evt-1", now.Add(2*time.Second)) {
+		t.Error("an id taken twice")
+	}
+	s.Forget("never-seen") // forgetting what was never seen is harmless
+}

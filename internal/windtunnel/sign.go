@@ -1,18 +1,12 @@
-// SPDX-FileCopyrightText: 2026 Anthropic PBC
+// SPDX-FileCopyrightText: 2026 Rashik Adhikari
 //
 // SPDX-License-Identifier: Apache-2.0
 
 package windtunnel
 
 import (
-	"crypto/ed25519"
-	"crypto/mldsa"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/aertun/aertun/internal/pack"
 )
@@ -52,27 +46,12 @@ type ScorecardSignature struct {
 	MLDSA65 string `json:"mldsa_65"`
 }
 
-// ScorecardKeyID is a short fingerprint of a dual public key: sha256 over
-// this context and both halves, first 16 hex characters — pack.KeyID's
-// recipe over this domain, so the same key halves are a different identity
-// here than they are in the content plane, and neither borrows the other's
-// name.
+// ScorecardKeyID is a short fingerprint of a dual public key in this
+// domain — pack.KeyIDIn over the scorecard context, so the same key halves
+// are a different identity here than they are in the content plane, and
+// neither borrows the other's name.
 func ScorecardKeyID(pub pack.KeyPublic) (string, error) {
-	ed, err := base64.StdEncoding.DecodeString(pub.Ed25519)
-	if err != nil || len(ed) != ed25519.PublicKeySize {
-		return "", fmt.Errorf("the Ed25519 public key is not readable base64")
-	}
-	ml, err := base64.StdEncoding.DecodeString(pub.MLDSA65)
-	if err != nil {
-		return "", fmt.Errorf("the ML-DSA public key is not readable base64")
-	}
-	h := sha256.New()
-	h.Write([]byte(ScorecardContext))
-	h.Write([]byte{0})
-	h.Write(ed)
-	h.Write([]byte{0})
-	h.Write(ml)
-	return hex.EncodeToString(h.Sum(nil))[:16], nil
+	return pack.KeyIDIn(ScorecardContext, pub)
 }
 
 // scorecardMessage is the exact bytes both algorithms sign: the context, a
@@ -118,8 +97,9 @@ func SignScorecard(card *Scorecard, k *pack.Key) (ScorecardSignature, error) {
 }
 
 // VerifyScorecard checks both signatures over a sealed document against a
-// dual public key. Both, always: a signature carrying one half is refused
-// with its name in the error, and there is no option to accept one.
+// dual public key. Both, always: pack.DualVerifyBase64 refuses a signature
+// carrying one half with its name in the error, and there is no option to
+// accept one.
 func VerifyScorecard(card *Scorecard, sig ScorecardSignature,
 	pub pack.KeyPublic) error {
 
@@ -131,18 +111,6 @@ func VerifyScorecard(card *Scorecard, sig ScorecardSignature,
 		return fmt.Errorf("this was signed by key %s and the key trusted "+
 			"here is %s", sig.KeyID, id)
 	}
-	if sig.Ed25519 == "" || sig.MLDSA65 == "" {
-		missing := "neither signature"
-		switch {
-		case sig.Ed25519 != "":
-			missing = "no ML-DSA-65 signature"
-		case sig.MLDSA65 != "":
-			missing = "no Ed25519 signature"
-		}
-		return fmt.Errorf("this scorecard carries %s. Both are required: one "+
-			"of them is the half that survives whichever algorithm turns "+
-			"out to be broken", missing)
-	}
 	if card.SHA256 == "" {
 		return fmt.Errorf("the scorecard is not sealed, so what a signature " +
 			"would verify against is undefined")
@@ -151,63 +119,5 @@ func VerifyScorecard(card *Scorecard, sig ScorecardSignature,
 	if err != nil {
 		return err
 	}
-	edSig, err := base64.StdEncoding.DecodeString(sig.Ed25519)
-	if err != nil {
-		return fmt.Errorf("the Ed25519 signature is not base64: %w", err)
-	}
-	edKey, err := base64.StdEncoding.DecodeString(pub.Ed25519)
-	if err != nil || len(edKey) != ed25519.PublicKeySize {
-		return fmt.Errorf("the trusted Ed25519 public key is unreadable")
-	}
-	if !ed25519.Verify(ed25519.PublicKey(edKey), msg, edSig) {
-		return fmt.Errorf("the Ed25519 signature does not verify")
-	}
-	mlSig, err := base64.StdEncoding.DecodeString(sig.MLDSA65)
-	if err != nil {
-		return fmt.Errorf("the ML-DSA signature is not base64: %w", err)
-	}
-	mlKey, err := base64.StdEncoding.DecodeString(pub.MLDSA65)
-	if err != nil {
-		return fmt.Errorf("the trusted ML-DSA public key is not base64")
-	}
-	mlPub, err := mldsa.NewPublicKey(mldsa.MLDSA65(), mlKey)
-	if err != nil {
-		return fmt.Errorf("the trusted ML-DSA public key is unreadable: %w",
-			err)
-	}
-	if err := mldsa.Verify(mlPub, msg, mlSig, &mldsa.Options{
-		Context: ScorecardContext}); err != nil {
-		return fmt.Errorf("the ML-DSA-65 signature does not verify: %w", err)
-	}
-	return nil
-}
-
-// LoadPublicKey reads a published dual public key — the file a verifier is
-// handed, holding both halves and no secrets.
-func LoadPublicKey(path string) (pack.KeyPublic, error) {
-	body, err := os.ReadFile(path)
-	if err != nil {
-		return pack.KeyPublic{}, err
-	}
-	var pub pack.KeyPublic
-	if err := json.Unmarshal(body, &pub); err != nil {
-		return pack.KeyPublic{}, fmt.Errorf("%s is not a public key file: %w",
-			path, err)
-	}
-	if pub.Ed25519 == "" || pub.MLDSA65 == "" {
-		return pack.KeyPublic{}, fmt.Errorf("%s carries only half a dual "+
-			"key. A verifier needs both halves: one of them is the half "+
-			"that survives whichever algorithm turns out to be broken", path)
-	}
-	return pub, nil
-}
-
-// WritePublicKey writes a published dual public key, for the operator who
-// hands a verifier something to verify with.
-func WritePublicKey(path string, pub pack.KeyPublic) error {
-	body, err := json.MarshalIndent(pub, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, append(body, '\n'), 0o644)
+	return pack.DualVerifyBase64(msg, ScorecardContext, sig.Ed25519, sig.MLDSA65, pub)
 }

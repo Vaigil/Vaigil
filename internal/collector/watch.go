@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Rashik Adhikari
-// SPDX-FileCopyrightText: 2026 Anthropic PBC
+// SPDX-FileCopyrightText: 2026 Rashik Adhikari
 // SPDX-License-Identifier: Apache-2.0
 
 package collector
@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -66,6 +67,7 @@ type watchedFile struct {
 	mtime int64
 	sha   string
 	kind  string
+	typ   string
 }
 
 // Change is one thing that happened to one watched path.
@@ -75,6 +77,11 @@ type Change struct {
 	Op     string // created, changed, removed
 	SHA256 string
 	Size   int64
+	// Type is empty for a regular file, and otherwise names what the path
+	// has become — a fifo, a device, a socket. Nothing is read from those,
+	// and a watched file replaced by one is the change worth seeing: it is
+	// how a recorder that hashes what it watches would be made to stall.
+	Type string
 }
 
 // Ops.
@@ -201,12 +208,29 @@ func (w *Watch) one(path, kind string) []Change {
 		return nil
 	}
 	prev, known := w.state[key]
-	// The cheap signals first: size and mtime decide whether hashing — the
-	// only part that reads content — is worth doing at all.
-	if known && prev.size == info.Size() && prev.mtime == info.ModTime().UnixNano() {
+	if info.IsDir() {
+		// A directory inside a watched one is not a file, and its own
+		// contents are listed when its entry says so.
 		return nil
 	}
-	sha := hashFile(path)
+	if typ := fileType(info.Mode()); typ != "" {
+		if known && prev.typ == typ {
+			return nil
+		}
+		w.state[key] = watchedFile{mtime: info.ModTime().UnixNano(), kind: kind, typ: typ}
+		op := OpChanged
+		if !known {
+			op = OpCreated
+		}
+		return []Change{{Path: path, Kind: kind, Op: op, Type: typ}}
+	}
+	// The cheap signals first: size and mtime decide whether hashing — the
+	// only part that reads content — is worth doing at all.
+	if known && prev.typ == "" && prev.size == info.Size() &&
+		prev.mtime == info.ModTime().UnixNano() {
+		return nil
+	}
+	sha := hashFile(path, info)
 	if sha == "" {
 		w.once(path, "cannot hash %s; it is watched but not readable", path)
 		return nil
@@ -220,24 +244,55 @@ func (w *Watch) one(path, kind string) []Change {
 	}
 	// A touch — new mtime, same content — is not a change. Content is the
 	// truth; the metadata was only the hint that looking was due.
-	if prev.sha == sha && prev.size == info.Size() {
+	if prev.typ == "" && prev.sha == sha && prev.size == info.Size() {
 		return nil
 	}
 	return []Change{{Path: path, Kind: kind, Op: OpChanged,
 		SHA256: sha, Size: info.Size()}}
 }
 
+// MaxHashed bounds how much of one file a poll reads. A watched file is a
+// configuration file, a key, a script; past this the digest covers the
+// first MaxHashed bytes and the size covers the rest, so a file grown to
+// terabytes costs one bounded read rather than the recorder's afternoon.
+const MaxHashed = 64 << 20
+
+// fileType names a path that is not a regular file, or returns "" for one
+// that is. Directories are handled before this is asked.
+func fileType(m os.FileMode) string {
+	switch {
+	case m.IsRegular():
+		return ""
+	case m&os.ModeNamedPipe != 0:
+		return "fifo"
+	case m&os.ModeSocket != 0:
+		return "socket"
+	case m&os.ModeDevice != 0 || m&os.ModeCharDevice != 0:
+		return "device"
+	default:
+		return "irregular"
+	}
+}
+
 // hashFile is the one place content is read, and it leaves with only a
-// digest. Streamed, not slurped: a watched file can be a large one and the
-// rule is the same at any size.
-func hashFile(path string) string {
-	f, err := os.Open(path)
+// digest. Streamed, not slurped, and bounded by MaxHashed.
+//
+// The file is opened without blocking and checked to be the regular file
+// that was stat'd: a path swapped for a fifo between the stat and the open
+// would otherwise block the open until somebody wrote to it, and the
+// recorder with it.
+func hashFile(path string, stat os.FileInfo) string {
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return ""
 	}
 	defer f.Close()
+	opened, err := f.Stat()
+	if err != nil || !opened.Mode().IsRegular() || !os.SameFile(stat, opened) {
+		return ""
+	}
 	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
+	if _, err := io.CopyN(h, f, MaxHashed); err != nil && err != io.EOF {
 		return ""
 	}
 	return hex.EncodeToString(h.Sum(nil))
@@ -258,11 +313,15 @@ func (w *Watch) Records(now time.Time) []map[string]any {
 	changes := w.Poll()
 	out := make([]map[string]any, 0, len(changes))
 	for _, c := range changes {
-		out = append(out, map[string]any{
+		rec := map[string]any{
 			"path": c.Path, "kind": c.Kind, "op": c.Op,
 			"sha256": c.SHA256, "size": strconv.FormatInt(c.Size, 10),
 			"host": w.Host,
-		})
+		}
+		if c.Type != "" {
+			rec["type"] = c.Type
+		}
+		out = append(out, rec)
 	}
 	return out
 }

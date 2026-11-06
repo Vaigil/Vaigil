@@ -4,6 +4,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -49,4 +50,34 @@ func asOnly(t *testing.T, root, who string) {
 		t.Fatal(err)
 	}
 	t.Setenv("AERTUN_TOKEN", secret)
+}
+
+// An agent acting for the only administrator may not approve a privileged
+// change, even after the delay that lets the administrator approve it
+// alone: otherwise an agent would ask, wait, and approve in their name.
+func TestAnAgentNeverApprovesAPrivilegedChange(t *testing.T) {
+	windtunnelOutput(t)
+	root := t.TempDir()
+	seedPolicy(t, root, [2]string{"dana", "admin"})
+	register(t, root, "helper", "aertun_read")
+	_, agentSecret := agentToken(t, root, "helper", "dana", auth.RoleAdmin)
+	long := time.Now().Add(-2 * time.Hour)
+	r, err := dualStore(root).Propose(dual.Setting, "weaken x", dual.SettingChange{Key: "x", Value: "y"},
+		"", "dana", true, long)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AERTUN_TOKEN", agentSecret)
+	if err := cmdPending(root, []string{"approve", r.ID}); err == nil ||
+		!strings.Contains(err.Error(), "approved by a person, never by an agent") {
+		t.Fatalf("an agent approved a privileged change: %v", err)
+	}
+	if got, _ := dualStore(root).Get(r.ID); got.State != dual.Waiting {
+		t.Fatalf("the request moved: %+v", got)
+	}
+	// The person it acts for may, now the delay has passed.
+	asOnly(t, root, "dana")
+	if _, err := dualStore(root).Decide(r.ID, "dana", true, onlyAdministrator(root, "dana"), time.Now()); err != nil {
+		t.Errorf("the only administrator, after the delay: %v", err)
+	}
 }

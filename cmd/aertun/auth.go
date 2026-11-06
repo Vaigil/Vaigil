@@ -158,6 +158,8 @@ func cmdAuth(root string, args []string) error {
 		return authExplain(root, args[1:])
 	case "roles":
 		return authRoles(root)
+	case "owner":
+		return authOwner(root, args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown auth command %q\n\n", args[0])
 		return authUsage()
@@ -167,38 +169,49 @@ func cmdAuth(root string, args []string) error {
 func authUsage() error {
 	fmt.Print(`aertun auth — who can do what
 
-  grant <principal> <role|permission|job|APP/ROLE> [--on /path] [--note "..."]
+  owner                                      who owns this store
+  owner transfer <principal> [--note "..."]  pass ownership on: confirmed by the Owner a day later
+  grant <principal> <role|permission|job> [--on /path] [--for 30d] [--note "..."]
   deny <principal> <role|permission> [--on /path] [--note "..."]
-  revoke <principal> <role|permission|job|APP/ROLE> [--on /path]
+  revoke <principal> <role|permission|job> [--on /path]
   list
   enrol <principal> [--for 24h] [--revoke]   a one-time link that adds their passkey
   unlock <principal>                         let them sign in again after a lockout
   explain <principal> <action> [--on /path]
   roles
 
-Four roles, in order. Each includes the ones below it:
+A store starts with one person, its Owner (aertun init --owner NAME). Everybody
+else is a collaborator: grant them a role, then send them the link enrol prints.
+The Owner always administers the whole store; nobody can revoke, deny or expire
+that, and it changes only by a transfer the Owner confirms a day after asking.
+
+Four roles for collaborators, in order. Each includes the ones below it:
 
 `)
 	for _, r := range auth.Roles {
 		fmt.Printf("  %-10s %s\n", r, r.Describe())
 	}
 	fmt.Print(`
-Permissions for working with agents, each also granted on its own. Agents are
-/@agents, one agent /@agents/NAME:
+Permissions that can also be granted on their own, without the role that
+otherwise carries them:
 
 `)
 	for _, pm := range auth.Permissions {
 		need, _ := auth.Needs(pm.Action)
-		fmt.Printf("  %-17s %s (with the %s role already)\n", pm.Action, pm.Summary, need)
+		fmt.Printf("  %-17s %s (otherwise with the %s role)\n", pm.Action, pm.Summary, need)
 	}
 	fmt.Print(`
-An installed feature can declare roles for the people who work in it, over
-its own records, pages and agents: grant lab-samples/technician gives somebody
-what that role grants, and nothing else. aertun auth roles lists them.
+Jobs bundle a permission with what it needs to be useful, for a kind of work
+rather than more of it:
 
-A grant on /blog covers everything under it. A deny wins wherever it sits, so
-"publisher everywhere except /legal" is two bindings rather than a broad grant
-you meant to narrow later.
+`)
+	for _, j := range auth.Jobs {
+		fmt.Printf("  %-17s %s\n", j.Name, j.Summary)
+	}
+	fmt.Print(`
+A grant on /@security covers that area and nothing else; a grant on / covers
+everything except the audit log (/@log), which only administrators and those
+granted it there read. A deny wins wherever it sits.
 `)
 	return nil
 }
@@ -447,6 +460,9 @@ func authList(root string) error {
 	p, err := loadPolicy(root)
 	if err != nil {
 		return err
+	}
+	if owner := p.OwnerName(); owner != "" {
+		fmt.Printf("  owner: %s, who always administers the whole store\n\n", owner)
 	}
 	if len(p.Bindings) == 0 {
 		fmt.Println("no bindings; nobody has access")

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 Anthropic PBC
+// SPDX-FileCopyrightText: 2026 Rashik Adhikari
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -225,7 +225,7 @@ func TestWindtunnelVerifyIsOfflineStoreFreeAndRefusesForgeries(t *testing.T) {
 		t.Fatal(err)
 	}
 	foreignPub := filepath.Join(work, "foreign-pub.json")
-	if err := windtunnel.WritePublicKey(foreignPub, foreign.PublicKey()); err != nil {
+	if err := pack.WritePublicKey(foreignPub, foreign.PublicKey()); err != nil {
 		t.Fatal(err)
 	}
 	err = cmdWindtunnel(root, []string{"verify", "--key", foreignPub, card})

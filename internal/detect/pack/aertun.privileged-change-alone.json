@@ -1,0 +1,106 @@
+{
+  "id": "aertun.privileged-change-alone",
+  "title": "The only administrator asked for a privileged change they will approve alone",
+  "why": "a lone administrator's request waits before they may approve it themselves, so the owner of that account has time to see it and decline it; a stolen session starts a takeover exactly this way",
+  "blind": "changes made on the machine itself, outside aertun, and requests by a second administrator, which another person has to approve",
+  "sources": [
+    "aertun/audit"
+  ],
+  "severity": 3,
+  "when": {
+    "all": [
+      {
+        "match": {
+          "field": "raw.action",
+          "op": "equals",
+          "values": [
+            "dual.proposed"
+          ]
+        }
+      },
+      {
+        "match": {
+          "field": "raw.alone",
+          "op": "equals",
+          "values": [
+            "true"
+          ]
+        }
+      }
+    ]
+  },
+  "technique": [
+    "T1098"
+  ],
+  "fixtures": [
+    {
+      "name": "a lone administrator asks to make somebody an administrator",
+      "match": true,
+      "event": {
+        "source": "aertun/audit",
+        "time": "2026-11-06T09:00:00Z",
+        "received": "2026-11-06T09:00:02Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "aertun",
+          "value": "p_1a2b3c"
+        },
+        "message": "dual.proposed",
+        "raw": {
+          "action": "dual.proposed",
+          "outcome": "success",
+          "resource": "/",
+          "kind": "grant",
+          "alone": "true",
+          "not_before": "2026-11-06T10:00:00Z"
+        }
+      }
+    },
+    {
+      "name": "a request a second administrator will decide",
+      "match": false,
+      "event": {
+        "source": "aertun/audit",
+        "time": "2026-11-06T09:00:00Z",
+        "received": "2026-11-06T09:00:02Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "aertun",
+          "value": "p_1a2b3c"
+        },
+        "message": "dual.proposed",
+        "raw": {
+          "action": "dual.proposed",
+          "outcome": "success",
+          "resource": "/",
+          "kind": "grant"
+        }
+      }
+    },
+    {
+      "name": "the request approved after its delay",
+      "match": false,
+      "event": {
+        "source": "aertun/audit",
+        "time": "2026-11-06T10:05:00Z",
+        "received": "2026-11-06T10:05:02Z",
+        "class": 6003,
+        "disposition": 1,
+        "actor": {
+          "issuer": "aertun",
+          "value": "p_1a2b3c"
+        },
+        "message": "dual.approved",
+        "raw": {
+          "action": "dual.approved",
+          "outcome": "success",
+          "resource": "/",
+          "kind": "grant",
+          "alone": "true"
+        }
+      }
+    }
+  ]
+}

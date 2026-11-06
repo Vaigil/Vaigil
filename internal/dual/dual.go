@@ -10,9 +10,18 @@
 // moving the audit log are each something one person, or whoever has their
 // session, could do to take a store over or to hide that they had. So one
 // administrator proposes and another approves, and the request records
-// both. A store with one administrator is not left unable to change
-// anything: their own request is applied as they make it, and the record
-// says it was approved alone.
+// both.
+//
+// A store with one administrator is not left unable to change anything,
+// and is not left open to whoever holds that administrator's session
+// either. Their own request waits — an hour, a day to move the audit log —
+// announced in the audit log, where the self-watch rules raise it at once;
+// anybody with a session may decline it while it waits, and declining
+// always wins. Only after the delay may they approve it themselves, and
+// the record says it was approved alone. A stolen session can start a
+// takeover; it cannot finish one before somebody has had the chance to
+// notice. This is the solo half of NIST SP 800-53 AC-5: separation of
+// duties held in time when it cannot be held between people.
 //
 // The store keeps the request, not the change: what applying a request
 // does is its caller's, by kind, because the changes live in different
@@ -46,7 +55,17 @@ const (
 	Setting = "setting"
 	// AuditLog is the audit log moved to another directory.
 	AuditLog = "auditlog"
+	// Owner is the store's ownership passed to somebody (auth.Policy's
+	// Owner). Only whoever asked approves it, and only a day after asking:
+	// it is the one change that cannot be undone by the person it is
+	// taken from.
+	Owner = "owner"
 )
+
+// OwnerChange names who is to be the Owner.
+type OwnerChange struct {
+	To string `json:"to"`
+}
 
 // GrantChange is a Grant request: bindings granted together.
 type GrantChange struct {
@@ -101,6 +120,17 @@ const (
 	Redeem = 24 * time.Hour
 )
 
+// SoloDelay is how long a request must wait before the administrator who
+// made it may approve it alone. An hour is long enough for an alert to
+// reach somebody and short enough not to stop an owner working; moving the
+// audit log — the change that hides every other change — waits a day.
+func SoloDelay(kind string) time.Duration {
+	if kind == AuditLog || kind == Owner {
+		return 24 * time.Hour
+	}
+	return time.Hour
+}
+
 // The states a request is in.
 const (
 	Waiting   = "waiting"
@@ -127,6 +157,20 @@ type Request struct {
 	DecidedBy string    `json:"decided_by,omitempty"`
 	DecidedAt time.Time `json:"decided_at,omitzero"`
 	Alone     bool      `json:"alone,omitempty"`
+	// NotBefore is set on a request made by the only administrator: the
+	// moment from which they may approve it themselves.
+	NotBefore time.Time `json:"not_before,omitzero"`
+}
+
+// AloneFrom is when the proposer may approve this request without a
+// second administrator: NotBefore when it was made alone, and otherwise
+// the same delay counted from when it was made, for a request whose other
+// administrators have since gone.
+func (r Request) AloneFrom() time.Time {
+	if !r.NotBefore.IsZero() {
+		return r.NotBefore
+	}
+	return r.At.Add(SoloDelay(r.Kind))
 }
 
 // Open reports whether a request still waits for a decision at now.
@@ -152,7 +196,8 @@ type Store struct {
 var ErrNoRequest = errors.New("there is no such request")
 
 // Propose records a request. alone says the proposer is the only
-// administrator, so it is decided as it is made, done, for them to apply.
+// administrator, so the request carries the moment from which they may
+// approve it themselves (SoloDelay).
 func (s Store) Propose(kind, what string, payload any, why, by string, alone bool, now time.Time) (Request, error) {
 	if strings.TrimSpace(by) == "" {
 		return Request{}, errors.New("a request is somebody's: nobody was named")
@@ -167,8 +212,8 @@ func (s Store) Propose(kind, what string, payload any, why, by string, alone boo
 	}
 	r := Request{ID: hex.EncodeToString(id), Kind: kind, What: what, Payload: raw,
 		Why: strings.TrimSpace(why), By: by, At: now.UTC(), State: Waiting}
-	if alone {
-		r.State, r.DecidedBy, r.DecidedAt, r.Alone = Done, by, now.UTC(), true
+	if alone || kind == Owner {
+		r.NotBefore = now.UTC().Add(SoloDelay(kind))
 	}
 	err = atomicfile.Update(s.Path, func(f *file) error {
 		f.Requests = append(prune(f.Requests, now), r)
@@ -177,10 +222,11 @@ func (s Store) Propose(kind, what string, payload any, why, by string, alone boo
 	return r, err
 }
 
-// Decide approves or declines a waiting request. Nobody decides their own,
-// unless alone says they are the only administrator. An approved token
-// waits for whoever asked to redeem it; anything else approved is done,
-// for the approver to apply.
+// Decide approves or declines a waiting request. Anybody may decline one.
+// Nobody approves their own, unless alone says they are the only
+// administrator and the request's delay has passed (AloneFrom). An
+// approved token waits for whoever asked to redeem it; anything else
+// approved is done, for the approver to apply.
 func (s Store) Decide(id, by string, approve, alone bool, now time.Time) (Request, error) {
 	var out Request
 	err := atomicfile.Update(s.Path, func(f *file) error {
@@ -191,8 +237,29 @@ func (s Store) Decide(id, by string, approve, alone bool, now time.Time) (Reques
 		if !r.Open(now) {
 			return fmt.Errorf("request %s is %s, not waiting", r.ID, stateWords(*r, now))
 		}
-		if approve && strings.EqualFold(r.By, by) && !alone {
-			return fmt.Errorf("request %s is yours: another administrator approves it", r.ID)
+		if approve && r.Kind == Owner {
+			// Ownership is confirmed by whoever asked for it to move — the
+			// Owner, or on a store with none the administrator claiming
+			// it — after the day's wait. Nobody else can make it happen;
+			// anybody can stop it.
+			if !strings.EqualFold(r.By, by) {
+				return fmt.Errorf("request %s moves the store's ownership: %s, "+
+					"who asked, confirms it; anybody may decline it", r.ID, r.By)
+			}
+			if from := r.AloneFrom(); now.Before(from) {
+				return fmt.Errorf("request %s moves the store's ownership and may be "+
+					"confirmed from %s; until then it can only be declined",
+					r.ID, from.UTC().Format("15:04 MST on 2 Jan"))
+			}
+		} else if approve && strings.EqualFold(r.By, by) {
+			if !alone {
+				return fmt.Errorf("request %s is yours: another administrator approves it", r.ID)
+			}
+			if from := r.AloneFrom(); now.Before(from) {
+				return fmt.Errorf("request %s is yours and you are the only administrator: "+
+					"you may approve it from %s, and until then it can only be declined",
+					r.ID, from.UTC().Format("15:04 MST on 2 Jan"))
+			}
 		}
 		r.DecidedBy, r.DecidedAt = by, now.UTC()
 		r.Alone = alone && strings.EqualFold(r.By, by)
@@ -289,6 +356,9 @@ func stateWords(r Request, now time.Time) string {
 	switch {
 	case r.State == Waiting && !r.Open(now):
 		return "expired"
+	case r.State == Waiting && !r.NotBefore.IsZero() && now.Before(r.NotBefore):
+		return "waiting until " + r.NotBefore.UTC().Format("15:04 MST on 2 Jan") +
+			", when " + r.By + " may approve it alone; it can be declined before then"
 	case r.State == Approved && !r.Redeemable(now):
 		return "approved and never used"
 	case r.State == Approved:

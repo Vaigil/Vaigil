@@ -202,6 +202,19 @@ var coverage = map[string]surfaces{
 			"agent generates about the controls that watch it is the one " +
 			"nobody should be able to hand somebody",
 	},
+	// Proofs: a claim about a detection checked against evidence its author
+	// did not write, and signed whatever the verdict.
+	"proof": {
+		Why: "a proof is a file that carries its own signatures and is " +
+			"checked where the work is used — in CI, by a reviewer, by " +
+			"whoever was handed the rule; the screen worth building is the " +
+			"ledger of proofs per author, which arrives when agents submit " +
+			"claims through the store rather than the command line",
+		NoMCP: "the first cut signs with a key file named on the command " +
+			"line, and an MCP server must never hold a signing key on a " +
+			"caller's behalf; agents will submit claims to a queue the " +
+			"store's own key signs from, with the claim's author recorded",
+	},
 	"action": {GUI: "/security/cases",
 		Why: "an action is asked for and approved on the incident's page; " +
 			"installing one and giving it a credential are the operator's",

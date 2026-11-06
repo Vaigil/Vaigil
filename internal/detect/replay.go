@@ -4,7 +4,10 @@
 package detect
 
 import (
+	"bufio"
+	"encoding/json"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 
@@ -64,6 +67,35 @@ func (l Labelled) Validate() error {
 			"pending is for a false positive not yet fixed", l.Name)
 	}
 	return nil
+}
+
+// MaxCorpusLine bounds one corpus entry.
+const MaxCorpusLine = 256 << 10
+
+// ParseCorpus reads a corpus: one Labelled per line, blank lines skipped,
+// every line under MaxCorpusLine. An error names the line, so the entry
+// somebody has to fix is the one the message points at.
+func ParseCorpus(r io.Reader) ([]Labelled, error) {
+	var out []Labelled
+	sc := bufio.NewScanner(r)
+	sc.Buffer(make([]byte, 0, 64<<10), MaxCorpusLine)
+	n := 0
+	for sc.Scan() {
+		n++
+		line := strings.TrimSpace(sc.Text())
+		if line == "" {
+			continue
+		}
+		var l Labelled
+		if err := json.Unmarshal([]byte(line), &l); err != nil {
+			return nil, fmt.Errorf("line %d: %w", n, err)
+		}
+		out = append(out, l)
+	}
+	if err := sc.Err(); err != nil {
+		return nil, fmt.Errorf("line %d: %w", n+1, err)
+	}
+	return out, nil
 }
 
 // Outcome is how one rule did over the corpus.

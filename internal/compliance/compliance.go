@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 Anthropic PBC
+// SPDX-FileCopyrightText: 2026 Rashik Adhikari
 // SPDX-License-Identifier: Apache-2.0
 
 // Package compliance holds the mapping between what this program is and does

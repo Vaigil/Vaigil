@@ -21,7 +21,7 @@ sudo install -m 0755 bin/aertun /usr/local/bin/aertun
 ## 3. The store and the first administrator
 
 ```bash
-sudo -u aertun aertun --root /srv/aertun/store init --admin you@example.com
+sudo -u aertun aertun --root /srv/aertun/store init --owner you@example.com
 ```
 
 It prints a one-time link that adds your passkey. Open it once the console is

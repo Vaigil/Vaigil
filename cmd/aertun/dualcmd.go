@@ -24,9 +24,11 @@ func dualStore(root string) *dual.Store {
 }
 
 // proposeSecond records a privileged change for a second administrator.
-// It reports whether the caller should apply it now: true when the caller
-// is the only administrator, whose request is approved as it is made;
-// false when it waits, and the person has been told how it is approved.
+// It reports whether the caller should apply it now, which it never does:
+// a request waits for another administrator, or, made by the only one, for
+// its delay (dual.SoloDelay), and the person is told which and how it is
+// approved. The boolean stays so a caller's shape does not depend on who
+// else administers the store.
 func proposeSecond(root string, c *Caller, kind, what string, payload any, why string) (bool, error) {
 	alone := onlyAdministrator(root, c.Name)
 	r, err := dualStore(root).Propose(kind, what, payload, why, c.Name, alone, time.Now())
@@ -36,17 +38,19 @@ func proposeSecond(root string, c *Caller, kind, what string, payload any, why s
 	detail := map[string]string{"request": r.ID, "kind": kind, "what": what}
 	if alone {
 		detail["alone"] = "true"
-		if err := recordE(root, c.auditRecord("dual.approved", "/", audit.Success, detail)); err != nil {
-			return false, err
-		}
-		w.Human("%syou are the only administrator, so this is approved as you make it; the record says so%s\n",
-			yellow, reset)
-		return true, nil
+		detail["not_before"] = r.NotBefore.UTC().Format(time.RFC3339)
 	}
 	if err := recordE(root, c.auditRecord("dual.proposed", "/", audit.Success, detail)); err != nil {
 		return false, err
 	}
 	if w.JSON(r) {
+		return false, nil
+	}
+	if alone {
+		w.Human("%syou are the only administrator%s, so %s waits until %s (request %s)\n",
+			yellow, reset, what, r.NotBefore.UTC().Format("15:04 MST on 2 Jan"), r.ID)
+		w.Human("  %sthen approve it yourself with aertun pending approve %s; until then any administrator's session can decline it%s\n",
+			dim, r.ID, reset)
 		return false, nil
 	}
 	w.Human("%swaiting for a second administrator%s: %s (request %s)\n", yellow, reset, what, r.ID)
@@ -95,6 +99,12 @@ func applyDual(root string, r dual.Request, by string) error {
 		record(root, resolveCaller(root, "").auditRecord("auditlog.dir", "/", audit.Success,
 			map[string]string{"from": auditDir(root), "to": ch.Dir, "request": r.ID, "approved_by": by}))
 		return setAuditDir(root, ch.Dir)
+	case dual.Owner:
+		var ch dual.OwnerChange
+		if err := json.Unmarshal(r.Payload, &ch); err != nil {
+			return err
+		}
+		return applyOwner(root, r, ch)
 	case dual.Token:
 		return nil
 	}
@@ -140,6 +150,13 @@ func cmdPending(root string, args []string) error {
 		approve := args[0] == "approve"
 		if err := authorise(root, c, auth.ActGrant, "/"); err != nil {
 			return err
+		}
+		// An agent may ask for a privileged change; a person approves one.
+		// Acting for the only administrator, an agent would otherwise wait
+		// out the delay and approve its own request in their name.
+		// Declining stays open to it: stopping a change is never the risk.
+		if approve && c.Kind == audit.KindAI {
+			return errors.New("a privileged change is approved by a person, never by an agent")
 		}
 		r, err := store.Decide(id, c.Name, approve, onlyAdministrator(root, c.Name), now)
 		if err != nil {

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Rashik Adhikari
-// SPDX-FileCopyrightText: 2026 Anthropic PBC
+// SPDX-FileCopyrightText: 2026 Rashik Adhikari
 // SPDX-License-Identifier: Apache-2.0
 
 package otlp
@@ -633,5 +633,39 @@ func TestAStoredSpanIsRememberedForADay(t *testing.T) {
 	if len(*stored) != 2 {
 		t.Fatalf("%d event(s): a span id past the horizon was still "+
 			"remembered, so the map is bounded by nothing", len(*stored))
+	}
+}
+
+// Pushes that fail to authenticate are not charged to the shared window:
+// otherwise anybody who can reach the endpoint fills it and the exporters
+// it exists for are answered 429.
+func TestAnUnauthenticatedFloodDoesNotLockOutTheExporter(t *testing.T) {
+	h, _ := bench(t)
+	h.Limit = 2
+	for i := 0; i < 50; i++ {
+		res := pushFull(h, agentPush, "application/json", "not-the-token", "")
+		if res.Code != http.StatusUnauthorized {
+			t.Fatalf("a push with the wrong token answered %d", res.Code)
+		}
+	}
+	if res := push(h, agentPush); res.Code != http.StatusOK {
+		t.Fatalf("after an unauthenticated flood the exporter was answered %d", res.Code)
+	}
+}
+
+// The de-duplication map has a ceiling as well as a horizon.
+func TestTheSeenMapIsBounded(t *testing.T) {
+	h, _ := bench(t)
+	at := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	ids := make([]string, 0, 4096)
+	for i := 0; i < maxSeen/4096+2; i++ {
+		ids = ids[:0]
+		for j := 0; j < 4096; j++ {
+			ids = append(ids, fmt.Sprintf("%d-%d", i, j))
+		}
+		h.remember(ids, at)
+		if len(h.seen) > maxSeen {
+			t.Fatalf("the map holds %d ids, past its ceiling of %d", len(h.seen), maxSeen)
+		}
 	}
 }

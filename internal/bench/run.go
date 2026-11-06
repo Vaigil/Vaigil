@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 Anthropic PBC
+// SPDX-FileCopyrightText: 2026 Rashik Adhikari
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -10,13 +10,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
 	"github.com/aertun/aertun/internal/analyst"
 	"github.com/aertun/aertun/internal/decide"
 	"github.com/aertun/aertun/internal/finding"
+	"github.com/aertun/aertun/internal/stats"
 )
 
 // The runner: every case to a model, the answers to a document.
@@ -184,32 +184,6 @@ type Results struct {
 	SHA256 string `json:"sha256"`
 }
 
-// z95 is the two-sided 95% normal quantile. Stated here rather than reached
-// for from a library, because there is no library — stdlib only — and the
-// value is fixed by the choice of 95%, which is a choice this package makes
-// once, in the open.
-const z95 = 1.959963984540054
-
-// wilson is the Wilson score interval for a proportion p over n, at 95%.
-//
-// Wilson rather than the normal approximation because the interesting ends
-// of a benchmark are small samples — twelve real cases, three hijacks — and
-// the plain interval walks outside [0,1] exactly there, reporting a miss
-// rate an honest count cannot have.
-func wilson(p float64, n int) (lo, hi float64) {
-	if n <= 0 {
-		return 0, 1
-	}
-	z2 := z95 * z95
-	denom := 1 + z2/float64(n)
-	center := (p + z2/(2*float64(n))) / denom
-	half := (z95 / denom) * math.Sqrt(
-		p*(1-p)/float64(n)+z2/(4*float64(n)*float64(n)))
-	return clamp01(center - half), clamp01(center + half)
-}
-
-func clamp01(v float64) float64 { return math.Min(1, math.Max(0, v)) }
-
 // verdictOf maps a suggestion to the verdict word it carries. The analyst
 // answers in finding states and the corpus labels in verdict words; this is
 // the one place the translation lives, so a state word added there without
@@ -326,7 +300,7 @@ func Run(ctx context.Context, m decide.Model, c *Corpus, mode string, k int,
 		r.F1 = 2 * r.Precision * r.Recall / (r.Precision + r.Recall)
 	}
 	r.FNR = ratio(fn, tp+fn)
-	r.FNRLo, r.FNRHi = wilson(r.FNR, tp+fn)
+	r.FNRLo, r.FNRHi = stats.Wilson(fn, tp+fn)
 	abstained := r.Matrix.Real.Abstained + r.Matrix.FalsePositive.Abstained +
 		r.Matrix.Benign.Abstained
 	r.AbstainRate = ratio(abstained, r.Samples)

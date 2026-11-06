@@ -238,6 +238,19 @@ type Seen struct {
 	Max  int
 }
 
+// Forget drops id, so a delivery that was recorded as seen and then not
+// taken — the store refused it, the queue was full — is taken when the
+// sender tries again, rather than answered as a duplicate and lost.
+//
+// First is called before the work so two concurrent deliveries of one id
+// cannot both be stored; Forget is its undo on every path where the work
+// did not happen.
+func (s *Seen) Forget(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.ids, id)
+}
+
 // First records id and reports whether it is new. An id is remembered for
 // Keep (a day by default), at most Max of them (100,000), oldest dropped first.
 func (s *Seen) First(id string, now time.Time) bool {

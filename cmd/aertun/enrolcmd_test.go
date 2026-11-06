@@ -14,7 +14,7 @@ import (
 	"github.com/aertun/aertun/internal/out"
 )
 
-// A new store made with --admin has its first administrator, two factors
+// A new store made with --owner has its Owner, two factors
 // from the first day, and the one link that gives that administrator a
 // passkey; nobody is left holding a token to get in with.
 func TestANewStoreStartsWithTwoFactorsAndAnEnrolmentLink(t *testing.T) {
@@ -28,7 +28,7 @@ func TestANewStoreStartsWithTwoFactorsAndAnEnrolmentLink(t *testing.T) {
 	if err := cmdInit(root); err != nil {
 		t.Fatal(err)
 	}
-	if err := initAdmin(root, []string{"--admin", "dana@aertun.example"}, true); err != nil {
+	if err := initAdmin(root, []string{"--owner", "dana@aertun.example"}, true); err != nil {
 		t.Fatal(err)
 	}
 	var got struct {
@@ -40,8 +40,8 @@ func TestANewStoreStartsWithTwoFactorsAndAnEnrolmentLink(t *testing.T) {
 		t.Fatalf("%v %s", err, buf.String())
 	}
 	pol, _ := loadPolicy(root)
-	if !holdsAny(pol, "dana@aertun.example") {
-		t.Error("the first administrator was not granted")
+	if !holdsAny(pol, "dana@aertun.example") || pol.OwnerName() != "dana@aertun.example" {
+		t.Errorf("the Owner was not made: owner %q", pol.OwnerName())
 	}
 	if from, ok := mfaFromIfSet(root); !ok || time.Since(from) > time.Minute || time.Until(from) > time.Minute {
 		t.Errorf("a new store's two factors start at %s %v, not now", from, ok)
@@ -52,7 +52,7 @@ func TestANewStoreStartsWithTwoFactorsAndAnEnrolmentLink(t *testing.T) {
 	}
 	// A store that already has people is not taken over by naming
 	// somebody new as its first administrator.
-	if err := initAdmin(root, []string{"--admin", "mallory@aertun.example"}, false); err == nil {
-		t.Error("init --admin made a second first administrator")
+	if err := initAdmin(root, []string{"--owner", "mallory@aertun.example"}, false); err == nil {
+		t.Error("init --owner made a second Owner")
 	}
 }

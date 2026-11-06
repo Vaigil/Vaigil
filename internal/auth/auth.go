@@ -262,6 +262,10 @@ type Policy struct {
 	// author's intentions.
 	mu       sync.RWMutex
 	Bindings []Binding `json:"bindings"`
+	// Owner is the one principal who always administers the whole store
+	// (owner.go). Empty on a store made before there were owners, until an
+	// administrator claims it.
+	Owner string `json:"owner,omitempty"`
 }
 
 // normalise makes resource paths comparable. "/a/b/" and "a/b" are the same

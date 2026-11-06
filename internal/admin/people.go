@@ -186,6 +186,7 @@ func (s *Server) handlePeople(w http.ResponseWriter, r *http.Request) {
 
 	s.render(w, r, "people.html", map[string]any{
 		"Nav": "people", "Title": "People", "Principal": p, "People": people, "Enrol": s.Enrol != nil,
+		"Owner":   s.Policy.OwnerName(),
 		"Waiting": s.enrolWaiting(now), "Pending": s.pendingRows(p, now),
 		"Roles": auth.Roles, "Jobs": auth.Jobs, "Permissions": auth.Permissions,
 		"ActiveWithin": activeWithin.String(),

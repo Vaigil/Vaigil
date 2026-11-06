@@ -5,12 +5,13 @@ package dual
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
 
 // One administrator proposes and another approves; nobody approves their
-// own, unless they are the only one, and then the record says so.
+// own while somebody else could.
 func TestAChangeWaitsForASecondAdministrator(t *testing.T) {
 	s := Store{Path: filepath.Join(t.TempDir(), "dual.json")}
 	now := time.Date(2026, 10, 21, 9, 0, 0, 0, time.UTC)
@@ -28,11 +29,6 @@ func TestAChangeWaitsForASecondAdministrator(t *testing.T) {
 		t.Error("a request was decided twice")
 	}
 
-	solo, _ := s.Propose(Setting, "weaken x", nil, "", "dana", true, now)
-	if solo.State != Done || !solo.Alone || StateWords(solo, now) != "approved alone by dana" {
-		t.Errorf("alone: %+v", solo)
-	}
-
 	late, _ := s.Propose(AuditLog, "move the log", nil, "", "dana", false, now)
 	if _, err := s.Decide(late.ID, "lee", true, false, now.Add(Wait+time.Minute)); err == nil {
 		t.Error("an expired request was approved")
@@ -43,6 +39,51 @@ func TestAChangeWaitsForASecondAdministrator(t *testing.T) {
 	}
 	if pend, _ := s.Pending(now); len(pend) != 1 || pend[0].ID != late.ID {
 		t.Errorf("pending: %+v", pend)
+	}
+}
+
+// The only administrator's own request waits out its delay, may be declined
+// by anybody until then, and is approved alone only after it — a stolen
+// session can start a takeover and cannot finish one unseen.
+func TestTheOnlyAdministratorWaitsBeforeApprovingAlone(t *testing.T) {
+	s := Store{Path: filepath.Join(t.TempDir(), "dual.json")}
+	now := time.Date(2026, 10, 21, 9, 0, 0, 0, time.UTC)
+	solo, err := s.Propose(Setting, "weaken x", nil, "", "dana", true, now)
+	if err != nil || solo.State != Waiting || !solo.NotBefore.Equal(now.Add(time.Hour)) {
+		t.Fatalf("a solo request: %+v %v", solo, err)
+	}
+	if w := StateWords(solo, now); !strings.Contains(w, "may approve it alone") {
+		t.Errorf("its state says %q", w)
+	}
+	if _, err := s.Decide(solo.ID, "dana", true, true, now.Add(59*time.Minute)); err == nil ||
+		!strings.Contains(err.Error(), "you may approve it from") {
+		t.Fatalf("approved alone before the delay: %v", err)
+	}
+	got, err := s.Decide(solo.ID, "dana", true, true, now.Add(time.Hour))
+	if err != nil || got.State != Done || !got.Alone || StateWords(got, now) != "approved alone by dana" {
+		t.Fatalf("after the delay: %+v %v", got, err)
+	}
+
+	// Declining wins at any point in the delay, by anybody.
+	stopped, _ := s.Propose(Grant, "make mallory an administrator", nil, "", "dana", true, now)
+	if got, err := s.Decide(stopped.ID, "dana", false, true, now.Add(time.Minute)); err != nil || got.State != Declined {
+		t.Errorf("declining during the delay: %+v %v", got, err)
+	}
+
+	// Moving the audit log waits a day.
+	move, _ := s.Propose(AuditLog, "move the log", nil, "", "dana", true, now)
+	if _, err := s.Decide(move.ID, "dana", true, true, now.Add(23*time.Hour)); err == nil {
+		t.Error("the audit log was moved alone within a day")
+	}
+
+	// A request made while there were two administrators, decided once the
+	// other has gone, waits the same delay from when it was made.
+	left, _ := s.Propose(Grant, "make pat an administrator", nil, "", "dana", false, now)
+	if _, err := s.Decide(left.ID, "dana", true, true, now.Add(30*time.Minute)); err == nil {
+		t.Error("a request approved alone the moment the other administrator left")
+	}
+	if _, err := s.Decide(left.ID, "dana", true, true, now.Add(time.Hour)); err != nil {
+		t.Errorf("after the delay: %v", err)
 	}
 }
 

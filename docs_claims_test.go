@@ -160,6 +160,36 @@ func TestEverySourceFileCarriesTheLicenceHeader(t *testing.T) {
 	}
 }
 
+// Every source file names the project's copyright holder, the one NOTICE
+// and AUTHORS name.
+//
+// The licence identifier was checked and the holder was not, and a hundred
+// files arrived naming somebody else: a tool that wrote them put its own
+// maker's name in the header. A header is what travels with a vendored
+// file, so a wrong one is a wrong claim made wherever the file goes.
+func TestEverySourceFileNamesTheCopyrightHolder(t *testing.T) {
+	const want = "2026 Rashik Adhikari"
+	if !strings.Contains(read(t, "NOTICE"), "Rashik Adhikari") {
+		t.Fatal("NOTICE does not name the holder this test expects")
+	}
+	out, err := exec.Command("git", "ls-files", "*.go", "*.py", "*.mjs").Output()
+	if err != nil {
+		t.Skipf("git ls-files: %v", err)
+	}
+	holder := regexp.MustCompile(`SPDX-FileCopyrightText:\s*(.+)`)
+	for _, name := range strings.Fields(string(out)) {
+		m := holder.FindStringSubmatch(read(t, name))
+		if m == nil {
+			t.Errorf("%s has no SPDX-FileCopyrightText", name)
+			continue
+		}
+		if got := strings.TrimSpace(m[1]); got != want {
+			t.Errorf("%s names %q as its copyright holder, and NOTICE names %q",
+				name, got, want)
+		}
+	}
+}
+
 // The licence text is Apache's own, and the copy a REUSE scanner follows the
 // identifier to is the same text, with no other licence beside it.
 func TestTheLicenceTextIsOneText(t *testing.T) {

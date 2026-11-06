@@ -622,6 +622,9 @@ func (s *inboundServer) okta(w http.ResponseWriter, r *http.Request, f inbound.F
 			docs = append(docs, e)
 		}
 		if err := s.accept(pushed{feed: f, docs: docs, at: s.now().UTC()}); err != nil {
+			if d.EventID != "" {
+				s.seen.Forget(f.Name + ":" + d.EventID)
+			}
 			http.Error(w, "busy", http.StatusServiceUnavailable)
 			return
 		}
@@ -659,11 +662,13 @@ func (s *inboundServer) webhook(w http.ResponseWriter, r *http.Request, f inboun
 	}
 	docs, err := inbound.Records(body)
 	if err != nil {
+		s.seen.Forget(f.Name + ":" + id)
 		s.refused(f.Name, err.Error())
 		http.Error(w, "the body is not JSON records", http.StatusBadRequest)
 		return
 	}
 	if err := s.accept(pushed{feed: f, docs: docs, at: s.now().UTC()}); err != nil {
+		s.seen.Forget(f.Name + ":" + id)
 		http.Error(w, "busy", http.StatusServiceUnavailable)
 		return
 	}
@@ -735,6 +740,7 @@ func (s *inboundServer) shared(w http.ResponseWriter, r *http.Request, f inbound
 		return
 	}
 	if err := s.accept(pushed{feed: f, set: set, at: s.now().UTC()}); err != nil {
+		s.seen.Forget(f.Name + ":" + set.JTI)
 		setError(w, http.StatusServiceUnavailable, &ssf.Error{Code: "access_denied", Description: "busy; send it again"})
 		return
 	}
@@ -1277,23 +1283,30 @@ func (e *collectorEndpoint) batch(w http.ResponseWriter, r *http.Request, name, 
 		writeCollectorAnswer(w, 0, true)
 		return
 	}
+	// From here every refusal forgets the id: a batch that was not stored
+	// has to be stored when the collector sends it again.
+	key := name + ":" + id
+	refuse := func(msg string, code int) {
+		e.seen.Forget(key)
+		http.Error(w, msg, code)
+	}
 	var batch collector.Batch
 	dec := json.NewDecoder(bytes.NewReader(body))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&batch); err != nil {
 		e.refused(err.Error())
-		http.Error(w, "the body is not a collector batch", http.StatusBadRequest)
+		refuse("the body is not a collector batch", http.StatusBadRequest)
 		return
 	}
 	if len(batch.Records) > 10000 {
-		http.Error(w, "a batch of that many records is not one this collector sends",
+		refuse("a batch of that many records is not one this collector sends",
 			http.StatusRequestEntityTooLarge)
 		return
 	}
 	events, err := e.events(name, batch, e.now().UTC())
 	if err != nil {
 		e.refused(err.Error())
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		refuse(err.Error(), http.StatusBadRequest)
 		return
 	}
 	e.mu.Lock()
@@ -1316,7 +1329,7 @@ func (e *collectorEndpoint) batch(w http.ResponseWriter, r *http.Request, name, 
 			e.mu.Lock()
 			e.status.Error = serr.Error()
 			e.mu.Unlock()
-			http.Error(w, "the event store did not take the batch; send it again",
+			refuse("the event store did not take the batch; send it again",
 				http.StatusServiceUnavailable)
 			return
 		}
@@ -1510,6 +1523,14 @@ func collectorWatchEvent(name string, r collector.Record, at time.Time,
 			"sha256": recString(r.Data, "sha256"),
 			"size":   recString(r.Data, "size"),
 			"host":   recString(r.Data, "host")},
+	}
+	// A watched path that is no longer a regular file has been replaced by
+	// something the recorder will not read: said in the message and the
+	// fields, and weighed above routine file activity.
+	if typ := recString(r.Data, "type"); typ != "" {
+		e.Raw["type"] = typ
+		e.Message = fmt.Sprintf("%s %s (%s, now a %s)", path, op, kind, typ)
+		e.Severity = telemetry.SeverityMedium
 	}
 	e = declaredAgents(e, declared)
 	if e.Raw["sha256"] != "" {

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 Anthropic PBC
+// SPDX-FileCopyrightText: 2026 Rashik Adhikari
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -282,7 +282,7 @@ func windtunnelRun(args []string) error {
 		}
 	}
 	if *publicKey != "" {
-		if err := windtunnel.WritePublicKey(*publicKey,
+		if err := pack.WritePublicKey(*publicKey,
 			opts.Signer.PublicKey()); err != nil {
 			return err
 		}
@@ -494,7 +494,7 @@ func windtunnelVerify(args []string) error {
 			"a signature would back, and there is nothing here to verify",
 			fs.Arg(0))
 	}
-	pub, err := windtunnel.LoadPublicKey(*key)
+	pub, err := pack.LoadPublicKey(*key)
 	if err != nil {
 		return err
 	}

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aertun/aertun/internal/pack"
 	"github.com/aertun/aertun/internal/windtunnel"
 )
 
@@ -54,7 +55,7 @@ import (
 // wind tunnel's own context — so this test can never pass by being more
 // trusting than the command a stranger runs.
 func TestTheCommittedScorecardSeedVerifies(t *testing.T) {
-	pub, err := windtunnel.LoadPublicKey(filepath.Join("scorecards",
+	pub, err := pack.LoadPublicKey(filepath.Join("scorecards",
 		"public-key.json"))
 	if err != nil {
 		t.Fatalf("the committed public key does not parse: %v", err)

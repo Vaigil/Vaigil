@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Rashik Adhikari
-// SPDX-FileCopyrightText: 2026 Anthropic PBC
+// SPDX-FileCopyrightText: 2026 Rashik Adhikari
 // SPDX-License-Identifier: Apache-2.0
 
 package otlp
@@ -167,12 +167,26 @@ func (h *Handler) seenBefore(id string, at time.Time) bool {
 	return dup
 }
 
+// maxSeen bounds the span ids held for de-duplication. A day of spans at
+// the push limit is unbounded in principle — a push carries as many spans
+// as fit its body — so the map has a ceiling as well as a horizon.
+const maxSeen = 1 << 20
+
 // remember holds span ids as stored.
+//
+// Past maxSeen, what is past the horizon is swept, and if that is not
+// enough the map starts again. Forgetting costs at most a retried span
+// stored twice in an append-only spool, the same cost seenBefore already
+// accepts for concurrent deliveries; holding without limit costs the
+// process.
 func (h *Handler) remember(ids []string, at time.Time) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if h.seen == nil {
-		h.seen = map[string]time.Time{}
+	if h.seen == nil || len(h.seen)+len(ids) > maxSeen {
+		h.sweep(at)
+		if h.seen == nil || len(h.seen)+len(ids) > maxSeen {
+			h.seen = map[string]time.Time{}
+		}
 	}
 	for _, id := range ids {
 		h.seen[id] = at
@@ -199,13 +213,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"the OTLP traces endpoint takes POST only")
 		return
 	}
+	// Authenticate before counting: the window is shared, and a window
+	// charged for pushes that never proved themselves is one anybody on
+	// the network can fill, locking out the exporters it exists to serve.
+	// The check reads one header and compares two digests; no body has
+	// been read yet.
+	if !h.authenticate(w, r) {
+		return
+	}
 	if !h.allow() {
 		w.Header().Set("Retry-After", "60")
 		h.fail(w, http.StatusTooManyRequests, codeExhausted,
 			"too many pushes; retry after the window")
-		return
-	}
-	if !h.authenticate(w, r) {
 		return
 	}
 	ct := strings.ToLower(strings.TrimSpace(strings.Split(

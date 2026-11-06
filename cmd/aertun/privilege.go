@@ -197,6 +197,10 @@ var commandNeeds = map[string]need{
 	// weight, a signed statement about a test this program ran, and the
 	// key it signs with is one the caller named on the command line.
 	"windtunnel": {action: auth.ActView},
+	// A proof checks files the caller named against a corpus the caller
+	// named and signs with a key the caller named: it opens no store,
+	// contacts nobody and spends nothing, the wind tunnel's weight.
+	"proof": {action: auth.ActView},
 	// An action changes something in somebody else's tool.
 	"action":           {action: auth.ActGrant},
 	"action catalogue": {action: auth.ActView},
@@ -370,6 +374,9 @@ var commandNeeds = map[string]need{
 	// -- read-only subcommands of otherwise privileged commands, so that
 	// somebody locked out can still find out why.
 	"auth explain": {action: auth.ActView},
+	// Naming the Owner is reading; asking to transfer ownership checks
+	// the administrator's permission, and the Owner's identity, itself.
+	"auth owner": {action: auth.ActView},
 	// The break-glass. It cannot require authority: the situation it exists
 	// for is that no credential remains to present. It checks for itself that
 	// no usable admin token exists, refuses when one does, and records what it
@@ -623,7 +630,7 @@ var commandAreas = map[string]string{
 	"sigma": auth.AreaSecurity, "correlate": auth.AreaSecurity, "telemetry": auth.AreaSecurity,
 	"siem": auth.AreaLog, "automate": auth.AreaSecurity, "inbound": auth.AreaSecurity,
 	"auditlog": auth.AreaLog, "compliance": auth.AreaLog, "bench": auth.AreaSecurity,
-	"windtunnel": auth.AreaSecurity,
+	"windtunnel": auth.AreaSecurity, "proof": auth.AreaSecurity,
 }
 
 // commandArea is the area a command works in, if it works in one.

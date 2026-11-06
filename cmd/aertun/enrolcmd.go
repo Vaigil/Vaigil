@@ -111,13 +111,14 @@ func issueEnrolment(root, name, by string, life time.Duration, caller *Caller) e
 	return nil
 }
 
-// initAdmin is `aertun init --admin NAME`: the first administrator, and the
+// initAdmin is `aertun init --owner NAME`: the store's Owner — its first
+// administrator, whom nobody can remove (internal/auth/owner.go) — and the
 // link that gives them their passkey. A new store has two factors from its
 // first day; the grace an upgraded installation gets is for people who were
 // already signing in with a token.
 func initAdmin(root string, args []string, created bool) error {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
-	admin := fs.String("admin", "", "make this person the first administrator and print the link that adds their passkey")
+	owner := fs.String("owner", "", "make this person the store's Owner and print the link that adds their passkey")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -133,25 +134,31 @@ func initAdmin(root string, args []string, created bool) error {
 			return err
 		}
 	}
-	if *admin == "" {
+	if *owner == "" {
 		return nil
 	}
 	pol, err := loadPolicy(root)
 	if err != nil {
 		return err
 	}
-	if len(pol.Principals()) > 0 && !holdsAny(pol, *admin) {
-		return fmt.Errorf("this store already has people; another administrator grants %s and gives the link: "+
-			"aertun auth grant %s admin, then aertun auth enrol %s", *admin, *admin, *admin)
+	if len(pol.Principals()) > 0 && !holdsAny(pol, *owner) {
+		return fmt.Errorf("this store already has people; an administrator grants %s a role and gives the link: "+
+			"aertun auth grant %s ROLE, then aertun auth enrol %s", *owner, *owner, *owner)
 	}
-	if !holdsAny(pol, *admin) {
-		if _, err := updatePolicy(root, func(p *auth.Policy) error {
-			return p.Grant(auth.Binding{Principal: *admin, Role: auth.RoleAdmin, Resource: "/",
-				GrantedBy: "aertun init", Note: "the first administrator"})
-		}); err != nil {
-			return err
+	if _, err := updatePolicy(root, func(p *auth.Policy) error {
+		if !holdsAny(p, *owner) {
+			if err := p.Grant(auth.Binding{Principal: *owner, Role: auth.RoleAdmin, Resource: "/",
+				GrantedBy: "aertun init", Note: "the Owner"}); err != nil {
+				return err
+			}
 		}
+		if p.OwnerName() == "" {
+			return p.SetOwner(*owner)
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
-	w.Human("The first administrator is %s. Start the admin (aertun serve) and open this, once, to add their passkey:\n", *admin)
-	return issueEnrolment(root, *admin, "aertun init", enrol.MaxLife, resolveCaller(root, ""))
+	w.Human("The Owner is %s. Start the admin (aertun serve) and open this, once, to add their passkey:\n", *owner)
+	return issueEnrolment(root, *owner, "aertun init", enrol.MaxLife, resolveCaller(root, ""))
 }

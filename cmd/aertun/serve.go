@@ -567,7 +567,7 @@ func cmdServe(root string, args []string) error {
 	// one is given a link that adds it. A token alone is one factor and
 	// reaches only "Confirm it's you" (see mfa.go).
 	fmt.Printf("  %ssign in with a passkey; somebody without one gets a link that adds it:%s\n", dim, reset)
-	fmt.Printf("  %s    aertun auth enrol NAME   (on a new store, aertun init --admin NAME)%s\n", dim, reset)
+	fmt.Printf("  %s    aertun auth enrol NAME   (on a new store, aertun init --owner NAME)%s\n", dim, reset)
 	fmt.Printf("  %sagents reach it over MCP at http://%s/mcp with a token from 'aertun token issue', or 'aertun mcp' on stdio%s\n", dim, *addr, reset)
 	fmt.Printf("  %san agent asking to act for somebody is consented to at http://%s/oauth/authorize; 'aertun agent consents' reviews what was agreed%s\n", dim, *addr, reset)
 	if *openBrowser {

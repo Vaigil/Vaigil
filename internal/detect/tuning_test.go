@@ -68,18 +68,6 @@ func TestPrecisionIsNotQuotedFromAHandfulOfVerdicts(t *testing.T) {
 	}
 }
 
-func TestTheIntervalHasWidthAtTheExtremes(t *testing.T) {
-	low, high := wilson(10, 10)
-	if low > 0.75 || high < 0.999 {
-		t.Errorf("10 of 10 is [%.2f, %.2f]; ten verdicts do not prove a "+
-			"rule is always right", low, high)
-	}
-	low, high = wilson(0, 10)
-	if low != 0 || high < 0.25 {
-		t.Errorf("0 of 10 is [%.2f, %.2f]", low, high)
-	}
-}
-
 func proposalsFor(s Stats, sups []Suppression, hits map[string]int) string {
 	var out []string
 	for _, p := range Propose([]Stats{s}, sups, hits, tnow) {

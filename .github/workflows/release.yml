@@ -137,7 +137,7 @@ jobs:
         run: |
           repo=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           img="ghcr.io/${repo}:${{ steps.meta.outputs.version }}"
-          docker run --rm -v qs:/srv "$img" --root /srv/store init --admin ci@example.com
+          docker run --rm -v qs:/srv "$img" --root /srv/store init --owner ci@example.com
           docker run -d --name qs -p 8080:8080 -v qs:/srv "$img"
           for _ in $(seq 1 30); do
             code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/signin || true)
