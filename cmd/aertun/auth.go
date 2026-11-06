@@ -645,6 +645,9 @@ func tokenIssueAs(root string, args []string, approved bool) error {
 		"short-lived and read-only: the shape an integration should hold")
 	keyFile := fs.String("key", "", "bind it to this public key (a JWK file, from aertun token keygen): "+
 		"accepted only with a DPoP proof made by the key")
+	whyFlag := fs.String("why", "",
+		"the reason this token is being issued, for the record and for "+
+			"whoever approves it (required when you are the only administrator)")
 	rest, flags := leadingArgs(args, 1)
 	if err := fs.Parse(flags); err != nil {
 		return err
@@ -729,7 +732,7 @@ func tokenIssueAs(root string, args []string, approved bool) error {
 	if auth.Role(*role) == auth.RoleAdmin && !approved {
 		apply, err := proposeSecond(root, resolveCaller(root, ""), dual.Token,
 			fmt.Sprintf("an administrator's token %q acting as %s on %s", rest[0], *principal, *on),
-			dual.TokenChange{Args: args}, "")
+			dual.TokenChange{Args: args}, *whyFlag)
 		if err != nil || !apply {
 			return err
 		}

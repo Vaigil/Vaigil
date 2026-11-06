@@ -74,7 +74,18 @@ func cmdAuditDir(root string, args []string) error {
 		w.Human("  the log is at %s", filepath.Join(dir, "audit.jsonl"))
 		return nil
 	}
-	dir := args[0]
+	fs := flag.NewFlagSet("dir", flag.ContinueOnError)
+	why := fs.String("why", "",
+		"the reason this change is being made, for the record and for "+
+			"whoever approves it (required when you are the only administrator)")
+	rest, flags := leadingArgs(args, 1)
+	if err := fs.Parse(flags); err != nil {
+		return err
+	}
+	if len(rest) != 1 {
+		return fmt.Errorf("usage: aertun auditlog dir <path> [--why REASON]")
+	}
+	dir := rest[0]
 	abs, err := filepath.Abs(dir)
 	if err != nil {
 		return err
@@ -89,7 +100,7 @@ func cmdAuditDir(root string, args []string) error {
 	// thing in this command, so it waits for a second administrator, who
 	// moves it on approving (applyDual).
 	apply, err := proposeSecond(root, resolveCaller(root, ""), dual.AuditLog, "move the audit log to "+abs,
-		dual.AuditLogChange{Dir: abs}, "")
+		dual.AuditLogChange{Dir: abs}, *why)
 	if err != nil || !apply {
 		return err
 	}

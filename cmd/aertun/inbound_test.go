@@ -362,7 +362,7 @@ func TestASharedSignalIsVerifiedAndActedOnAtOnce(t *testing.T) {
 func TestAnAnalystCannotAddAFeedFromATerminal(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	root := connectStore(t)
-	if err := cmdAuth(root, []string{"grant", "boss", "admin"}); err != nil {
+	if err := cmdAuth(root, []string{"grant", "boss", "admin", "--note", "test setup"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := cmdAuth(root, []string{"grant", "sam", "analyst"}); err != nil {

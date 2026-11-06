@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"path/filepath"
 	"time"
 
@@ -31,6 +32,10 @@ func dualStore(root string) *dual.Store {
 // else administers the store.
 func proposeSecond(root string, c *Caller, kind, what string, payload any, why string) (bool, error) {
 	alone := onlyAdministrator(root, c.Name)
+	if alone && strings.TrimSpace(why) == "" {
+		return false, fmt.Errorf("you are the only administrator, and a " +
+			"change made alone needs a reason: --why")
+	}
 	r, err := dualStore(root).Propose(kind, what, payload, why, c.Name, alone, time.Now())
 	if err != nil {
 		return false, err
