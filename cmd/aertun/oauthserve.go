@@ -26,6 +26,24 @@ import (
 // thing that already existed somewhere in this store; the server owns a
 // protocol and no state of its own beyond minutes-short codes.
 
+// oauthOrigin decides the one origin both the authorization server's
+// metadata and the token exchange's audience name, so they can never
+// disagree behind a proxy. admin.base_url wins when set — it is the
+// operator's own statement of where this program is reached — with the
+// scheme taken from the base_url itself when it carries one, from the
+// TLS-proxy setting when it does not. The listen address is the fallback
+// nobody has to configure on a laptop.
+func oauthOrigin(cfg *config.Config, addr string) string {
+	if base := cfg.Raw("admin.base_url"); base != "" {
+		return base
+	}
+	scheme := "http"
+	if cfg.Bool("admin.behind_tls_proxy") {
+		scheme = "https"
+	}
+	return scheme + "://" + addr
+}
+
 // consentsPath is the consent register, beside the registry it is consulted
 // with and with its permissions: like agents.json it names who may act.
 func consentsPath(root string) string {
@@ -43,11 +61,11 @@ func consentStore(root string) oauthas.Store {
 // one audience this server issues for, so a token taken from it opens /mcp
 // and nothing else.
 func mountOAuthAS(mux *http.ServeMux, root string, cfg *config.Config, addr string, srv *admin.Server) {
-	scheme := "http"
-	if cfg.Bool("admin.behind_tls_proxy") {
-		scheme = "https"
-	}
-	origin := scheme + "://" + addr
+	// The issuer is the origin the operator chose, not the one the
+	// process happens to listen on: behind a reverse proxy the listen
+	// address is loopback and the real origin is in admin.base_url,
+	// the same setting the console and the SIEM stream already use.
+	origin := oauthOrigin(cfg, addr)
 
 	as := &oauthas.Server{
 		Issuer:   origin,
