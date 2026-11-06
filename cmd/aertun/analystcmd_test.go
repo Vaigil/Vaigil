@@ -596,8 +596,8 @@ func TestTriageRecordsWhatTheModelUsed(t *testing.T) {
 		}
 		// Three samples of 120 tokens in, 8 out: the finding's questions,
 		// added, not the last one's.
-		if o.Cost.In != 360 || o.Cost.Out != 24 {
-			t.Errorf("%s cost %d/%d, want the three samples summed 360/24",
+		if o.Cost.In != 720 || o.Cost.Out != 48 {
+			t.Errorf("%s cost %d/%d, want the three samples and the counterfactual summed 720/48",
 				o.Finding, o.Cost.In, o.Cost.Out)
 		}
 		withCost++
@@ -614,8 +614,8 @@ func TestTriageRecordsWhatTheModelUsed(t *testing.T) {
 		if e.Action != finding.ProposalAction {
 			continue
 		}
-		if e.Detail["used_in"] != "360" || e.Detail["used_out"] != "24" {
-			t.Errorf("the proposal's record carries %q/%q, want 360/24",
+		if e.Detail["used_in"] != "720" || e.Detail["used_out"] != "48" {
+			t.Errorf("the proposal's record carries %q/%q, want 720/48",
 				e.Detail["used_in"], e.Detail["used_out"])
 		}
 		proposals++
