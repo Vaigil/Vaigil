@@ -165,6 +165,25 @@ func (s *Server) handlePeoplePending(w http.ResponseWriter, r *http.Request) {
 	var err error
 	switch do {
 	case "approve", "decline":
+		if do == "approve" && s.onlyAdministrator(p.Name) {
+			// The most sensitive act in the program: approving your own
+			// privileged change alone, after the wait. The session that
+			// does it must have proved its person within the last five
+			// minutes — a sign-in or a passkey confirmation — so a
+			// session stolen an hour ago cannot finish a takeover the
+			// thief started.
+			if s.Tokens != nil {
+				if tok, ok := s.Tokens.ByID(p.TokenID); ok &&
+					!tok.FreshEnough(now, 5*time.Minute) {
+					_ = s.Tokens.RequireStepUp(p.TokenID,
+						"approving alone: confirm it is you with your passkey")
+					s.peopleBack(w, r, "confirm it is you with your passkey first: "+
+						"an approval made alone needs a sign-in or a passkey "+
+						"confirmation within the last five minutes")
+					return
+				}
+			}
+		}
 		req, err = s.Dual.Store.Decide(id, p.Name, do == "approve", s.onlyAdministrator(p.Name), now)
 		if err == nil && do == "approve" {
 			if aerr := s.applyDual(req, p.Name); aerr != nil {
