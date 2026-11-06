@@ -150,6 +150,8 @@ func cmdAuth(root string, args []string) error {
 		return authList(root)
 	case "recover":
 		return cmdRecover(root, args[1:])
+	case "invite":
+		return authInvite(root, args[1:])
 	case "enrol", "enroll":
 		return authEnrol(root, args[1:])
 	case "unlock":
@@ -234,6 +236,22 @@ func authRoles(root string) error {
 		"  that bundle them. Nothing else, because that is how a role surface\n"+
 		"  stops being reviewable%s\n", dim, reset)
 	return nil
+}
+
+// authInvite does what a collaborator actually needs in one command: grant
+// the role (which for an administrator still waits for a second one, through
+// the same path grant takes) and print the enrolment link they open to add
+// their passkey. The grant and the link are separate facts — the link works
+// whether or not the grant has been approved — and both are printed, each
+// saying which it is.
+func authInvite(root string, args []string) error {
+	if len(args) < 2 {
+		return fmt.Errorf("usage: aertun auth invite <principal> <role> [--on /path] [--note REASON]")
+	}
+	if err := authGrant(root, args); err != nil {
+		return fmt.Errorf("the grant: %w", err)
+	}
+	return authEnrol(root, args[:1])
 }
 
 func authGrant(root string, args []string) error {

@@ -141,6 +141,7 @@ People, sign-in and changes
   aertun auth grant WHO ROLE [--on PATH]   viewer | analyst | responder | admin
   aertun auth grant WHO JOB [--for 30d]    engineer | vuln-manager | auditor (must end)
   aertun auth deny|revoke WHO ROLE [--on PATH] | explain WHO [ACTION] | list | roles
+  aertun auth invite WHO ROLE              grant a role and print the enrolment link in one step
   aertun auth enrol WHO [--for 24h]        a one-time link that adds their passkey (--revoke ends it)
   aertun auth unlock WHO                   let them sign in again after a lockout
   aertun auth recover                      break-glass when every admin token is lost
