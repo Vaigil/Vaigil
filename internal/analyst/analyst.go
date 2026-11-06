@@ -262,6 +262,21 @@ func Gather(f finding.Finding, all []finding.Finding, inIncident bool,
 	return st, trace
 }
 
+// neutraliseUntrusted replaces every attacker-writable field with the
+// program's rendering of what it parsed: a length and the word "text",
+// never the bytes. The counterfactual asks the model the same question
+// with these instead of the real words; a verdict that changes is a
+// verdict the attacker's text chose.
+func neutraliseUntrusted(s State) State {
+	out := s
+	out.Untrusted = Untrusted{
+		Title:    fmt.Sprintf("[untrusted text, %d bytes]", len(s.Untrusted.Title)),
+		Entity:   fmt.Sprintf("[untrusted identity, %d bytes]", len(s.Untrusted.Entity)),
+		Evidence: nil, // the evidence list is entirely attacker-writable
+	}
+	return out
+}
+
 // The three things a triage can suggest.
 const (
 	Real          = "real"
@@ -337,8 +352,14 @@ type Suggestion struct {
 	// Reason is assembled from the counts.
 	Reason string `json:"reason"`
 	// Abstained says why there is no suggestion.
-	Abstained string  `json:"abstained,omitempty"`
-	Trace     []Trace `json:"trace"`
+	Abstained string `json:"abstained,omitempty"`
+	// CounterfactualChanged says the verdict flipped when every
+	// attacker-writable field was replaced by the program's rendering
+	// of what it parsed. A person sees this beside the suggestion; the
+	// analyst never auto-closes on a changed verdict.
+	CounterfactualChanged bool           `json:"counterfactual_changed,omitempty"`
+	CounterfactualVerdict finding.State  `json:"counterfactual_verdict,omitempty"`
+	Trace                 []Trace        `json:"trace"`
 }
 
 // Triage gathers, asks, and turns the answer into a suggestion.
@@ -368,6 +389,24 @@ func Ask(ctx context.Context, m decide.Model, state State,
 		out.Abstained = a.Why
 		return out, nil
 	}
+
+	// The counterfactual re-ask: the same question, with every
+	// attacker-writable field replaced by the program's rendering of
+	// what it parsed — a length and a closed word, never the text
+	// itself. A verdict that flips when the attacker's words leave
+	// the prompt is a verdict those words chose, and the person
+	// reading the suggestion needs to know that more than they need
+	// the suggestion.
+	cfState := neutraliseUntrusted(state)
+	if cfRes, cfErr := decide.Decide(ctx, Decider(), m, cfState); cfErr == nil {
+		if cfa, ok := cfRes.Get("verdict"); ok && !cfa.Escalate {
+			out.CounterfactualVerdict = finding.State(cfa.Value)
+			out.CounterfactualChanged = finding.State(a.Value) != finding.State(cfa.Value)
+		}
+	}
+	// A counterfactual that could not run (the endpoint refused, timed
+	// out) does not flag the finding: the absence of a check is not a
+	// failure.
 	switch a.Value {
 	case Real:
 		out.To = finding.Triaged
