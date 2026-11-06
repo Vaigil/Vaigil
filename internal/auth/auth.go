@@ -625,7 +625,11 @@ type Token struct {
 	CreatedAt int64  `json:"created_at"`
 	ExpiresAt int64  `json:"expires_at"`
 	LastUsed  int64  `json:"last_used,omitempty"`
-	Revoked   bool   `json:"revoked,omitempty"`
+	// ConfirmedAt is when this session's person last proved themselves
+	// with their passkey, set when a step-up is cleared. It is what a
+	// solo approval reads to decide whether the proof is fresh enough.
+	ConfirmedAt int64 `json:"confirmed_at,omitempty"`
+	Revoked     bool  `json:"revoked,omitempty"`
 
 	// Parent is the id of the token this was exchanged from, empty for a
 	// long-lived one. It is what makes revocation mean what it says: revoking a
@@ -1189,6 +1193,30 @@ func (ts *TokenStore) AuthenticateFor(secret, resource string, now time.Time) (*
 	return t, err
 }
 
+// ByID returns a copy of the token with that id, for a caller that needs
+// to read what a session carries without authenticating it.
+func (ts *TokenStore) ByID(id string) (Token, bool) {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+	for _, t := range ts.Tokens {
+		if t.ID == id {
+			return t, true
+		}
+	}
+	return Token{}, false
+}
+
+// FreshEnough reports whether this session's person proved themselves
+// recently enough for the most sensitive act a solo administrator makes:
+// within the window of either the sign-in that created the session or the
+// passkey confirmation that cleared a step-up.
+func (t *Token) FreshEnough(now time.Time, window time.Duration) bool {
+	if t.ConfirmedAt > 0 && now.Unix()-t.ConfirmedAt <= int64(window.Seconds()) {
+		return true
+	}
+	return now.Unix()-t.CreatedAt <= int64(window.Seconds())
+}
+
 // ErrKeyBound is a token bound to a key presented without a proof made by
 // the key.
 var ErrKeyBound = errors.New("this token is bound to a key and is accepted only with a DPoP proof " +
@@ -1562,6 +1590,7 @@ func (ts *TokenStore) ClearStepUp(id string) error {
 	for i := range ts.Tokens {
 		if ts.Tokens[i].ID == id {
 			ts.Tokens[i].StepUp = ""
+			ts.Tokens[i].ConfirmedAt = time.Now().Unix()
 			return nil
 		}
 	}
