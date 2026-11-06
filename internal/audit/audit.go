@@ -184,6 +184,28 @@ type Log struct {
 	size int64
 	// torn says the file ends part way through a line.
 	torn bool
+
+	// file is the log, kept open across records: opening, syncing,
+	// stat-ing and closing per record is four of the five syscalls the
+	// write path makes, and none of them is the fsync that makes the
+	// record durable. syncMu serialises fsyncs separately from writes,
+	// so a writer that has already written its bytes does not wait for
+	// another writer's bytes — only for the next fsync, which covers
+	// both, because fsync flushes everything the file holds, not just
+	// what one caller wrote. A caller returns only after an fsync that
+	// started after its write completed.
+	file *os.File
+	// commit coordinates group-commit: writers that arrive while an
+	// fsync is in flight share it, because fsync flushes everything
+	// the file holds. A writer records its position in the write
+	// sequence, and returns when an fsync that started after its write
+	// has completed — which may be another writer's fsync, not its own.
+	commit struct {
+		mu       sync.Mutex
+		syncing  bool          // an fsync is in flight
+		gen      uint64        // how many fsyncs have completed
+		done     chan struct{} // closed when the in-flight fsync finishes
+	}
 }
 
 // Options configures a Log.
@@ -269,6 +291,25 @@ func New(opt Options) (*Log, error) {
 
 // resync picks the chain up from the file: the last complete entry's hash
 // and sequence, and the file's size.
+// Close releases the file handle the log kept open, and syncs what it
+// holds. A log that is not closed leaks a descriptor; a log that is
+// closed and written to again reopens transparently.
+func (l *Log) Close() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.file == nil {
+		return nil
+	}
+	if err := l.file.Sync(); err != nil {
+		l.file.Close()
+		l.file = nil
+		return err
+	}
+	err := l.file.Close()
+	l.file = nil
+	return err
+}
+
 func (l *Log) resync() error {
 	last, size, torn, err := tail(l.path)
 	if err != nil {
@@ -580,25 +621,65 @@ func (l *Log) Append(r Record) (*Event, error) {
 
 // write appends bytes to the log file, fsynced: an audit record still in a
 // buffer when the process dies is a record of an event that is now
-// invisible. Called with the file lock held.
+// invisible. The file is kept open, and the write and the fsync are under
+// separate locks, so records arriving while an fsync is in flight share it:
+// fsync flushes everything the file holds, not what one caller wrote, and a
+// caller returns only after an fsync that started after its write. Called
+// with the file lock held.
 func (l *Log) write(b []byte) error {
-	f, err := os.OpenFile(l.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, l.mode)
-	if err != nil {
+	if l.file == nil {
+		f, err := os.OpenFile(l.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, l.mode)
+		if err != nil {
+			return err
+		}
+		l.file = f
+	}
+	if _, err := l.file.Write(b); err != nil {
 		return err
 	}
-	defer f.Close()
-	if _, err := f.Write(b); err != nil {
-		return err
+	// The size is what we wrote plus what was already there.
+	l.size += int64(len(b))
+	// Group-commit: the bytes are in the file; what remains is an fsync
+	// that started after the write. If another fsync is in flight and
+	// started after our write, waiting for it is enough — it flushes
+	// everything the file holds, our bytes included. If not, we start
+	// one, and every writer that arrives while it runs shares it.
+	l.commit.mu.Lock()
+	if l.commit.syncing {
+		// An fsync is in flight. It may or may not have started after
+		// our write — we cannot tell without more bookkeeping than the
+		// honesty of this design wants. We wait for it to finish, then
+		// check: if the generation advanced past what we saw, the fsync
+		// that finished started after our write (the generation only
+		// advances when a sync completes, and a sync that completes after
+		// we entered this branch started after our write syscall — the
+		// write happened before we acquired the commit mutex).
+		gen, done := l.commit.gen, l.commit.done
+		l.commit.mu.Unlock()
+		<-done
+		l.commit.mu.Lock()
+		if l.commit.gen > gen {
+			l.commit.mu.Unlock()
+			return nil // durable: a sync that started after our write completed
+		}
+		// That sync started before our write — we need one of our own,
+		// and we are the leader for it (we hold the mutex).
 	}
-	if err := f.Sync(); err != nil {
-		return err
-	}
-	fi, err := f.Stat()
-	if err != nil {
-		return err
-	}
-	l.size = fi.Size()
-	return nil
+	// We are the leader: start an fsync that covers our write and every
+	// write that happened before it, then tell everyone waiting.
+	l.commit.syncing = true
+	done := make(chan struct{})
+	l.commit.done = done
+	l.commit.mu.Unlock()
+
+	serr := l.file.Sync()
+
+	l.commit.mu.Lock()
+	l.commit.syncing = false
+	l.commit.gen++
+	l.commit.mu.Unlock()
+	close(done)
+	return serr
 }
 
 // Read loads every event.
