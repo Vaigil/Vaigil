@@ -54,6 +54,14 @@ func TestQuilzoIsNamedOnlyWhereItIsMeant(t *testing.T) {
 			if d.Name() == ".git" || d.Name() == "testdata" {
 				return filepath.SkipDir
 			}
+			// A directory with a .git of its own is another checkout — a
+			// worktree a tool made inside this one — and not part of this
+			// repository's tree.
+			if path != "." {
+				if _, err := os.Stat(filepath.Join(path, ".git")); err == nil {
+					return filepath.SkipDir
+				}
+			}
 			return nil
 		}
 		switch filepath.Ext(path) {

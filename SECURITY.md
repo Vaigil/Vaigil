@@ -48,7 +48,17 @@ is false is a vulnerability even without a working exploit:
   platform is approved by whoever asked for it; a run an automation held is
   approved by whoever wrote the rule; or somebody is made an administrator,
   an administrator's token is issued, a setting is weakened or the audit log
-  is moved on one administrator's word while another exists.
+  is moved on one administrator's word while another exists; or the only
+  administrator's own request is approved without its reason, before its
+  delay, or without a passkey sign-in from the last five minutes.
+- **The Owner cannot be removed.** Any way another administrator, single
+  sign-on provisioning, a deny or an end date takes the Owner's
+  administration of the store away, or ownership moves without the Owner
+  asking and confirming it a day later.
+- **A run token cannot be widened by whoever holds it.** Any way to remove,
+  widen, add or reorder a caveat of an agent's run token, or move it to
+  another run, and still have the tool gate accept it without the minting
+  key.
 - **Failures lock out places, not people.** Any way failed sign-ins from
   somewhere else lock a person out of the places they sign in from.
 - **The audit log is append-only and verifiable.** Any way to alter, drop or
@@ -58,6 +68,9 @@ is false is a vulnerability even without a working exploit:
 - **An agent reads and proposes, and does nothing else.** Any way an agent
   connected over MCP records a decision, approves an act, changes who may do
   what, or reaches another platform.
+- **Its own proofs say what was checked.** Any signed proof that verifies
+  while saying something its evidence does not support, or that carries
+  text an attacker could have written.
 - **What an agent reads cannot instruct it.** Any way text in an event, a
   finding or a log reaches the analyst model as anything but fenced data, or
   the analyst records a decision rather than a proposal.
@@ -94,7 +107,9 @@ and a report is most useful when it makes one of those tests fail:
 - `cmd/aertun/privilege_test.go`, `cmd/aertun/coverage_test.go` — every command declares what it needs, and has a screen and an MCP operation or a written reason
 - `internal/admin/mfa_test.go`, `internal/admin/stepup_test.go`, `internal/admin/sessions_test.go` — two factors, step-up and session limits
 - `internal/lockout` — smart lockout
-- `internal/dual`, `internal/incident`, `internal/automate` — second people
+- `internal/dual`, `internal/incident`, `internal/automate`, `cmd/aertun/soloreason_test.go`, `cmd/aertun/ownercmd_test.go` — second people, the Owner, and approving alone
+- `internal/macaroon`, `cmd/aertun/caveat_test.go` — run tokens and their caveats
+- `internal/proof`, `cmd/aertun/proofcmd_test.go` — signed proofs
 - `internal/audit`, `internal/translog`, `internal/auditstream` — the chain, the tree, signed heads and the stream
 - `internal/pii`, `internal/model` — the privacy guard in front of a model
 - `internal/fetch`, `internal/egress`, `internal/connector` — what may be reached

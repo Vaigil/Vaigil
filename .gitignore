@@ -32,3 +32,6 @@ bin/
 # argument is that it has no third-party code.
 *.whl
 __pycache__/
+
+# Local tool state: personal settings and worktrees, never part of the tree.
+/.claude/
