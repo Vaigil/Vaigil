@@ -5,8 +5,7 @@
 package main
 
 import (
-	"bufio"
-	"encoding/json"
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -119,30 +118,18 @@ func spoolAdd(root string, args []string) error {
 		in = f
 	}
 
-	var stored int
-	sc := bufio.NewScanner(in)
-	sc.Buffer(make([]byte, 0, 64<<10), MaxTelemetryLine)
-	for line := 1; sc.Scan(); line++ {
-		text := strings.TrimSpace(sc.Text())
-		if text == "" {
-			continue
-		}
-		var e telemetry.Event
-		if uerr := json.Unmarshal([]byte(text), &e); uerr != nil {
-			return fmt.Errorf("line %d is not an event: %w", line, uerr)
-		}
-		// Arrival is stamped by the spool, not taken from the file. A
-		// connector replaying yesterday's export is delivering it now, and
-		// the clock the store partitions on has to be one the source cannot
-		// move.
-		e.Received = time.Time{}
-		if _, aerr := s.Append(e); aerr != nil {
-			return fmt.Errorf("line %d: %w", line, aerr)
-		}
-		stored++
-	}
-	if err := sc.Err(); err != nil {
-		return fmt.Errorf("reading: %w", err)
+	// Decoded in parallel and stored in order, a chunk per write
+	// (spool.Ingest). Arrival is stamped by the spool, not taken from the
+	// file: a connector replaying yesterday's export is delivering it now,
+	// and the clock the store partitions on has to be one the source
+	// cannot move.
+	stored, ierr := s.Ingest(context.Background(), in, MaxTelemetryLine,
+		func(e *telemetry.Event) { e.Received = time.Time{} })
+	if ierr != nil {
+		// What was stored before the bad line stays stored, as it did
+		// when each line was its own append; the count says how much, so
+		// a retry can start after it.
+		return fmt.Errorf("%w (%d event(s) before it were stored)", ierr, stored)
 	}
 	if err := s.Seal(); err != nil {
 		return err

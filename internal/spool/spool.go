@@ -317,8 +317,9 @@ func (s *Spool) Append(e telemetry.Event) (string, error) {
 // AppendBatch writes a batch of events under one lock and returns the
 // segment each landed in, in order.
 //
-// Every event pays for the lock, the whole-index rewrite and the fsync once
-// per batch rather than once per event: a push source hands over hundreds of
+// Every event pays for the lock, the whole-index rewrite and the fsyncs —
+// the segment's, then the index's — once per batch rather than once per
+// event: a push source hands over hundreds of
 // events together, and a store that fsyncs an index per line caps the estate
 // at the speed of the disk's willingness to flush, not the speed events
 // arrive. A segment that rolls mid-batch seals — and saves — as rolling
@@ -381,6 +382,14 @@ func (s *Spool) AppendBatch(events []telemetry.Event) ([]string, error) {
 		}
 		s.observe(e.Lateness())
 		into[i] = seg.Name
+	}
+	// The lines reach the disk before the index that counts them does:
+	// an index saved first, then a crash, would count events the segment
+	// never received.
+	if s.open != nil {
+		if err := s.open.Sync(); err != nil {
+			return into, err
+		}
 	}
 	return into, s.save()
 }
