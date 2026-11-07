@@ -1,31 +1,29 @@
 // SPDX-FileCopyrightText: 2026 Rashik Adhikari
-// SPDX-FileCopyrightText: 2026 Rashik Adhikari
 // SPDX-License-Identifier: Apache-2.0
 
 package macaroon
 
 import (
+	"crypto/ed25519"
 	"encoding/base64"
 	"strings"
 	"testing"
 	"time"
 )
 
-// The chain, the closed set of kinds, and the algebra that attenuation only
-// narrows — the three properties everything else in this program leans on
-// when it refuses a call (docs/research/02-access-control.md §8.4).
+// The signature, the closed set of kinds, and the shapes — the properties
+// everything else in this program leans on when it refuses a call.
 //
 // The matrix this file holds, each row at the package boundary the gate
 // itself calls:
 //
-//	minted with each kind            verifies, and the discharge saw it
-//	any payload byte changed         refused by the chain
-//	a narrower caveat appended       verifies, and both are enforced
-//	a wider one appended             REFUSED, not clamped
-//	an unknown kind                  refused at mint, at parse, everywhere
-//	the shapes                       size-capped, halves unconfusable
+//	minted with each kind              verifies, and the discharge saw it
+//	any payload byte changed           refused by the signature
+//	a caveat removed, widened, added   refused by the signature
+//	or reordered, under the old one
+//	an unknown kind                    refused at mint, at parse, everywhere
+//	the shapes                         size-capped, halves unconfusable
 
-// aKey is a run key of the one length Mint and Verify accept.
 // aKeyPair is the Ed25519 pair every test in this file mints and verifies
 // with, generated once so the tests are deterministic within a run.
 var aKeyPair = func() struct {
@@ -42,7 +40,7 @@ var aKeyPair = func() struct {
 	}{priv, pub}
 }()
 
-// aKey is the private half, the role the old 32-byte HMAC key played.
+// aKey is the private half, what a minter holds.
 func aKey() MintKey { return aKeyPair.priv }
 
 // aPub is the public half, what a verifier holds.
@@ -69,7 +67,7 @@ func minted(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tok, err := Mint("vg_testsecret", aKey(), "agent:watcher/run-1",
+	tok, err := Mint("aet_testsecret", aKey(), "agent:watcher/run-1",
 		tools, purpose, level, exp, calls)
 	if err != nil {
 		t.Fatal(err)
@@ -78,7 +76,7 @@ func minted(t *testing.T) string {
 }
 
 // TestMintVerifyRoundTripEachKind: the row that must succeed. Every caveat
-// reaches the discharge function in chain order, and a discharge that says
+// reaches the discharge function in the order it was minted, and a discharge that says
 // yes to everything ends in yes.
 func TestMintVerifyRoundTripEachKind(t *testing.T) {
 	tok := minted(t)
@@ -112,7 +110,7 @@ func TestMintVerifyRoundTripEachKind(t *testing.T) {
 	}
 }
 
-// TestMintedUnderOneKeyFailsUnderAnother: the chain is keyed, so a token is
+// TestMintedUnderOneKeyFailsUnderAnother: the signature is keyed, so a token is
 // bound to the store that minted it. A run key is not a formality another
 // store's verifier can waive.
 func TestMintedUnderOneKeyFailsUnderAnother(t *testing.T) {
@@ -122,7 +120,7 @@ func TestMintedUnderOneKeyFailsUnderAnother(t *testing.T) {
 	}
 }
 
-// TestAnyChangedPayloadByteIsRefused: the chain covers the whole payload, so
+// TestAnyChangedPayloadByteIsRefused: the signature covers the whole payload, so
 // there is no byte whose change keeps the token verifiable — except the
 // don't-care bits of base64's final character, which change the string and
 // not the bytes, and are asserted to be the only such place.
@@ -182,10 +180,11 @@ func TestTamperedFramingIsRefused(t *testing.T) {
 		name, tok string
 	}{
 		{"truncated payload", tok[:len(tok)-4]},
-		{"no payload", "vg_testsecret" + marker},
-		{"no credential half", strings.TrimPrefix(tok, "vg_testsecret")},
-		{"payload not base64", "vg_testsecret" + marker + "!!!!"},
-		{"marker misspelled", strings.Replace(tok, marker, ".vgt9.", 1)},
+		{"no payload", "aet_testsecret" + marker},
+		{"no credential half", strings.TrimPrefix(tok, "aet_testsecret")},
+		{"payload not base64", "aet_testsecret" + marker + "!!!!"},
+		{"marker misspelled", strings.Replace(tok, marker, ".aet9.", 1)},
+		{"the retired format's marker", strings.Replace(tok, marker, ".vgt2.", 1)},
 		{"empty", ""},
 	} {
 		if _, ok := Parse(mangle.tok); ok {
@@ -200,154 +199,12 @@ func TestTamperedFramingIsRefused(t *testing.T) {
 	// package's own writer, so the refusal is the closed set's and not the
 	// alphabet's.
 	rogue := Caveat{Kind: "admin", Value: "yes"}
-	sig := rootSig(aKey(), "agent:watcher/run-1")
-	sig = bindSig(sig, rogue)
-	forged := envelope("vg_testsecret", payload("agent:watcher/run-1",
-		[]Caveat{rogue}, sig))
+	forged := resigned("aet_testsecret", "agent:watcher/run-1", []Caveat{rogue})
 	if _, ok := Parse(forged); ok {
 		t.Error("a caveat of an unknown kind parsed; the set is closed")
 	}
 	if err := Verify(forged, aPub(), func(Caveat) error { return nil }); err == nil {
 		t.Error("a caveat of an unknown kind verified; the set is closed")
-	}
-}
-
-// TestAttenuationNarrows: every narrowing append verifies, carries both the
-// old bound and the new, and — the property the whole design rests on —
-// the parent keeps working unchanged beside its child.
-func TestAttenuationNarrows(t *testing.T) {
-	parent := minted(t)
-	earlier := ExpCaveat(time.Unix(1, 0).UTC())
-	narrower, err := ToolCaveat("aertun_read")
-	if err != nil {
-		t.Fatal(err)
-	}
-	quieter, err := PurposeCaveat(PurposeObserve)
-	if err != nil {
-		t.Fatal(err)
-	}
-	child, err := Attenuate(parent, earlier, narrower, quieter)
-	if err != nil {
-		t.Fatalf("a narrowing attenuation was refused: %v", err)
-	}
-	seen := map[Kind]int{}
-	if err := Verify(child, aPub(), func(c Caveat) error {
-		seen[c.Kind]++
-		switch c.Kind {
-		case KindTool:
-			if c.Value != "aertun_read" && c.Value != "aertun_read,aertun_write" {
-				t.Errorf("a tool caveat became %q", c.Value)
-			}
-		case KindPurpose:
-			if c.Value != PurposeObserve && c.Value != PurposeTriage {
-				t.Errorf("a purpose caveat became %q", c.Value)
-			}
-		}
-		return nil
-	}); err != nil {
-		t.Fatalf("the attenuated token did not verify: %v", err)
-	}
-	if seen[KindTool] != 2 || seen[KindPurpose] != 2 {
-		t.Fatalf("the child carries %v; both bounds must survive attenuation", seen)
-	}
-	if err := Verify(parent, aPub(), func(Caveat) error { return nil }); err != nil {
-		t.Fatalf("attenuating a token changed the parent: %v", err)
-	}
-	// Attenuating the child narrows past its bounds, which is the algebra
-	// compounding: the intersection of three tool sets.
-	if _, err := Attenuate(child, earlier); err != nil {
-		t.Fatalf("attenuating the attenuated was refused: %v", err)
-	}
-}
-
-// TestAttenuationNeverWidens: each widening attempt is REFUSED, with a
-// message naming the bound it tried to pass — never clamped into something
-// quieter, because a caller told "done" believes they got what they typed.
-func TestAttenuationNeverWidens(t *testing.T) {
-	tools, err := ToolCaveat("aertun_read")
-	if err != nil {
-		t.Fatal(err)
-	}
-	exp := ExpCaveat(time.Unix(1_700_000_000, 0).UTC())
-	calls, err := CallsCaveat(3)
-	if err != nil {
-		t.Fatal(err)
-	}
-	level, err := LevelCaveat(1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	purpose, err := PurposeCaveat(PurposeObserve)
-	if err != nil {
-		t.Fatal(err)
-	}
-	parent, err := Mint("vg_testsecret", aKey(), "agent:watcher/run-1",
-		tools, exp, calls, level, purpose)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, mangle := range []struct {
-		name  string
-		more  func() (Caveat, error)
-		wants []string
-	}{
-		{"a wider tool set", func() (Caveat, error) {
-			return ToolCaveat("aertun_read", "aertun_write")
-		}, []string{"aertun_write", "refusing to attenuate"}},
-		{"a later expiry", func() (Caveat, error) {
-			return ExpCaveat(time.Unix(1_800_000_000, 0).UTC()), nil
-		}, []string{"refusing to attenuate", "1700000000"}},
-		{"a larger budget", func() (Caveat, error) {
-			return CallsCaveat(4)
-		}, []string{"refusing to attenuate"}},
-		{"a higher level", func() (Caveat, error) {
-			return LevelCaveat(2)
-		}, []string{"refusing to attenuate"}},
-		{"a further-reaching purpose", func() (Caveat, error) {
-			return PurposeCaveat(PurposeTriage)
-		}, []string{"refusing to attenuate", PurposeObserve}},
-		{"a kind nobody mints", func() (Caveat, error) {
-			return Caveat{Kind: "admin", Value: "yes"}, nil
-		}, []string{"not one this program mints"}},
-	} {
-		more, err := mangle.more()
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, aerr := Attenuate(parent, more)
-		if aerr == nil {
-			t.Errorf("%s was attenuated without a word; widening must be "+
-				"refused, not clamped", mangle.name)
-			continue
-		}
-		for _, want := range mangle.wants {
-			if !strings.Contains(aerr.Error(), want) {
-				t.Errorf("%s refusal says %q, which does not name %q",
-					mangle.name, aerr, want)
-			}
-		}
-	}
-	// An equal bound is not a widening: re-stating what is already bound
-	// changes nothing, and refusing it would make a holder unable to prove
-	// what they hold.
-	for _, same := range []func() (Caveat, error){
-		func() (Caveat, error) { return ToolCaveat("aertun_read") },
-		func() (Caveat, error) { return CallsCaveat(3) },
-		func() (Caveat, error) { return LevelCaveat(1) },
-		func() (Caveat, error) { return PurposeCaveat(PurposeObserve) },
-	} {
-		c, err := same()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := Attenuate(parent, c); err != nil {
-			t.Errorf("restating a bound was refused: %v", err)
-		}
-	}
-	// And a token that does not parse attenuates to nothing, because
-	// appending to garbage legitimises garbage.
-	if _, err := Attenuate("not-a-token", tools); err == nil {
-		t.Error("a string that does not parse was attenuated")
 	}
 }
 
@@ -359,7 +216,7 @@ func TestDischargeRefusalNamesTheCaveat(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tok, err := Mint("vg_testsecret", aKey(), "agent:watcher/run-1", tools)
+	tok, err := Mint("aet_testsecret", aKey(), "agent:watcher/run-1", tools)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -387,19 +244,19 @@ func TestMintRefusesWhatItCannotMean(t *testing.T) {
 		wants []string
 	}{
 		{"no caveats", func() (string, error) {
-			return Mint("vg_s", aKey(), "agent:watcher/run-1")
+			return Mint("aet_s", aKey(), "agent:watcher/run-1")
 		}, []string{"at least one caveat"}},
 		{"a duplicate kind", func() (string, error) {
-			return Mint("vg_s", aKey(), "agent:watcher/run-1", tools, tools)
+			return Mint("aet_s", aKey(), "agent:watcher/run-1", tools, tools)
 		}, []string{"appears twice"}},
 		{"a dotted credential", func() (string, error) {
-			return Mint("vg.s", aKey(), "agent:watcher/run-1", tools)
+			return Mint("aet.s", aKey(), "agent:watcher/run-1", tools)
 		}, []string{"dot-free"}},
 		{"a bad id", func() (string, error) {
-			return Mint("vg_s", aKey(), "Agent Watcher!", tools)
+			return Mint("aet_s", aKey(), "Agent Watcher!", tools)
 		}, []string{"not a run id"}},
 		{"a short key", func() (string, error) {
-			return Mint("vg_s", aKey()[:31], "agent:watcher/run-1", tools)
+			return Mint("aet_s", aKey()[:31], "agent:watcher/run-1", tools)
 		}, []string{"bytes"}},
 	} {
 		tok, err := mangle.mint()
@@ -455,9 +312,8 @@ func TestConstructorsRefuseWhatTheyCannotCarry(t *testing.T) {
 	if a != b {
 		t.Fatalf("the same set minted two spellings: %q and %q", a, b)
 	}
-	if _, ok := Parse("vg_s" + marker + enc(payload("agent:watcher/run-1",
-		[]Caveat{{Kind: KindTool, Value: "aertun_write,aertun_read"}},
-		rootSig(aKey(), "agent:watcher/run-1")))); ok {
+	if _, ok := Parse(resigned("aet_s", "agent:watcher/run-1",
+		[]Caveat{{Kind: KindTool, Value: "aertun_write,aertun_read"}})); ok {
 		t.Error("an out-of-order tool set parsed; this program writes one order")
 	}
 }
@@ -468,10 +324,8 @@ func TestConstructorsRefuseWhatTheyCannotCarry(t *testing.T) {
 // never swap.
 func TestSplitIsLooseParseIsStrict(t *testing.T) {
 	rogue := Caveat{Kind: "admin", Value: "yes"}
-	sig := bindSig(rootSig(aKey(), "agent:watcher/run-1"), rogue)
-	tok := envelope("vg_testsecret", payload("agent:watcher/run-1",
-		[]Caveat{rogue}, sig))
-	if secret, ok := Split(tok); !ok || secret != "vg_testsecret" {
+	tok := resigned("aet_testsecret", "agent:watcher/run-1", []Caveat{rogue})
+	if secret, ok := Split(tok); !ok || secret != "aet_testsecret" {
 		t.Fatalf("Split refused a token whose halves are sound: %q %v", secret, ok)
 	}
 	if _, ok := Parse(tok); ok {
@@ -479,33 +333,8 @@ func TestSplitIsLooseParseIsStrict(t *testing.T) {
 	}
 	// And a plain credential — no marker at all — is not a run token to
 	// either of them.
-	if _, ok := Split("vg_plainsecret"); ok {
+	if _, ok := Split("aet_plainsecret"); ok {
 		t.Error("a plain credential split as a run token")
-	}
-}
-
-// TestPurposesHaveAnOrder: observe narrows triage and never the other way
-// round, which is the lattice the mint and the attenuation check both use.
-func TestPurposesHaveAnOrder(t *testing.T) {
-	if !PurposeNarrowsTo(PurposeObserve, PurposeTriage) {
-		t.Error("observe does not narrow triage")
-	}
-	if PurposeNarrowsTo(PurposeTriage, PurposeObserve) {
-		t.Error("triage narrows observe; a purpose cannot reach further by attenuating")
-	}
-	if !PurposeNarrowsTo(PurposeObserve, PurposeObserve) {
-		t.Error("a purpose does not narrow itself")
-	}
-	if PurposeNarrowsTo("vibing", PurposeTriage) {
-		t.Error("a word outside the vocabulary narrowed something")
-	}
-	for _, p := range []string{PurposeObserve, PurposeTriage} {
-		if !ValidPurpose(p) {
-			t.Errorf("%q is not a valid purpose", p)
-		}
-	}
-	if ValidPurpose("TRIAGE") {
-		t.Error("the vocabulary is case-sensitive and TRIAGE is not in it")
 	}
 }
 
@@ -541,3 +370,77 @@ func b64decode(s string) ([]byte, error) {
 }
 
 func enc(p []byte) string { return base64.RawURLEncoding.EncodeToString(p) }
+
+// resigned builds a token by hand with this package's own frame, signed by
+// the test key, so a refusal is the closed set's or the signature's and not
+// the alphabet's.
+func resigned(secret, id string, caveats []Caveat) string {
+	b := body(id, caveats)
+	sig := ed25519.Sign(aKey(), signed(b))
+	return secret + marker + enc(append(b, sig...))
+}
+
+// replay builds a token from another token's signature over a different set
+// of caveats: what somebody holding a token, and not the key, can do.
+func replay(t *testing.T, tok, id string, caveats []Caveat) string {
+	t.Helper()
+	parsed, ok := Parse(tok)
+	if !ok {
+		t.Fatal("the original does not parse")
+	}
+	b := body(id, caveats)
+	return parsed.secret + marker + enc(append(b, parsed.sig...))
+}
+
+// TestAHolderCannotChangeTheCaveats: whoever holds a token, and not the
+// minting key, cannot remove a caveat, widen one, add one or reorder them,
+// even keeping the original signature — the attack an earlier format, whose
+// HMAC chain started from bytes in the token, allowed.
+func TestAHolderCannotChangeTheCaveats(t *testing.T) {
+	tok := minted(t)
+	orig, _ := Parse(tok)
+	cs := orig.Caveats()
+	wider, _ := ToolCaveat("aertun_admin", "aertun_read", "aertun_write")
+	more, _ := LevelCaveat(3)
+	cases := map[string][]Caveat{
+		"every caveat removed": {cs[0]},
+		"the budget removed":   cs[:len(cs)-1],
+		"the tools widened":    append([]Caveat{wider}, cs[1:]...),
+		"a caveat added":       append(append([]Caveat(nil), cs...), more),
+		"the order changed":    append([]Caveat{cs[1], cs[0]}, cs[2:]...),
+	}
+	for name, changed := range cases {
+		forged := replay(t, tok, orig.ID(), changed)
+		if err := Verify(forged, aPub(), func(Caveat) error { return nil }); err == nil {
+			t.Errorf("%s verified under the original signature", name)
+		}
+	}
+	if err := Verify(replay(t, tok, "agent:other/run-9", cs), aPub(), func(Caveat) error { return nil }); err == nil {
+		t.Error("the same caveats under another run id verified")
+	}
+}
+
+// TestTheSignatureIsBoundToItsDomain: a signature over the same bytes
+// without the domain — what this key would make for some other purpose —
+// does not verify as a run token.
+func TestTheSignatureIsBoundToItsDomain(t *testing.T) {
+	tools, _ := ToolCaveat("aertun_read")
+	b := body("agent:watcher/run-1", []Caveat{tools})
+	sig := ed25519.Sign(aKey(), b)
+	tok := "aet_testsecret" + marker + enc(append(b, sig...))
+	if err := Verify(tok, aPub(), func(Caveat) error { return nil }); err == nil {
+		t.Error("a signature made without the domain verified")
+	}
+}
+
+// TestAVerifierWithOnlyThePublicKeyVerifies: the public half is all a
+// verifier needs, and Mint refuses anything but a private key.
+func TestAVerifierWithOnlyThePublicKeyVerifies(t *testing.T) {
+	if err := Verify(minted(t), aPub(), func(Caveat) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	tools, _ := ToolCaveat("aertun_read")
+	if _, err := Mint("aet_testsecret", MintKey(aPub()), "agent:watcher/run-1", tools); err == nil {
+		t.Error("a token was minted with a public key")
+	}
+}

@@ -52,6 +52,22 @@ func asOnly(t *testing.T, root, who string) {
 	t.Setenv("AERTUN_TOKEN", secret)
 }
 
+// asPasskey makes who the caller through a session they signed in to with
+// their passkey just now, as the console makes one.
+func asPasskey(t *testing.T, root, who string) {
+	t.Helper()
+	ts, _ := loadTokens(root)
+	secret, _, err := ts.IssueSession("passkey:"+who, who, auth.RoleAdmin, "/",
+		time.Hour, auth.RoleAdmin, auth.MethodPasskey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := saveJSON(tokensPath(root), ts); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AERTUN_TOKEN", secret)
+}
+
 // An agent acting for the only administrator may not approve a privileged
 // change, even after the delay that lets the administrator approve it
 // alone: otherwise an agent would ask, wait, and approve in their name.

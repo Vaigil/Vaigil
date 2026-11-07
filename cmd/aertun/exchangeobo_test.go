@@ -24,8 +24,7 @@ import (
 	"github.com/aertun/aertun/internal/out"
 )
 
-// The delegation phase, end to end (docs/research/02-access-control.md
-// §8.2): a consent made through the authorization server, an on-behalf-of
+// The delegation phase, end to end: a consent made through the authorization server, an on-behalf-of
 // token exchanged from it, and the exchanged token carried through the real
 // agent interface — the same gates a stdio or HTTP caller reaches, caveat
 // gate included — with the audit trail and the resource metadata holding up
@@ -146,7 +145,7 @@ func TestExchangeOnBehalfOfRunsTheWholeDelegation(t *testing.T) {
 	// reads its chain.
 	req := httptest.NewRequest(http.MethodPost, origin+"/mcp", nil)
 	var proofs dpop.Replays
-	caller, err := agentCaller(root, req, token, &proofs)
+	caller, err := agentCaller(root, req, token, &proofs, "")
 	if err != nil {
 		t.Fatalf("the agent interface refused the exchanged token: %v", err)
 	}
@@ -416,7 +415,7 @@ func TestExchangeOnBehalfOfRefusesWhatTheStoreRefuses(t *testing.T) {
 
 	// And the on-behalf-of exchange without the agent's credential in the
 	// header is not an agent asking.
-	form.Set("actor_token", "vg_"+"nobody-ever-minted-this")
+	form.Set("actor_token", "aet_"+"nobody-ever-minted-this")
 	form.Del("scope")
 	req = httptest.NewRequest(http.MethodPost, origin+"/token/exchange",
 		strings.NewReader(form.Encode()))

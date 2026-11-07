@@ -123,12 +123,27 @@ func lockSync(root string) (func(), error) {
 	if err := os.MkdirAll(estateDir(root), 0o700); err != nil {
 		return nil, err
 	}
-	unlock, err := atomicfile.TryLock(syncLockPath(root))
-	if errors.Is(err, atomicfile.ErrHeld) {
-		return nil, fmt.Errorf("a sync is already running")
+	// A moment's patience before refusing: syncRunning answers "is a sync
+	// running?" by taking the lock for an instant (atomicfile.Held), so a
+	// sync that starts while the status is being read finds the lock held
+	// by the reader, not by a sync. That holds for microseconds; a sync
+	// holds it for as long as it reads the tools.
+	deadline := time.Now().Add(syncLockPatience)
+	for {
+		unlock, err := atomicfile.TryLock(syncLockPath(root))
+		if !errors.Is(err, atomicfile.ErrHeld) {
+			return unlock, err
+		}
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("a sync is already running")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
-	return unlock, err
 }
+
+// syncLockPatience is how long lockSync waits out a lock held by
+// somebody only looking at it.
+const syncLockPatience = 100 * time.Millisecond
 
 func syncLockPath(root string) string { return filepath.Join(estateDir(root), "sync.lock") }
 

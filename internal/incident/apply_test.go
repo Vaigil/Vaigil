@@ -177,7 +177,7 @@ func TestAnIdentifierIsAShapeAndNotAPath(t *testing.T) {
 	if _, err := NewID(day0, "../../x"); err == nil {
 		t.Error("an identifier was made from a path")
 	}
-	if got := strings.Join(Scopes(), " "); got != "circia dora eu hipaa nis2 sec" {
+	if got := strings.Join(Scopes(), " "); got != "circia cra dora eu hipaa nis2 sec" {
 		t.Errorf("scopes: %s", got)
 	}
 }

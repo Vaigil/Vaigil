@@ -254,8 +254,17 @@ func TestAMappingChangeShowsOnTheNextPush(t *testing.T) {
 			secret, secret); resp.StatusCode != http.StatusOK {
 			t.Fatalf("%s got %d", id, resp.StatusCode)
 		}
+		// The newest event from the host, not the newest event: the
+		// store's own audit records are stored beside the estate's, and
+		// a push runs the rules, which records that it did.
 		events := storedEvents(t, root)
-		return events[len(events)-1]
+		for i := len(events) - 1; i >= 0; i-- {
+			if events[i].Raw["host"] == "build01" {
+				return events[i]
+			}
+		}
+		t.Fatalf("%s stored no event from build01", id)
+		return telemetry.Event{}
 	}
 	first := push("p1")
 	if first.Raw["agent"] != "watcher" {

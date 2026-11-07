@@ -5,6 +5,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -19,9 +20,9 @@ import (
 	"github.com/aertun/aertun/internal/out"
 )
 
-// The run token, end to end (docs/research/02-access-control.md §8.4): a
+// The run token, end to end: a
 // caveat-bound credential minted for one run of a registered agent,
-// verified as a credential everywhere and as a chain of caveats at the one
+// verified as a credential everywhere and as signed caveats at the one
 // gate that authorises tool calls.
 //
 // The matrix this file holds, every row through the real operation path —
@@ -98,6 +99,30 @@ func mintRun(t *testing.T, root, run string, tools []string, purpose string,
 	return tok
 }
 
+// remint is how a narrower token is made: by the minter, with the store's
+// run key, over the same credential and run — never derived from the token
+// in hand, which a holder could as easily widen as narrow.
+func remint(t *testing.T, root, tok string, caveats ...macaroon.Caveat) string {
+	t.Helper()
+	secret, ok := macaroon.Split(tok)
+	if !ok {
+		t.Fatal("the minted token has no halves")
+	}
+	parsed, ok := macaroon.Parse(tok)
+	if !ok {
+		t.Fatal("the minted token does not parse")
+	}
+	key, err := ensureRunKey(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	narrower, err := macaroon.Mint(secret, key, parsed.ID(), caveats...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return narrower
+}
+
 // runCaller resolves a run token the way every surface resolves a
 // presented credential, so what is under test is the whole carry.
 func runCaller(t *testing.T, root, token string) *Caller {
@@ -152,7 +177,7 @@ func TestCaveatRunTokenCarriesAndReads(t *testing.T) {
 }
 
 // TestCaveatToolSetRefusesWhatItOmits: the run was minted with both tools
-// and then attenuated to read only, so the credential can write, the
+// and then minted again narrower, to read only, so the credential can write, the
 // register allows the write and the ladder permits it — and the call is
 // refused by the tool caveat alone, naming it, and recorded in the audit
 // log with the caveat that refused it.
@@ -160,11 +185,16 @@ func TestCaveatToolSetRefusesWhatItOmits(t *testing.T) {
 	root := caveatSite(t)
 	parent := mintRun(t, root, "r2", []string{"aertun_read", "aertun_write"},
 		macaroon.PurposeTriage, 0, -1)
-	narrower, err := macaroon.Attenuate(parent, macaroon.Caveat{
-		Kind: macaroon.KindTool, Value: "aertun_read"})
+	readOnly, err := macaroon.ToolCaveat("aertun_read")
 	if err != nil {
 		t.Fatal(err)
 	}
+	purpose, err := macaroon.PurposeCaveat(macaroon.PurposeTriage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	narrower := remint(t, root, parent, readOnly, purpose,
+		macaroon.ExpCaveat(time.Now().UTC().Add(time.Hour)))
 	srv := buildMCP(root, runCaller(t, root, narrower))
 	msg := refused(t, srv, "aertun_write", "propose_finding_decision",
 		map[string]any{"id": "x", "to": "fixed", "because": "y"})
@@ -209,17 +239,18 @@ func TestCaveatToolSetRefusesWhatItOmits(t *testing.T) {
 }
 
 // TestCaveatExpiryIsHonouredThroughTheOperationPath: the parent run works
-// beside a child attenuated past its own deadline, and the child's next
+// beside a child minted past its own deadline, and the child's next
 // call is refused by the clock the caveat carries — not by the store,
 // whose credential is still live.
 func TestCaveatExpiryIsHonouredThroughTheOperationPath(t *testing.T) {
 	root := caveatSite(t)
 	parent := mintRun(t, root, "r3", []string{"aertun_read"}, "", 0, -1)
-	dead, err := macaroon.Attenuate(parent,
-		macaroon.ExpCaveat(time.Now().UTC().Add(-time.Minute)))
+	tools, err := macaroon.ToolCaveat("aertun_read")
 	if err != nil {
 		t.Fatal(err)
 	}
+	dead := remint(t, root, parent, tools,
+		macaroon.ExpCaveat(time.Now().UTC().Add(-time.Minute)))
 	msg := refused(t, buildMCP(root, runCaller(t, root, dead)), "aertun_read",
 		"list_findings", nil)
 	for _, want := range []string{"caveat exp", "this run ended at"} {
@@ -229,7 +260,7 @@ func TestCaveatExpiryIsHonouredThroughTheOperationPath(t *testing.T) {
 	}
 	if _, err := callTool(t, buildMCP(root, runCaller(t, root, parent)),
 		"aertun_read", "list_findings", nil); err != nil {
-		t.Errorf("attenuating a token ended the parent: %s", err.Message)
+		t.Errorf("minting a narrower token ended the parent: %s", err.Message)
 	}
 }
 
@@ -262,7 +293,7 @@ func TestCaveatCallsBudgetIsCountedAndRunsAreIndependent(t *testing.T) {
 
 // TestCaveatPurposeMismatchRefused: a triage run proposes (the handler's
 // own refusal for a finding that does not exist is what a gate-passing
-// write looks like), and the same token attenuated to observe is refused
+// write looks like), and the same run minted again to observe is refused
 // at the write — by the purpose, before the operation is ever reached.
 func TestCaveatPurposeMismatchRefused(t *testing.T) {
 	root := caveatSite(t)
@@ -274,11 +305,16 @@ func TestCaveatPurposeMismatchRefused(t *testing.T) {
 	if err == nil || !strings.Contains(err.Message, "no finding has that id") {
 		t.Fatalf("a triage run's proposal did not reach the handler: %v", err)
 	}
-	quieter, aerr := macaroon.Attenuate(triage,
-		macaroon.Caveat{Kind: macaroon.KindPurpose, Value: macaroon.PurposeObserve})
-	if aerr != nil {
-		t.Fatal(aerr)
+	both, cerr := macaroon.ToolCaveat("aertun_read", "aertun_write")
+	if cerr != nil {
+		t.Fatal(cerr)
 	}
+	observe, cerr := macaroon.PurposeCaveat(macaroon.PurposeObserve)
+	if cerr != nil {
+		t.Fatal(cerr)
+	}
+	quieter := remint(t, root, triage, both, observe,
+		macaroon.ExpCaveat(time.Now().UTC().Add(time.Hour)))
 	srv := buildMCP(root, runCaller(t, root, quieter))
 	msg := refused(t, srv, "aertun_write", "propose_finding_decision",
 		map[string]any{"id": "x", "to": "fixed", "because": "y"})
@@ -295,7 +331,7 @@ func TestCaveatPurposeMismatchRefused(t *testing.T) {
 }
 
 // TestCaveatLevelBoundsTheWriteTool: autonomy L1 is proposing and L0 is
-// reading (research §6.9 mapped onto this surface), so a run bounded at 0
+// reading, so a run bounded at 0
 // reads and is refused the write by its level — with the tools and the
 // role both permitting, so it is the level that says no.
 func TestCaveatLevelBoundsTheWriteTool(t *testing.T) {
@@ -340,48 +376,93 @@ func TestCaveatBearerHalfIsRefusedAlone(t *testing.T) {
 	}
 }
 
-// TestCaveatTamperedPayloadIsRefusedByTheChain: one changed character in
+// TestCaveatTamperedPayloadIsRefusedBySignature: one changed character in
 // the payload half. The credential half still authenticates — the store
-// never sees the payload — and the chain refuses what the minter did not
-// sign.
-func TestCaveatTamperedPayloadIsRefusedByTheChain(t *testing.T) {
+// never sees the payload — and the signature refuses what the minter did
+// not sign.
+func TestCaveatTamperedPayloadIsRefusedBySignature(t *testing.T) {
 	root := caveatSite(t)
 	tok := mintRun(t, root, "r9", []string{"aertun_read"}, "", 0, -1)
-	i := strings.Index(tok, ".vgt2.")
-	if i < 0 {
+	secret, ok := macaroon.Split(tok)
+	if !ok {
 		t.Fatal("the minted token carries no payload")
 	}
 	// A character mid-payload, changed within the base64url alphabet so
 	// the string stays the shape of a token: it decodes to different
-	// bytes, which is the tamper the chain has to catch.
-	j := i + len(".vgt2.") + 5
+	// bytes, which is the tamper the signature has to catch.
+	j := len(secret) + len(".aet1.") + 5
 	if j >= len(tok) {
 		t.Fatal("the payload is too short to tamper")
 	}
-	forged := tok[:j] + "Q" + tok[j+1:]
-	if forged == tok {
-		t.Fatal("the tamper changed nothing")
+	swap := byte('Q')
+	if tok[j] == swap {
+		swap = 'R'
 	}
+	forged := tok[:j] + string(swap) + tok[j+1:]
 	c := resolveCaller(root, forged)
 	if !c.Verified {
-		t.Fatalf("the tampered token failed as a credential, not as a " +
-			"chain: the credential half was never touched")
+		t.Fatalf("the tampered token failed as a credential, not at the " +
+			"caveat gate: the credential half was never touched")
 	}
 	msg := refused(t, buildMCP(root, c), "aertun_read", "list_findings", nil)
 	if !strings.Contains(msg, "agent") || !strings.Contains(msg, "run r9") {
 		t.Errorf("the refusal does not name the run it refused: %s", msg)
 	}
-	// A truncated tail is not even the shape of a token, and never
-	// authenticates as anything.
-	// A truncated tail: the credential half is unchanged and still
-	// authenticates against the store (Split is loose by design — the
-	// bearer is still the bearer); the caveat gate is where the mangled
-	// payload is refused, not the store.
-	truncated := resolveCaller(root, tok[:len(tok)-8])
-	if !truncated.Verified {
-		t.Fatal("a truncated token's credential half should still authenticate")
+	// A token with its tail cut off, by any amount: either it no longer
+	// authenticates at all, or its credential half does and the caveat
+	// gate refuses the mangled payload. What it never does is get served.
+	for cut := 1; cut <= 12; cut++ {
+		c := resolveCaller(root, tok[:len(tok)-cut])
+		if !c.Verified {
+			continue
+		}
+		if _, err := callTool(t, buildMCP(root, c), "aertun_read",
+			"list_findings", nil); err == nil {
+			t.Errorf("a token with %d characters cut off was served", cut)
+		}
 	}
-	_ = truncated.RunToken // the caveat gate refuses mangled payloads in authoriseTool
+}
+
+// TestCaveatStrippedCaveatIsRefusedAtTheGate: the attack an earlier format
+// allowed, at the surface that matters. A holder takes a run minted with a
+// budget, drops the budget caveat and keeps the signature; the gate refuses
+// it, because the signature covers every caveat and the run id together.
+func TestCaveatStrippedCaveatIsRefusedAtTheGate(t *testing.T) {
+	root := caveatSite(t)
+	tok := mintRun(t, root, "r12", []string{"aertun_read"}, "", 2, -1)
+	secret, _ := macaroon.Split(tok)
+	parsed, ok := macaroon.Parse(tok)
+	if !ok {
+		t.Fatal("the minted token does not parse")
+	}
+	var kept []macaroon.Caveat
+	for _, cv := range parsed.Caveats() {
+		if cv.Kind != macaroon.KindCalls {
+			kept = append(kept, cv)
+		}
+	}
+	if len(kept) == len(parsed.Caveats()) {
+		t.Fatal("the run was minted without a budget to strip")
+	}
+	// Re-mint under a key that is not the store's, which is all a holder
+	// without the key can do; then check the honest one still works.
+	other, _, err := macaroon.GenerateMintKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stripped, err := macaroon.Mint(secret, other, parsed.ID(), kept...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg := refused(t, buildMCP(root, runCaller(t, root, stripped)),
+		"aertun_read", "list_findings", nil)
+	if !strings.Contains(msg, "run r12") {
+		t.Errorf("the refusal does not name the run it refused: %s", msg)
+	}
+	if _, err := callTool(t, buildMCP(root, runCaller(t, root, tok)),
+		"aertun_read", "list_findings", nil); err != nil {
+		t.Errorf("the honest token was refused: %s", err.Message)
+	}
 }
 
 // TestCaveatChainNamesItsOwnRun: a chain minted for another run and hung
@@ -670,5 +751,134 @@ func TestCaveatCallsBudgetSurvivesARestart(t *testing.T) {
 	}
 	if !strings.Contains(string(b), `"used"`) {
 		t.Errorf("the budget file does not hold the counts: %s", b)
+	}
+}
+
+// TestCaveatGateNeedsOnlyThePublicKey: the gate verifies with agents.pub
+// and never opens agents.key, so a process that only checks run tokens can
+// run without the file that mints them; and with no public key at all the
+// gate refuses rather than serving a credential whose caveats it cannot
+// check.
+func TestCaveatGateNeedsOnlyThePublicKey(t *testing.T) {
+	root := caveatSite(t)
+	tok := mintRun(t, root, "r13", []string{"aertun_read"}, "", 0, -1)
+	priv, err := os.ReadFile(runKeyPath(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(runKeyPath(root)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := callTool(t, buildMCP(root, runCaller(t, root, tok)),
+		"aertun_read", "list_findings", nil); err != nil {
+		t.Fatalf("the gate needed the private key: %s", err.Message)
+	}
+	pub, err := os.ReadFile(runPubPath(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(runPubPath(root)); err != nil {
+		t.Fatal(err)
+	}
+	msg := refused(t, buildMCP(root, runCaller(t, root, tok)),
+		"aertun_read", "list_findings", nil)
+	if !strings.Contains(msg, "no run verification key") {
+		t.Errorf("the refusal does not say the key is missing: %s", msg)
+	}
+	// A public half that is not the private half's is refused at the next
+	// mint, rather than minting tokens the gate would refuse.
+	if err := os.WriteFile(runKeyPath(root), priv, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	other, _, err := macaroon.GenerateMintKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(runPubPath(root), runPub(other), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ensureRunKey(root); err == nil ||
+		!strings.Contains(err.Error(), "not the public half") {
+		t.Errorf("a mismatched public key was accepted: %v", err)
+	}
+	// And a missing public half is written again from the private one.
+	if err := os.Remove(runPubPath(root)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ensureRunKey(root); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(runPubPath(root)); !bytes.Equal(got, pub) {
+		t.Error("the public half was not rewritten from the private one")
+	}
+}
+
+// TestCaveatBudgetFileFailsClosed: a budget file that cannot be read as
+// one, or that others can read, refuses the call rather than starting every
+// count again from zero — the corrupt file is the one an agent with a
+// budget would most like to see. A fresh handle on the same store sees
+// what an earlier one spent, and entries for runs that have ended are
+// dropped.
+func TestCaveatBudgetFileFailsClosed(t *testing.T) {
+	root := caveatSite(t)
+	tok := mintRun(t, root, "r-closed", []string{"aertun_read"}, "", 2, -1)
+	if _, err := callTool(t, buildMCP(root, runCaller(t, root, tok)),
+		"aertun_read", "list_findings", nil); err != nil {
+		t.Fatalf("the first call was refused: %s", err.Message)
+	}
+	// Another process: a new caller and server over the same files.
+	if _, err := callTool(t, buildMCP(root, runCaller(t, root, tok)),
+		"aertun_read", "list_findings", nil); err != nil {
+		t.Fatalf("the second call was refused: %s", err.Message)
+	}
+	if msg := refused(t, buildMCP(root, runCaller(t, root, tok)),
+		"aertun_read", "list_findings", nil); !strings.Contains(msg, "spent") {
+		t.Fatalf("a fresh handle gave the run a fresh budget: %s", msg)
+	}
+
+	path := filepath.Join(root, "agents-calls.json")
+	fresh := mintRun(t, root, "r-closed-2", []string{"aertun_read"}, "", 5, -1)
+	if err := os.WriteFile(path, []byte("{not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if msg := refused(t, buildMCP(root, runCaller(t, root, fresh)),
+		"aertun_read", "list_findings", nil); !strings.Contains(msg, "budget file cannot be used") {
+		t.Errorf("a corrupt budget file did not refuse the call: %s", msg)
+	}
+
+	if err := os.WriteFile(path, []byte(`{"used":{}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if msg := refused(t, buildMCP(root, runCaller(t, root, fresh)),
+		"aertun_read", "list_findings", nil); !strings.Contains(msg, "readable by others") {
+		t.Errorf("a world-readable budget file did not refuse the call: %s", msg)
+	}
+
+	// An ended run's entry goes at the next spend; a live one stays.
+	if err := os.Chmod(path, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(`{"used":{"agent:watcher/old|3":{"n":3,"until":1}}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := callTool(t, buildMCP(root, runCaller(t, root, fresh)),
+		"aertun_read", "list_findings", nil); err != nil {
+		t.Fatalf("the call was refused: %s", err.Message)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "watcher/old") {
+		t.Errorf("an ended run's entry was kept: %s", b)
+	}
+	if !strings.Contains(string(b), "r-closed-2") {
+		t.Errorf("the live run's entry is missing: %s", b)
+	}
+	if fi, _ := os.Stat(path); fi.Mode().Perm() != 0o600 {
+		t.Errorf("the budget file is %v", fi.Mode().Perm())
 	}
 }

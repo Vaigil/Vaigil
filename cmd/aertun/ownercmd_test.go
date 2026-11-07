@@ -4,6 +4,7 @@
 package main
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -74,6 +75,13 @@ func TestOwnershipMovesOnlyByTheOwnersConfirmedTransfer(t *testing.T) {
 	if r.Kind != dual.Owner || r.NotBefore.Sub(r.At) != 24*time.Hour {
 		t.Fatalf("the request: %+v", r)
 	}
+	// The Owner's own confirmation is the only approval a transfer gets,
+	// so a command-line token is not enough: it takes a passkey sign-in.
+	if err := cmdPending(root, []string{"approve", r.ID}); err == nil ||
+		!strings.Contains(err.Error(), "needs a passkey sign-in") {
+		t.Fatalf("a long-lived token confirmed the Owner's own request: %v", err)
+	}
+	asPasskey(t, root, "dana")
 	if err := cmdPending(root, []string{"approve", r.ID}); err == nil ||
 		!strings.Contains(err.Error(), "may be confirmed from") {
 		t.Fatalf("confirmed within the day: %v", err)
@@ -90,7 +98,7 @@ func TestOwnershipMovesOnlyByTheOwnersConfirmedTransfer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	asOnly(t, root, "dana")
+	asPasskey(t, root, "dana")
 	if err := cmdPending(root, []string{"approve", old.ID}); err != nil {
 		t.Fatalf("the Owner confirming after a day: %v", err)
 	}
@@ -101,5 +109,57 @@ func TestOwnershipMovesOnlyByTheOwnersConfirmedTransfer(t *testing.T) {
 	// cannot land as well.
 	if err := applyOwner(root, r, dual.OwnerChange{To: "lee"}); err == nil {
 		t.Error("a transfer asked for by a former Owner was applied")
+	}
+}
+
+// The first run, as the README and the deploy guide write it: init makes
+// the Owner, the store's first token is issued at once — there is nobody to
+// be a second administrator to — and the second token is not.
+func TestTheFirstRunGivesTheOwnerACommandLine(t *testing.T) {
+	windtunnelOutput(t)
+	root := t.TempDir() + "/st"
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("AERTUN_TOKEN", "")
+	if err := cmdInit(root); err != nil {
+		t.Fatal(err)
+	}
+	if err := initAdmin(root, []string{"--owner", "you@example.com"}, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := authoriseCommand(root, "token", []string{"issue", "cli", "--principal", "you@example.com", "--role", "admin"}); err != nil {
+		t.Fatalf("the first token was refused at the gate: %v", err)
+	}
+	if err := tokenIssue(root, []string{"cli", "--principal", "you@example.com", "--role", "admin"}); err != nil {
+		t.Fatal(err)
+	}
+	ts, _ := loadTokens(root)
+	if len(ts.Tokens) != 1 || ts.Tokens[0].Role != auth.RoleAdmin {
+		t.Fatalf("the first token was not issued: %+v", ts.Tokens)
+	}
+	if pend, _ := dualStore(root).Pending(time.Now()); len(pend) != 0 {
+		t.Fatalf("the first token waited for a second administrator: %+v", pend)
+	}
+	// The bootstrap closes once a token exists.
+	if err := authoriseCommand(root, "token", []string{"issue", "second", "--principal", "you@example.com", "--role", "admin"}); err == nil {
+		t.Error("a second token was issued without presenting the first")
+	}
+	// And the server starts with no token at all: it authorises each
+	// request itself.
+	if err := authoriseCommand(root, "serve", nil); err != nil {
+		t.Errorf("serve needed a token: %v", err)
+	}
+}
+
+// The container image ships the store's directory empty, so init finds it
+// made: the shipped rules must still arrive, or nothing is detected until
+// the server has started once.
+func TestInitIntoAnEmptyDirectoryInstallsTheRules(t *testing.T) {
+	windtunnelOutput(t)
+	root := t.TempDir()
+	if err := cmdInit(root); err != nil {
+		t.Fatal(err)
+	}
+	if !dirExists(filepath.Join(root, "detections")) {
+		t.Fatal("init into an empty directory installed no rules")
 	}
 }

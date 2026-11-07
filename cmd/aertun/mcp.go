@@ -24,7 +24,6 @@ import (
 	"github.com/aertun/aertun/internal/find"
 	"github.com/aertun/aertun/internal/macaroon"
 	"github.com/aertun/aertun/internal/mcp"
-	"github.com/aertun/aertun/internal/twin"
 )
 
 // The MCP surface is the third interface onto the same store, and every
@@ -36,27 +35,12 @@ import (
 func cmdMCP(root string, args []string) error {
 	fs := flag.NewFlagSet("mcp", flag.ContinueOnError)
 	list := fs.Bool("list", false, "print the operations and exit")
-	twinPath := fs.String("twin", "",
-		"serve read operations from a recorded snapshot FILE instead of the live store; "+
-			"the same case answers byte-identically (for deterministic evaluation)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
 	caller := resolveCaller(root, flagToken)
 	srv := buildMCP(root, caller)
-
-	// The context twin: read operations answer from a recorded snapshot,
-	// so agentic investigations replay deterministically. The twin's own
-	// record-and-replay is what P2's bake-off uses to measure an agent's
-	// investigation on identical evidence.
-	if *twinPath != "" {
-		snap, terr := twin.Load(*twinPath)
-		if terr != nil {
-			return fmt.Errorf("--twin: %w", terr)
-		}
-		fmt.Fprintf(os.Stderr, "context twin: %d recorded answer(s) from %s\n", len(snap.Entries), *twinPath)
-	}
 
 	if *list {
 		for _, op := range srv.Operations() {
@@ -192,14 +176,14 @@ const wellKnownMCP = "/.well-known/oauth-protected-resource/mcp"
 // signed-in person's browser at this endpoint is stopped by the origin
 // check before any of that matters.
 func mountMCP(mux *http.ServeMux, root string, cfg *config.Config, addr string) {
-	// The resource is named for the address the operator chose to listen
-	// on, not for whatever host a request arrives claiming: a Host header is
-	// an input, not an identity.
-	scheme := "http"
-	if cfg.Bool("admin.behind_tls_proxy") {
-		scheme = "https"
-	}
-	origin := scheme + "://" + addr
+	// The resource is named for the origin the operator chose — the
+	// configured one, or the address they listen on — not for whatever
+	// host a request arrives claiming: a Host header is an input, not an
+	// identity. With admin.base_url set, every request is checked against
+	// it too, so a token's audience and a proof's address are what the
+	// metadata says, behind a proxy as in front of one.
+	origin := publicOrigin(cfg, addr)
+	base := cfg.Raw("admin.base_url")
 
 	// One replay window for the endpoint's life: a DPoP proof is good for
 	// one request, and the remembering has to outlive each of them.
@@ -213,7 +197,7 @@ func mountMCP(mux *http.ServeMux, root string, cfg *config.Config, addr string) 
 		// /token/exchange (ErrKeyBound names it).
 		DPoP: dpop.AlgorithmNames(),
 		Authenticate: func(r *http.Request, token string) (*mcp.Caller, error) {
-			c, err := agentCaller(root, r, token, &proofs)
+			c, err := agentCaller(root, r, token, &proofs, base)
 			if err != nil {
 				return nil, err
 			}
@@ -257,7 +241,7 @@ func mountMCP(mux *http.ServeMux, root string, cfg *config.Config, addr string) 
 // OAuth shape, the day one is issued — is accepted only here, and only when
 // /mcp is the audience it was issued for. That is the RFC 8707 seam
 // internal/mcp's package comment names, closed at the one place it can be.
-func agentCaller(root string, r *http.Request, token string, proofs *dpop.Replays) (*Caller, error) {
+func agentCaller(root string, r *http.Request, token string, proofs *dpop.Replays, base string) (*Caller, error) {
 	// A run credential arrives as one string in two halves — the secret the
 	// store holds the hash of, then its caveat payload (internal/macaroon).
 	// The halves are split here for the same reason resolveCaller splits
@@ -283,7 +267,7 @@ func agentCaller(root string, r *http.Request, token string, proofs *dpop.Replay
 	// accepted here, and a token bound to any other resource — the admin, a
 	// future second interface, another deployment — is not, which is what
 	// keeps an app's OAuth token from being a way into everything else.
-	resource := mcpRequestURL(root, r)
+	resource := mcpRequestURL(root, r, base)
 	tok, err := toks.AuthenticateFor(token, resource, now)
 	if errors.Is(err, auth.ErrKeyBound) {
 		// The token is bound to a key, so the request must carry the proof
@@ -294,7 +278,7 @@ func agentCaller(root string, r *http.Request, token string, proofs *dpop.Replay
 			return nil, fmt.Errorf("%w: a key-bound token comes with exactly one DPoP proof",
 				dpop.ErrProof)
 		}
-		thumb, perr := dpop.Check(heads[0], r.Method, mcpRequestURL(root, r), token, now, proofs)
+		thumb, perr := dpop.Check(heads[0], r.Method, mcpRequestURL(root, r, base), token, now, proofs)
 		if perr != nil {
 			return nil, perr
 		}
@@ -337,13 +321,21 @@ func mcpOrigins(cfg *config.Config, addr string) map[string]bool {
 	for _, h := range names {
 		out[scheme+"://"+net.JoinHostPort(h, port)] = true
 	}
+	if base := cfg.Raw("admin.base_url"); base != "" {
+		out[base] = true
+	}
 	return out
 }
 
-// mcpRequestURL is the address a request reached this process under, as a
-// DPoP proof names it: the scheme from the socket or the trusted-proxy
-// setting, and the host and path as the request came in.
-func mcpRequestURL(root string, r *http.Request) string {
+// mcpRequestURL is the address a request was made to, as a DPoP proof and
+// a token's audience name it: the configured origin when there is one
+// (base, admin.base_url as serve started with it), otherwise the scheme
+// from the socket or the trusted-proxy setting and the host as the request
+// came in; the path as it came in either way.
+func mcpRequestURL(root string, r *http.Request, base string) string {
+	if base != "" {
+		return base + r.URL.Path
+	}
 	scheme := "http"
 	if r.TLS != nil || mustConfig(root).Bool("admin.behind_tls_proxy") {
 		scheme = "https"

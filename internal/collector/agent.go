@@ -207,6 +207,7 @@ func (a *Agent) heartbeat(now time.Time) map[string]any {
 		"dropped":        strconv.FormatInt(c.Dropped, 10),
 		"batches":        strconv.FormatInt(c.Batches, 10),
 		"retries":        strconv.FormatInt(c.Retries, 10),
+		"quarantined":    strconv.FormatInt(c.Quarantined, 10),
 		"version":        Version,
 		"go":             runtime.Version(),
 	}

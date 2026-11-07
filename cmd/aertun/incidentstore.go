@@ -483,7 +483,7 @@ func incidentDo(root, do string, args []string) error {
 	usage := map[string]string{
 		"note":      `ID "what happened"`,
 		"assign":    "ID commander|comms|scribe WHO",
-		"decide":    `ID aware|major|material|personal|health --because "…"`,
+		"decide":    `ID aware|major|material|personal|health|mitigated --because "…"`,
 		"discharge": `ID "REGIME" --because "how it was met"`,
 		"waive":     `ID "REGIME" --because "why it does not apply"`,
 		"link":      "ID FINDING",

@@ -1064,8 +1064,7 @@ func mountOTLP(mux *http.ServeMux, root string) {
 // session middleware, answering a bearer credential, exactly like every
 // other thing that pushes.
 //
-// The collector is the read-only endpoint agent (docs/research/
-// 12-xdr-ndr-tip-iam.md §8), and the boundary here is where its evidence
+// The collector is the read-only endpoint agent, and the boundary here is where its evidence
 // stops being that program's and becomes this one's. Three properties of
 // that boundary are load-bearing enough to be named:
 //
@@ -1574,7 +1573,7 @@ func collectorHeartbeatEvent(name string, r collector.Record, at time.Time,
 	}
 	raw := map[string]string{"host": host}
 	for _, k := range []string{"uptime_seconds", "shipped", "dropped",
-		"batches", "retries", "version", "go"} {
+		"batches", "retries", "quarantined", "version", "go"} {
 		if v := recString(r.Data, k); v != "" {
 			raw[k] = v
 		}

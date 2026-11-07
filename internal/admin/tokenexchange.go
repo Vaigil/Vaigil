@@ -4,6 +4,7 @@
 package admin
 
 import (
+	"crypto/ed25519"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -84,7 +85,7 @@ type exchangeAnswer struct {
 	Scope           string `json:"scope,omitempty"`
 }
 
-// handleTokenExchange is RFC 8693 token exchange: a aertun token for a
+// handleTokenExchange is RFC 8693 token exchange: an Aertun token for a
 // narrower one that lasts minutes, or a job's identity token for a token a
 // trust says it may have. Bound to a key when the request carries a proof.
 func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request) {
@@ -185,7 +186,7 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request) {
 		failed("invalid_grant", errors.New("this console trusts no other issuer"))
 		return
 	default:
-		failed("invalid_request", errors.New("subject_token_type is a aertun access token, or an identity token (id_token or jwt) from an issuer a trust names"))
+		failed("invalid_request", errors.New("subject_token_type is an Aertun access token, or an identity token (id_token or jwt) from an issuer a trust names"))
 		return
 	}
 	if s.Throttle != nil {
@@ -239,8 +240,8 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request) {
 //
 // A run-shaped credential: a secret minted by the token store (revocable,
 // expiring, audience-bound to /mcp, grant-bound to the consent, parented to
-// the consented token, carrying the act chain) wrapped in a caveat chain
-// signed by the store's run key, with the intersection as its tool caveat.
+// the consented token, carrying the act chain) with caveats signed by the
+// store's run key, with the intersection as its tool caveat.
 // That shape is the point: every gate that already exists — the registry
 // gate, the tool allowlist gate, the caveat gate — checks it without knowing
 // it was born here, and revoking the consent, the person's token or the
@@ -396,11 +397,14 @@ func (s *Server) exchangeOnBehalf(w http.ResponseWriter, r *http.Request,
 	actorTools := map[string]bool{}
 	if isRun {
 		privKey, kerr := runKey()
+		if kerr == nil && len(privKey) != ed25519.PrivateKeySize {
+			kerr = errors.New("the store's run key is not an Ed25519 private key, so no run credential can be verified")
+		}
 		if kerr != nil {
 			refuse("invalid_grant", kerr)
 			return
 		}
-		pubKey := macaroon.VerifyKey(privKey[32:])
+		pubKey := ed25519.PrivateKey(privKey).Public().(ed25519.PublicKey)
 		var expired error
 		perr := macaroon.Verify(actorPresented, pubKey, func(cv macaroon.Caveat) error {
 			switch cv.Kind {
@@ -467,13 +471,8 @@ func (s *Server) exchangeOnBehalf(w http.ResponseWriter, r *http.Request,
 	// depth cap's record), and the caveats signed under the run key.
 	name := agentreg.TokenPrefix + agent + "/obo-" + consent.ID
 	act := []string{subject.Principal, agent}
-	secret, tok, ierr := s.Tokens.IssueForAgent(name, subject.Principal,
-		bundle.Role, auth.Scope{ReadOnly: bundle.ReadOnly}, agent,
-		consent.ID, aud, subject.ID, act, thumb, ttl, now)
-	if ierr != nil {
-		refuse("invalid_request", ierr)
-		return
-	}
+	// Everything that can refuse is settled before the credential exists,
+	// so a refusal never leaves an issued token behind in the store.
 	key, kerr := runKey()
 	if kerr != nil {
 		refuse("invalid_request", kerr)
@@ -487,6 +486,13 @@ func (s *Server) exchangeOnBehalf(w http.ResponseWriter, r *http.Request,
 	purposeCaveat, perr := macaroon.PurposeCaveat(bundle.Name)
 	if perr != nil {
 		refuse("invalid_request", perr)
+		return
+	}
+	secret, tok, ierr := s.Tokens.IssueForAgent(name, subject.Principal,
+		bundle.Role, auth.Scope{ReadOnly: bundle.ReadOnly}, agent,
+		consent.ID, aud, subject.ID, act, thumb, ttl, now)
+	if ierr != nil {
+		refuse("invalid_request", ierr)
 		return
 	}
 	token, merr := macaroon.Mint(secret, key, name, toolCaveat, purposeCaveat,

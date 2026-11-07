@@ -57,8 +57,10 @@
       <p id="until-help" class="hint">Empty lasts until it is removed.</p></div>
   </div>
   <p><input type="checkbox" id="g-deny" name="deny"> <label for="g-deny">Deny instead of grant</label></p>
+  {{if .Enrol}}<p><input type="checkbox" id="g-invite" name="invite"> <label for="g-invite">And give them a passkey enrolment link</label></p>{{end}}
   <div class="field"><label for="g-note">Why</label>
-    <input id="g-note" name="note" placeholder="Optional, and worth writing"></div>
+    <input id="g-note" name="note" maxlength="500" aria-describedby="note-help">
+    <p id="note-help" class="hint">Kept on the record. Needed when you are the only administrator and this makes somebody an administrator: it waits, and the reason is all the next reader has to go on.</p></div>
   <p><button type="submit">Save</button></p>
 </form>
 

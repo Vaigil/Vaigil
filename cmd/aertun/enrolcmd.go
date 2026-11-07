@@ -70,7 +70,7 @@ func authEnrol(root string, args []string) error {
 	}
 	if !holdsAny(pol, name) {
 		return fmt.Errorf("%s has no access here, so a passkey would sign them in to nothing. "+
-			"Grant them a role first: aertun auth grant %s author", name, name)
+			"Grant them a role first, or do both at once: aertun auth invite %s viewer", name, name)
 	}
 	return issueEnrolment(root, name, caller.Name, *life, caller)
 }

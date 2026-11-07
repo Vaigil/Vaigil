@@ -29,6 +29,23 @@ type Obligation struct {
 	// Within is how long after it. Business says whether weekends count.
 	Within   time.Duration `json:"within"`
 	Business bool          `json:"business,omitempty"`
+	// After names the obligation whose discharge starts this clock, for a
+	// report the law times from an earlier report's submission rather than
+	// from a decision. Needs is then the decision without which none of it
+	// applies, and the clock runs from when After was recorded done.
+	After string `json:"after,omitempty"`
+	// Months is a period the law counts in calendar months, in place of
+	// Within: the same date in the later month, or that month's last day
+	// when it has no such date (Regulation (EEC, Euratom) No 1182/71), to
+	// the same hour — never later than the law's end of that day.
+	Months int `json:"months,omitempty"`
+	// Bound and BoundWithin are an outer limit from a second decision,
+	// which applies when Needs was recorded within BoundWithin of Bound:
+	// DORA's initial notification is due four hours after classification
+	// and, when the classification came within twenty-four hours of
+	// awareness, no later than those twenty-four hours.
+	Bound       Trigger       `json:"bound,omitempty"`
+	BoundWithin time.Duration `json:"bound_within,omitempty"`
 	// Who has to be told, and What has to be sent.
 	Who  string `json:"who"`
 	What string `json:"what"`
@@ -77,19 +94,81 @@ var Obligations = []Obligation{
 	},
 	{
 		Regime: "NIS2 final report", Scope: "nis2", Needs: Aware,
-		Within: 30 * 24 * time.Hour,
-		Who:    "the CSIRT or competent authority",
-		What:   "a final report",
+		After: "NIS2 notification", Months: 1,
+		Who:  "the CSIRT or competent authority",
+		What: "a final report",
+		Note: "one month after the incident notification was submitted " +
+			"(Article 23(4)(d)), so its clock starts when that one is " +
+			"recorded as done. An incident still going on by then is " +
+			"reported on as it stands, and finally a month after it is " +
+			"handled",
 	},
 	{
-		Regime: "DORA", Scope: "dora", Needs: Major,
-		Within: 4 * time.Hour,
-		Who:    "the competent authority",
-		What:   "an initial notification",
-		Note: "the shortest clock in the set, and it runs from " +
-			"classification rather than from awareness. Delaying the " +
-			"classification does not delay anything else: the outer bound " +
-			"is measured from awareness regardless",
+		Regime: "DORA initial notification", Scope: "dora", Needs: Major,
+		Within: 4 * time.Hour, Bound: Aware, BoundWithin: 24 * time.Hour,
+		Who:  "the competent authority",
+		What: "an initial notification of a major ICT-related incident",
+		Note: "four hours from classification as major, and no later than " +
+			"twenty-four hours from awareness (Delegated Regulation (EU) " +
+			"2025/301, Article 5). A classification made after those " +
+			"twenty-four hours starts its own four hours; it does not make " +
+			"the notification any less late if it should have come sooner",
+	},
+	{
+		Regime: "DORA intermediate report", Scope: "dora", Needs: Major,
+		After: "DORA initial notification", Within: 72 * time.Hour,
+		Who:  "the competent authority",
+		What: "an intermediate report",
+		Note: "seventy-two hours from submitting the initial notification, " +
+			"even when nothing has changed, and updated again when regular " +
+			"activities are recovered",
+	},
+	{
+		Regime: "DORA final report", Scope: "dora", Needs: Major,
+		After: "DORA intermediate report", Months: 1,
+		Who:  "the competent authority",
+		What: "a final report",
+		Note: "one month after the intermediate report — or after the " +
+			"latest updated one, so record that one as done again when an " +
+			"update is sent",
+	},
+	{
+		Regime: "CRA early warning", Scope: "cra", Needs: Aware,
+		Within: 24 * time.Hour,
+		Who: "the coordinating CSIRT and ENISA, through the single " +
+			"reporting platform",
+		What: "an early warning of an actively exploited vulnerability or a " +
+			"severe incident in a product with digital elements",
+		Note: "for manufacturers, from 11 September 2026, about products " +
+			"already on the market as well (Regulation (EU) 2024/2847, " +
+			"Articles 14 and 71). Awareness here is the manufacturer's, of " +
+			"the exploitation or the incident",
+	},
+	{
+		Regime: "CRA notification", Scope: "cra", Needs: Aware,
+		Within: 72 * time.Hour,
+		Who: "the coordinating CSIRT and ENISA, through the single " +
+			"reporting platform",
+		What: "a vulnerability or incident notification with what users " +
+			"can do about it",
+	},
+	{
+		Regime: "CRA final report on an incident", Scope: "cra", Needs: Aware,
+		After: "CRA notification", Months: 1,
+		Who: "the coordinating CSIRT and ENISA, through the single " +
+			"reporting platform",
+		What: "a final report on a severe incident",
+		Note: "one month after the incident notification was submitted; " +
+			"rule it out when what was notified is a vulnerability",
+	},
+	{
+		Regime: "CRA final report on a vulnerability", Scope: "cra",
+		Needs: Mitigated, Within: 14 * 24 * time.Hour,
+		Who: "the coordinating CSIRT and ENISA, through the single " +
+			"reporting platform",
+		What: "a final report on an actively exploited vulnerability",
+		Note: "fourteen days after a corrective or mitigating measure is " +
+			"available; rule it out when what was notified is an incident",
 	},
 	{
 		Regime: "SEC Item 1.05", Scope: "sec", Needs: Material,
@@ -110,6 +189,12 @@ var Obligations = []Obligation{
 		Regime: "CIRCIA", Scope: "circia", Needs: Aware,
 		Within: 72 * time.Hour,
 		Who:    "CISA", What: "a covered cyber incident report",
+		Note: "the statute's seventy-two hours, from reasonably believing a " +
+			"covered incident occurred. Reporting is required only once " +
+			"CISA's final rule takes effect, and in November 2026 that rule " +
+			"was still under review and unpublished: until it is, this is " +
+			"voluntary — rule it out with that reason if you are not " +
+			"reporting",
 	},
 }
 
@@ -146,11 +231,14 @@ func (d Duty) Says() string {
 		return "done"
 	case d.Waived:
 		return "ruled out: " + d.Why
+	case !d.Started && d.After != "":
+		return fmt.Sprintf("no clock yet: it starts when %q is recorded "+
+			"as done", d.After)
 	case !d.Started:
 		return fmt.Sprintf(
 			"no clock: nobody has recorded %q. That is not the same as "+
 				"nothing being due — %s", d.Needs, d.Needs.Means())
-	case d.Within == 0:
+	case !d.timed():
 		return "no deadline, and expected without undue delay"
 	case d.Left < 0:
 		return fmt.Sprintf("late by %s", plainly(-d.Left))
@@ -170,10 +258,16 @@ func (i *Incident) Duties(now time.Time) []Duty {
 			continue
 		}
 		d := Duty{Obligation: o}
-		if m, ok := i.Moments[o.Needs]; ok {
-			d.Started, d.From = true, m.At
-			if o.Within > 0 {
-				d.Due = due(m.At, o.Within, o.Business)
+		if from, ok := i.clockStart(o); ok {
+			d.Started, d.From = true, from
+			if o.timed() {
+				d.Due = o.dueFrom(from)
+				if b, has := i.Moments[o.Bound]; has && o.Bound != "" &&
+					!from.After(b.At.Add(o.BoundWithin)) {
+					if outer := b.At.Add(o.BoundWithin); outer.Before(d.Due) {
+						d.Due = outer
+					}
+				}
 				d.Left = d.Due.Sub(now)
 			}
 		}
@@ -193,7 +287,7 @@ func (i *Incident) Duties(now time.Time) []Duty {
 		if x.Started != y.Started {
 			return x.Started
 		}
-		if x.Started && x.Within > 0 && y.Within > 0 {
+		if x.Started && x.timed() && y.timed() {
 			return x.Left < y.Left
 		}
 		return x.Regime < y.Regime
@@ -202,6 +296,51 @@ func (i *Incident) Duties(now time.Time) []Duty {
 }
 
 const waived = "not applicable: "
+
+// clockStart is when an obligation's clock started on this incident, if it
+// has: the decision it needs, or — for a report timed from an earlier one —
+// the moment that earlier one was recorded done, once the decision that
+// makes any of it apply has been made. An earlier report ruled out starts
+// nothing.
+func (i *Incident) clockStart(o Obligation) (time.Time, bool) {
+	m, ok := i.Moments[o.Needs]
+	if !ok {
+		return time.Time{}, false
+	}
+	if o.After == "" {
+		return m.At, true
+	}
+	prev, done := i.Discharged[o.After]
+	if !done || strings.HasPrefix(prev.Why, waived) {
+		return time.Time{}, false
+	}
+	return prev.At, true
+}
+
+// timed reports whether an obligation has a deadline at all.
+func (o Obligation) timed() bool { return o.Within > 0 || o.Months > 0 }
+
+// dueFrom is when an obligation is due, counted from its clock's start.
+func (o Obligation) dueFrom(from time.Time) time.Time {
+	if o.Months > 0 {
+		return addMonths(from, o.Months)
+	}
+	return due(from, o.Within, o.Business)
+}
+
+// addMonths counts calendar months as Regulation (EEC, Euratom) No 1182/71
+// does: the same date in the later month, or that month's last day when it
+// has no such date — one month from 31 January is the last day of
+// February, not 2 or 3 March as time.AddDate would make it.
+func addMonths(t time.Time, n int) time.Time {
+	y, m, d := t.Date()
+	first := time.Date(y, m+time.Month(n), 1, 0, 0, 0, 0, t.Location())
+	if last := first.AddDate(0, 1, -1).Day(); d > last {
+		d = last
+	}
+	return time.Date(first.Year(), first.Month(), d, t.Hour(), t.Minute(),
+		t.Second(), t.Nanosecond(), t.Location())
+}
 
 // due adds a duration, skipping weekends when the deadline is in business
 // days.

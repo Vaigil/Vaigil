@@ -5,20 +5,21 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"flag"
 	"fmt"
-	"github.com/aertun/aertun/internal/anchor"
-	"github.com/aertun/aertun/internal/fetch"
-	"github.com/aertun/aertun/internal/logd"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/aertun/aertun/internal/anchor"
 	"github.com/aertun/aertun/internal/audit"
 	"github.com/aertun/aertun/internal/dual"
+	"github.com/aertun/aertun/internal/fetch"
+	"github.com/aertun/aertun/internal/logd"
 	"github.com/aertun/aertun/internal/out"
 )
 
@@ -100,7 +101,7 @@ func cmdAuditDir(root string, args []string) error {
 	// thing in this command, so it waits for a second administrator, who
 	// moves it on approving (applyDual).
 	apply, err := proposeSecond(root, resolveCaller(root, ""), dual.AuditLog, "move the audit log to "+abs,
-		dual.AuditLogChange{Dir: abs}, *why)
+		dual.AuditLogChange{Dir: abs}, *why, "--why")
 	if err != nil || !apply {
 		return err
 	}
@@ -157,7 +158,45 @@ func auditKeyPath(root string) string {
 // log and the key can re-identify everyone in it. A deployment that means it
 // puts the key in a KMS and mounts the log read-only. The local default is the
 // bootstrap, not the destination.
+//
+// One handle per log and key, for the life of the process: the queue that
+// lets concurrent records share an fsync belongs to a handle, so a server
+// whose every request opened its own would never share one, and would read
+// the key and the chain's tail once per record besides. A handle holds no
+// descriptor between records and picks the chain up again whenever another
+// process has written, so keeping it costs nothing a fresh one would not.
 func openAudit(root string) (*audit.Log, error) {
+	key, err := auditLogKey(root)
+	if err != nil {
+		return nil, err
+	}
+	sum := sha256.Sum256(key)
+	id := auditPath(root) + "\x00" + keyMode(root).String() + "\x00" +
+		hex.EncodeToString(sum[:])
+	if l, ok := auditLogs.Load(id); ok {
+		return l.(*audit.Log), nil
+	}
+	host, _ := os.Hostname()
+	if host == "" {
+		host = "unknown-host"
+	}
+	l, err := audit.New(audit.Options{
+		Path: auditPath(root), Key: key, Source: "aertun-cli@" + host,
+		Mode: keyMode(root),
+	})
+	if err != nil {
+		return nil, err
+	}
+	shared, _ := auditLogs.LoadOrStore(id, l)
+	return shared.(*audit.Log), nil
+}
+
+// auditLogs holds the handles openAudit shares, by log path, mode and key.
+var auditLogs sync.Map
+
+// auditLogKey reads the log's pseudonymisation key, creating it on first
+// use.
+func auditLogKey(root string) ([]byte, error) {
 	key, err := os.ReadFile(auditKeyPath(root))
 	if os.IsNotExist(err) {
 		key, err = audit.NewKey()
@@ -184,14 +223,7 @@ func openAudit(root string) (*audit.Log, error) {
 		}
 		return nil, err
 	}
-	host, _ := os.Hostname()
-	if host == "" {
-		host = "unknown-host"
-	}
-	return audit.New(audit.Options{
-		Path: auditPath(root), Key: key, Source: "aertun-cli@" + host,
-		Mode: keyMode(root),
-	})
+	return key, nil
 }
 
 // record writes an audit event, and never stops the operation it describes.

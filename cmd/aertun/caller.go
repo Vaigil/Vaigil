@@ -89,6 +89,10 @@ type Caller struct {
 	// scope and its expiry like any other, and the mint narrows those
 	// coarse bounds to match the caveats so the two never disagree.
 	RunToken string
+	// Proof is the token this caller presented, for what only it can
+	// answer: when, and how, its person last proved themselves. Zero for a
+	// caller who presented none.
+	Proof auth.Token
 }
 
 // tokenFile is preferred over the environment.
@@ -196,7 +200,7 @@ func callerFromToken(tok *auth.Token) *Caller {
 	}
 	c := &Caller{
 		Name: tok.Principal, Role: tok.Role, Scope: tok.Resource,
-		Limits: tok.Scope, Kind: kind, Verified: true,
+		Limits: tok.Scope, Kind: kind, Verified: true, Proof: *tok,
 	}
 	if name, ok := agentreg.Bind(tok.Name); ok {
 		// The agent convention is the one token name that says what kind of

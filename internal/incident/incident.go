@@ -113,10 +113,14 @@ const (
 	Personal Trigger = "personal"
 	// Health: protected health information was confirmed involved.
 	Health Trigger = "health"
+	// Mitigated: a corrective or mitigating measure for an actively
+	// exploited vulnerability is available. The Cyber Resilience Act's
+	// final report on the vulnerability runs from here.
+	Mitigated Trigger = "mitigated"
 )
 
 // Triggers is every decision that starts something.
-var Triggers = []Trigger{Aware, Major, Material, Personal, Health}
+var Triggers = []Trigger{Aware, Major, Material, Personal, Health, Mitigated}
 
 // Means says what making this decision commits to, so somebody can see
 // what they are about to start before they start it.
@@ -128,9 +132,10 @@ func (t Trigger) Means() string {
 			"is likelihood, and waiting for certainty is how the seventy-" +
 			"two hours are spent"
 	case Major:
-		return "the incident meets the classification thresholds for a " +
-			"major one. Four hours from here, which is the shortest clock " +
-			"in the set"
+		return "the incident meets DORA's classification thresholds for a " +
+			"major one. The initial notification is due four hours from " +
+			"here, and no later than twenty-four hours from awareness when " +
+			"the classification comes within those twenty-four hours"
 	case Material:
 		return "a reasonable investor would consider this important. The " +
 			"determination itself is required to be made without " +
@@ -140,6 +145,10 @@ func (t Trigger) Means() string {
 		return "personal data was involved, confirmed rather than assumed"
 	case Health:
 		return "protected health information was involved"
+	case Mitigated:
+		return "a fix or mitigation for the actively exploited " +
+			"vulnerability is available to users. The final report on it " +
+			"is due fourteen days from here"
 	}
 	return string(t)
 }

@@ -37,6 +37,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/aertun/aertun/internal/atomicfile"
 	"github.com/aertun/aertun/internal/auth"
@@ -131,6 +133,13 @@ func SoloDelay(kind string) time.Duration {
 	return time.Hour
 }
 
+// OwnProof is how recently a person approving their own request must have
+// signed in with their passkey. Their own approval is the only one such a
+// request gets — the only administrator's after its delay, the Owner's
+// confirming a transfer — so it must come from the person, not from a
+// session somebody may have taken an hour ago.
+const OwnProof = 5 * time.Minute
+
 // The states a request is in.
 const (
 	Waiting   = "waiting"
@@ -195,12 +204,22 @@ type Store struct {
 // ErrNoRequest is an id that names no request.
 var ErrNoRequest = errors.New("there is no such request")
 
+// MaxWhy is the longest reason a request carries, in characters: a
+// sentence or three for whoever approves it and whoever reads the log.
+const MaxWhy = 500
+
 // Propose records a request. alone says the proposer is the only
 // administrator, so the request carries the moment from which they may
 // approve it themselves (SoloDelay).
 func (s Store) Propose(kind, what string, payload any, why, by string, alone bool, now time.Time) (Request, error) {
 	if strings.TrimSpace(by) == "" {
 		return Request{}, errors.New("a request is somebody's: nobody was named")
+	}
+	if n := utf8.RuneCountInString(why); n > MaxWhy {
+		return Request{}, fmt.Errorf("the reason is %d characters; a request carries at most %d", n, MaxWhy)
+	}
+	if strings.ContainsFunc(why, unicode.IsControl) {
+		return Request{}, errors.New("the reason is one line of text, with no control characters")
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {

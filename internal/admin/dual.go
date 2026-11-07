@@ -51,13 +51,17 @@ func (s *Server) proposeSecond(p principal, kind, what string, payload any, why 
 	}
 	alone := s.onlyAdministrator(p.Name)
 	if alone && strings.TrimSpace(why) == "" {
-		return false, "a change made alone needs a reason: write one before asking", errors.New("a solo change without a reason is a change nobody can read the why of")
+		const need = "You are the only administrator, so a change you make alone needs a reason: write one and ask again."
+		return false, need, errors.New(need)
 	}
 	r, err := s.Dual.Store.Propose(kind, what, payload, why, p.Name, alone, time.Now())
 	if err != nil {
 		return false, "", err
 	}
 	detail := map[string]string{"by": p.Name, "request": r.ID, "kind": kind, "what": what}
+	if why != "" {
+		detail["why"] = why
+	}
 	if alone {
 		detail["alone"] = "true"
 		detail["not_before"] = r.NotBefore.UTC().Format(time.RFC3339)
@@ -168,24 +172,8 @@ func (s *Server) handlePeoplePending(w http.ResponseWriter, r *http.Request) {
 	var err error
 	switch do {
 	case "approve", "decline":
-		if do == "approve" && s.onlyAdministrator(p.Name) {
-			// The most sensitive act in the program: approving your own
-			// privileged change alone, after the wait. The session that
-			// does it must have proved its person within the last five
-			// minutes — a sign-in or a passkey confirmation — so a
-			// session stolen an hour ago cannot finish a takeover the
-			// thief started.
-			if s.Tokens != nil {
-				if tok, ok := s.Tokens.ByID(p.TokenID); ok &&
-					!tok.FreshEnough(now, 5*time.Minute) {
-					_ = s.Tokens.RequireStepUp(p.TokenID,
-						"approving alone: confirm it is you with your passkey")
-					s.peopleBack(w, r, "confirm it is you with your passkey first: "+
-						"an approval made alone needs a sign-in or a passkey "+
-						"confirmation within the last five minutes")
-					return
-				}
-			}
+		if do == "approve" && !s.ownApprovalProved(w, r, p, id, now) {
+			return
 		}
 		req, err = s.Dual.Store.Decide(id, p.Name, do == "approve", s.onlyAdministrator(p.Name), now)
 		if err == nil && do == "approve" {
@@ -212,4 +200,41 @@ func (s *Server) handlePeoplePending(w http.ResponseWriter, r *http.Request) {
 		msg += " " + req.By + " receives it with aertun pending redeem " + req.ID + ", within a day."
 	}
 	s.peopleBack(w, r, msg)
+}
+
+// ownApprovalProved decides whether p may approve request id as far as
+// proof of person goes, and answers the request itself when not. A request
+// approved by whoever made it — the only administrator after the delay,
+// the Owner confirming a transfer — has nobody else's approval beside it,
+// so the session approving it must have signed in with its passkey within
+// dual.OwnProof: a session taken an hour ago cannot finish a change its
+// taker started. One that has not is marked to prove its person, durably,
+// and sent to do it; anything that cannot be decided refuses.
+func (s *Server) ownApprovalProved(w http.ResponseWriter, r *http.Request, p principal, id string, now time.Time) bool {
+	req, err := s.Dual.Store.Get(id)
+	if err != nil || !strings.EqualFold(req.By, p.Name) {
+		return true // somebody else's request, or none: Decide answers it
+	}
+	if p.Proof.ProvedWithin(auth.MethodPasskey, now, dual.OwnProof) {
+		return true
+	}
+	if !s.hasPasskey(p.Name) {
+		s.peopleBack(w, r, "Approving your own request needs a passkey sign-in from the last five minutes, and you have no passkey: add one, then approve it.")
+		return false
+	}
+	if s.Tokens == nil || s.SaveTokens == nil {
+		s.peopleBack(w, r, "Approving your own request needs a passkey sign-in from the last five minutes, and this server cannot ask for one.")
+		return false
+	}
+	if err := s.Tokens.RequireStepUp(p.TokenID, "you are approving your own request: confirm it is you with your passkey, then approve it again"); err != nil {
+		s.peopleBack(w, r, err.Error())
+		return false
+	}
+	if err := s.SaveTokens(s.Tokens); err != nil {
+		s.peopleBack(w, r, err.Error())
+		return false
+	}
+	s.audit("session.stepup-required", "/", map[string]string{"by": p.Name, "session": p.TokenID, "request": req.ID})
+	http.Redirect(w, r, "/signin/verify", http.StatusSeeOther)
+	return false
 }

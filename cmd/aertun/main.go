@@ -499,14 +499,21 @@ func cmdInit(root string) error {
 	if w == nil {
 		w = out.New(false)
 	}
-	_, existed := os.Stat(root)
+	entries, statErr := os.ReadDir(root)
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return err
 	}
-	if existed != nil {
+	switch {
+	case statErr != nil:
 		w.Human("created %s\n", root)
-		return ensureRules(root, "init")
+	case len(entries) == 0:
+		// The container image ships the store's directory empty, so a
+		// first init there finds it already made.
+		w.Human("using %s, which was empty\n", root)
+	default:
+		w.Human("reusing %s\n", root)
 	}
-	w.Human("reusing %s\n", root)
-	return nil
+	// Whether the directory was made here or arrived empty, a store
+	// starts with the shipped rules; one that has its own keeps them.
+	return ensureRules(root, "init")
 }

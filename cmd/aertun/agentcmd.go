@@ -5,7 +5,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"crypto/ed25519"
 	"flag"
 	"fmt"
 	"os"
@@ -279,9 +281,8 @@ func agentMaps(root string, caller *Caller, args []string,
 }
 
 // agentMint mints a run token: a caveat-bound credential for one run of a
-// registered agent — the delegation slice of the agent design
-// (docs/research/02-access-control.md §8.4), where a run is bounded by
-// caveats an HMAC chain signs and the tool gate checks.
+// registered agent, where a run is bounded by caveats the store's run key
+// signs and the tool gate checks.
 //
 // The register decides who the agent is; this decides what one run of it
 // may do, and it can only narrow. Every tool named must be one the agent's
@@ -322,7 +323,7 @@ func agentMint(root string, caller *Caller, args []string,
 	// into wherever the run's credential lives.
 	fmt.Printf("%s%s%s\n", bold, tok, reset)
 	// Said out loud because it is the honest reach of the thing: the
-	// caveat chain is checked on the command line's agent interface, which
+	// caveats are checked on the command line's agent interface, which
 	// is where a run rides; the HTTP interface refuses the dotted form at
 	// the door, because its credential half is the only half the store
 	// holds a hash of — fail-closed, by shape.
@@ -339,7 +340,7 @@ func agentMint(root string, caller *Caller, args []string,
 
 // issueRunToken is the mint's core: validate the bounds against the
 // register, mint a credential with the token store's own machinery, and
-// wrap it in a caveat chain under the store's run key.
+// sign its caveats with the store's run key.
 //
 // Two authorities are involved and both are the store's existing ones: the
 // credential half is issued by auth.TokenStore.IssueScoped — so the
@@ -347,8 +348,8 @@ func agentMint(root string, caller *Caller, args []string,
 // it and the kill switch's sweep kills it — and the caveat half is signed
 // by the run key beside the register (ensureRunKey), which nothing else in
 // the store can re-make. A run token is therefore verified against the
-// same store twice over: as a credential, everywhere, and as a chain of
-// caveats, at the tool gate.
+// same store twice over: as a credential, everywhere, and as a signed set
+// of caveats, at the tool gate.
 func issueRunToken(root string, caller *Caller, name, run string,
 	tools []string, hours int, purpose string, calls, level int) (string, error) {
 
@@ -482,66 +483,90 @@ func issueRunToken(root string, caller *Caller, name, run string,
 		caveats...)
 }
 
-// runKeyPath is the store's caveat-minting key: the HMAC root every run
-// token's chain begins under. It lives beside the registry it serves, with
-// a key file's permissions — 0600, written once — because it is the one
-// secret that can re-make a run token's caveats, which is exactly the
-// thing nobody but the minter and the verifier may hold.
+// runKeyPath is the store's caveat-minting key: the Ed25519 private key
+// every run token's caveats are signed with. It lives beside the registry
+// it serves at 0600, written once, because whoever reads it can mint a run
+// token with any caveats at all.
 func runKeyPath(root string) string { return filepath.Join(root, "agents.key") }
 
-// runKeyBytes is the Ed25519 private key size: the v2 run key is a key
-// pair, not the 32-byte HMAC key the v1 format used, and the private half
-// is the half the minter holds.
-const runKeyBytes = 64
+// runPubPath is the run key's public half, which is all a verifier needs.
+// The tool gate reads this and never the private half, so a process that
+// only checks tokens (an MCP server an agent runs, say) has no reason to be
+// able to open the file that mints them.
+func runPubPath(root string) string { return filepath.Join(root, "agents.pub") }
 
 // parseRunKey reads a run key file, or explains why what is there cannot
 // be one. A wrong-length key is refused rather than padded or truncated:
 // a key nobody agrees on is a key every token minted under it will be
 // refused by, and the honest time to say so is now.
-func parseRunKey(path string, b []byte) ([]byte, error) {
-	if len(b) != runKeyBytes {
+func parseRunKey(path string, b []byte) (macaroon.MintKey, error) {
+	if len(b) != ed25519.PrivateKeySize {
 		return nil, fmt.Errorf("the run key at %s is %d bytes, not the %d "+
 			"an Ed25519 private key is; it is not the key this store minted "+
 			"with, so nothing minted as a run token would verify. Move it "+
-			"aside and mint again to create a fresh one", path, len(b), runKeyBytes)
+			"aside and mint again to create a fresh one", path, len(b),
+			ed25519.PrivateKeySize)
 	}
-	return b, nil
+	return macaroon.MintKey(b), nil
 }
 
-// ensureRunKey returns the store's run key, creating it on first mint.
-// Under the lock beside it, so two mints at once cannot each create a key
-// and leave the other's tokens unverifiable.
-func ensureRunKey(root string) ([]byte, error) {
+// runPub is the public half of a run key, as the verifier must see it.
+func runPub(k macaroon.MintKey) macaroon.VerifyKey {
+	return k.Public().(ed25519.PublicKey)
+}
+
+// ensureRunKey returns the store's run key, creating it — and its public
+// half — on first mint. Under the lock beside it, so two mints at once
+// cannot each create a key and leave the other's tokens unverifiable. A
+// public half that is missing is written again from the private one; a
+// public half that disagrees with it is refused, because every token
+// minted from here on would fail at the gate.
+func ensureRunKey(root string) (macaroon.MintKey, error) {
 	path := runKeyPath(root)
 	unlock, err := atomicfile.Lock(path + ".lock")
 	if err != nil {
 		return nil, err
 	}
 	defer unlock()
+	var key macaroon.MintKey
 	if b, err := os.ReadFile(path); err == nil {
-		return parseRunKey(path, b)
+		if key, err = parseRunKey(path, b); err != nil {
+			return nil, err
+		}
 	} else if !os.IsNotExist(err) {
 		return nil, err
+	} else {
+		priv, _, err := macaroon.GenerateMintKey()
+		if err != nil {
+			return nil, fmt.Errorf("cannot generate a run key pair: %w", err)
+		}
+		if err := atomicfile.Write(path, priv, 0o600); err != nil {
+			return nil, err
+		}
+		key = priv
 	}
-	// v2: the run key is an Ed25519 private key (64 bytes), not the
-	// 32-byte HMAC key the v1 format used. The chain it roots is the
-	// same HMAC construction; what changed is who can start one.
-	priv, _, err := macaroon.GenerateMintKey()
-	if err != nil {
-		return nil, fmt.Errorf("cannot generate a run key pair: %w", err)
-	}
-	if err := atomicfile.Write(path, priv, 0o600); err != nil {
+	pub := runPub(key)
+	switch got, err := os.ReadFile(runPubPath(root)); {
+	case os.IsNotExist(err):
+		if err := atomicfile.Write(runPubPath(root), pub, 0o644); err != nil {
+			return nil, err
+		}
+	case err != nil:
 		return nil, err
+	case !bytes.Equal(got, pub):
+		return nil, fmt.Errorf("%s is not the public half of %s, so the "+
+			"tool gate would refuse every run token minted here; move the "+
+			"public file aside and mint again to write it afresh",
+			runPubPath(root), path)
 	}
-	return priv, nil
+	return key, nil
 }
 
-// loadRunKey is ensureRunKey's read-only half: the verifier's, which never
-// creates. An absent key is an error rather than an empty one, because
-// "nothing minted as a run token can be verified here" is a decision the
-// gate needs to make loudly — the alternative is a store that quietly
-// accepts run tokens it cannot check.
-func loadRunKey(root string) ([]byte, error) {
+// loadRunKey is ensureRunKey's read-only half, for the one other process
+// that mints: the token exchange inside serve. An absent key is an error
+// rather than an empty one, because "nothing minted as a run token can be
+// verified here" is a decision the caller needs to make loudly.
+func loadRunKey(root string) (macaroon.MintKey, error) {
 	path := runKeyPath(root)
 	b, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
@@ -553,6 +578,28 @@ func loadRunKey(root string) ([]byte, error) {
 		return nil, err
 	}
 	return parseRunKey(path, b)
+}
+
+// loadVerifyKey is the verifier's key: the public half only. Absent, it is
+// an error for the same reason loadRunKey's is — a gate that cannot check
+// caveats refuses the credential rather than waving it through.
+func loadVerifyKey(root string) (macaroon.VerifyKey, error) {
+	path := runPubPath(root)
+	b, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil, fmt.Errorf("there is no run verification key at %s, so "+
+			"no run token can be verified in this store; refusing rather "+
+			"than acting on a credential whose caveats nobody can check", path)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if len(b) != ed25519.PublicKeySize {
+		return nil, fmt.Errorf("the run verification key at %s is %d bytes, "+
+			"not the %d an Ed25519 public key is", path, len(b),
+			ed25519.PublicKeySize)
+	}
+	return macaroon.VerifyKey(b), nil
 }
 
 // agentDisable is the kill switch: responder-grade on purpose, because the
@@ -602,8 +649,7 @@ func agentDisable(root string, caller *Caller, args []string,
 		whySuffix(revoked))
 	noteErr := note("agent.disable", pos[0], map[string]string{
 		"why": *why, "revoked": fmt.Sprintf("%d", revoked)})
-	// The outward half of the switch (docs/research/02-access-control.md
-	// §8.5): tell every configured receiver. Best-effort by contract — the
+	// The outward half of the switch: tell every configured receiver. Best-effort by contract — the
 	// local kill has already happened, and a receiver that is unreachable
 	// must never be allowed to fail or delay the switch that stops the
 	// agent. Each attempt is audited on its own, success or failure, so the
@@ -922,8 +968,8 @@ func agentHelp() error {
 
   There is deliberately no "disable all agents" here. A switch that turns
   off every agent at once is an availability weapon — one command, every
-  responder's helper gone — and the design (docs/research/02-access-control
-  §8.5) holds it behind dual control until that is built. Agents are killed
+  responder's helper gone — and it waits on dual control until that is
+  built. Agents are killed
   one at a time, by name, on the record.
 `)
 	return nil

@@ -26,14 +26,17 @@ import (
 // thing that already existed somewhere in this store; the server owns a
 // protocol and no state of its own beyond minutes-short codes.
 
-// oauthOrigin decides the one origin both the authorization server's
-// metadata and the token exchange's audience name, so they can never
-// disagree behind a proxy. admin.base_url wins when set — it is the
-// operator's own statement of where this program is reached — with the
-// scheme taken from the base_url itself when it carries one, from the
-// TLS-proxy setting when it does not. The listen address is the fallback
-// nobody has to configure on a laptop.
-func oauthOrigin(cfg *config.Config, addr string) string {
+// publicOrigin is the origin this server names itself by: admin.base_url
+// when the operator has set it — their own statement of where it is
+// reached, which the configuration has already checked is an origin — and
+// otherwise the listen address, with the scheme the TLS-proxy setting
+// gives. The authorization server's metadata and the agent interface's
+// resource document are named by it; with admin.base_url set, the token
+// exchange's audience, the resource /mcp checks a token against, the DPoP
+// proofs both check, and the console's enrolment links and feeds name the
+// same origin (admin.Server.Origin, mcpRequestURL), so behind a proxy none
+// of them disagree.
+func publicOrigin(cfg *config.Config, addr string) string {
 	if base := cfg.Raw("admin.base_url"); base != "" {
 		return base
 	}
@@ -65,7 +68,7 @@ func mountOAuthAS(mux *http.ServeMux, root string, cfg *config.Config, addr stri
 	// process happens to listen on: behind a reverse proxy the listen
 	// address is loopback and the real origin is in admin.base_url,
 	// the same setting the console and the SIEM stream already use.
-	origin := oauthOrigin(cfg, addr)
+	origin := publicOrigin(cfg, addr)
 
 	as := &oauthas.Server{
 		Issuer:   origin,

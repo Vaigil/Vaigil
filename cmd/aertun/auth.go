@@ -6,6 +6,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -18,6 +19,7 @@ import (
 	"github.com/aertun/aertun/internal/audit"
 	"github.com/aertun/aertun/internal/auth"
 	"github.com/aertun/aertun/internal/dual"
+	"github.com/aertun/aertun/internal/enrol"
 )
 
 // Access lives beside the content rather than inside it. The object store is
@@ -177,13 +179,14 @@ func authUsage() error {
   deny <principal> <role|permission> [--on /path] [--note "..."]
   revoke <principal> <role|permission|job> [--on /path]
   list
+  invite <principal> <role> [--note "..."]   grant a role and print the enrolment link at once
   enrol <principal> [--for 24h] [--revoke]   a one-time link that adds their passkey
   unlock <principal>                         let them sign in again after a lockout
   explain <principal> <action> [--on /path]
   roles
 
 A store starts with one person, its Owner (aertun init --owner NAME). Everybody
-else is a collaborator: grant them a role, then send them the link enrol prints.
+else is a collaborator: invite them with a role, and send them the link it prints.
 The Owner always administers the whole store; nobody can revoke, deny or expire
 that, and it changes only by a transfer the Owner confirms a day after asking.
 
@@ -239,19 +242,40 @@ func authRoles(root string) error {
 }
 
 // authInvite does what a collaborator actually needs in one command: grant
-// the role (which for an administrator still waits for a second one, through
-// the same path grant takes) and print the enrolment link they open to add
-// their passkey. The grant and the link are separate facts — the link works
-// whether or not the grant has been approved — and both are printed, each
-// saying which it is.
+// the role — through the same path grant takes, so making somebody an
+// administrator still waits for a second one — and print the enrolment link
+// they open to add their passkey. The grant and the link are separate
+// facts: the link adds a passkey whether or not the grant has been
+// approved, and signing in with it reaches only what has been granted, so
+// when the grant is waiting the command says so beside the link.
 func authInvite(root string, args []string) error {
-	if len(args) < 2 {
-		return fmt.Errorf("usage: aertun auth invite <principal> <role> [--on /path] [--note REASON]")
+	usage := errors.New("usage: aertun auth invite <principal> <role> [--on /path] [--note REASON] [--for 30d | --until YYYY-MM-DD]")
+	if len(args) < 2 || strings.HasPrefix(args[0], "-") || strings.HasPrefix(args[1], "-") {
+		return usage
 	}
+	for _, a := range args[2:] {
+		if a == "--deny" || strings.HasPrefix(a, "--deny=") {
+			return errors.New("an invitation grants; to deny somebody, use aertun auth deny")
+		}
+	}
+	caller := resolveCaller(root, "")
+	if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
+		return err
+	}
+	who := args[0]
 	if err := authGrant(root, args); err != nil {
 		return fmt.Errorf("the grant: %w", err)
 	}
-	return authEnrol(root, args[:1])
+	pol, err := loadPolicy(root)
+	if err != nil {
+		return err
+	}
+	if !holdsAny(pol, who) {
+		w.Human("  %s%s holds nothing until that request is approved: the link "+
+			"below adds their passkey now, and signing in with it reaches "+
+			"nothing until then%s\n", dim, who, reset)
+	}
+	return issueEnrolment(root, who, caller.Name, enrol.MaxLife, caller)
 }
 
 func authGrant(root string, args []string) error {
@@ -316,7 +340,7 @@ func authGrant(root string, args []string) error {
 			staged = append(staged, b)
 		}
 		apply, err := proposeSecond(root, resolveCaller(root, ""), dual.Grant,
-			fmt.Sprintf("make %s %s on %s", rest[0], rest[1], *on), dual.GrantChange{Bindings: staged}, *note)
+			fmt.Sprintf("make %s %s on %s", rest[0], rest[1], *on), dual.GrantChange{Bindings: staged}, *note, "--note")
 		if err != nil || !apply {
 			return err
 		}
@@ -746,11 +770,17 @@ func tokenIssueAs(root string, args []string, approved bool) error {
 		}
 	}
 	// An administrator's token can make anybody anything, so issuing one
-	// waits for a second administrator, and is issued to whoever asked.
-	if auth.Role(*role) == auth.RoleAdmin && !approved {
+	// waits for a second administrator, and is issued to whoever asked —
+	// except the store's first token (bootstrapIssue), which is how the
+	// Owner gets a command line at all: no token exists to have been
+	// authenticated with, so there is nobody to be a second person to, and
+	// nothing to escalate from. The self-watch rule on administrators'
+	// tokens still raises it.
+	if auth.Role(*role) == auth.RoleAdmin && !approved &&
+		!bootstrapIssue(root, "token", append([]string{"issue"}, args...)) {
 		apply, err := proposeSecond(root, resolveCaller(root, ""), dual.Token,
 			fmt.Sprintf("an administrator's token %q acting as %s on %s", rest[0], *principal, *on),
-			dual.TokenChange{Args: args}, *whyFlag)
+			dual.TokenChange{Args: args}, *whyFlag, "--why")
 		if err != nil || !apply {
 			return err
 		}

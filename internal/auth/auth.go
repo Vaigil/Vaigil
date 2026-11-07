@@ -579,13 +579,13 @@ func roleList() string {
 
 // -- API tokens ---------------------------------------------------------------
 
-// TokenPrefix marks a aertun token in logs, repositories and paste sites.
+// TokenPrefix marks an Aertun token in logs, repositories and paste sites.
 //
 // GitHub's `ghp_` convention exists so secret scanners can spot a leaked
 // credential without knowing what it belongs to. It costs six characters and it
 // is the difference between a token found by a scanner and one found by whoever
 // picked it up.
-const TokenPrefix = "vg_"
+const TokenPrefix = "aet_"
 
 // tokenBytes is 256 bits. Tokens are generated, not chosen, so the whole
 // dictionary-attack problem that motivates slow password hashing does not exist
@@ -625,11 +625,7 @@ type Token struct {
 	CreatedAt int64  `json:"created_at"`
 	ExpiresAt int64  `json:"expires_at"`
 	LastUsed  int64  `json:"last_used,omitempty"`
-	// ConfirmedAt is when this session's person last proved themselves
-	// with their passkey, set when a step-up is cleared. It is what a
-	// solo approval reads to decide whether the proof is fresh enough.
-	ConfirmedAt int64 `json:"confirmed_at,omitempty"`
-	Revoked     bool  `json:"revoked,omitempty"`
+	Revoked   bool   `json:"revoked,omitempty"`
 
 	// Parent is the id of the token this was exchanged from, empty for a
 	// long-lived one. It is what makes revocation mean what it says: revoking a
@@ -1193,28 +1189,14 @@ func (ts *TokenStore) AuthenticateFor(secret, resource string, now time.Time) (*
 	return t, err
 }
 
-// ByID returns a copy of the token with that id, for a caller that needs
-// to read what a session carries without authenticating it.
-func (ts *TokenStore) ByID(id string) (Token, bool) {
-	ts.mu.Lock()
-	defer ts.mu.Unlock()
-	for _, t := range ts.Tokens {
-		if t.ID == id {
-			return t, true
-		}
-	}
-	return Token{}, false
-}
-
-// FreshEnough reports whether this session's person proved themselves
-// recently enough for the most sensitive act a solo administrator makes:
-// within the window of either the sign-in that created the session or the
-// passkey confirmation that cleared a step-up.
-func (t *Token) FreshEnough(now time.Time, window time.Duration) bool {
-	if t.ConfirmedAt > 0 && now.Unix()-t.ConfirmedAt <= int64(window.Seconds()) {
-		return true
-	}
-	return now.Unix()-t.CreatedAt <= int64(window.Seconds())
+// ProvedWithin reports whether this is a session whose person proved
+// themselves by method no longer than d before now. A session's AuthAt is
+// set when it is signed in to, and only the passkey sign-in records the
+// passkey method, so a passkey proof within d is a passkey sign-in within
+// d; another person clearing a step-up proves nothing about this one.
+func (t Token) ProvedWithin(method string, now time.Time, d time.Duration) bool {
+	return t.IsSession() && t.HasMethod(method) && t.AuthAt > 0 &&
+		now.Unix()-t.AuthAt <= int64(d/time.Second)
 }
 
 // ErrKeyBound is a token bound to a key presented without a proof made by
@@ -1342,10 +1324,9 @@ func (ts *TokenStore) IssueForGrant(principal string, role Role, scope Scope,
 // A number here rather than nowhere because the cap is a revocation property
 // as much as an authorisation one. Revoke's cascade walks one level of
 // Parent, and every added link is a link whose death has to be checked
-// another way; two is also what the design sized (docs/research/
-// 02-access-control.md §8.2: "person → agent; no agent→agent re-exchange in
-// v1"), so the mint refuses a third link rather than leaving the question to
-// whoever wires the next one.
+// another way; two is also what the design sized (person → agent, and no
+// agent → agent re-exchange), so the mint refuses a third link rather than
+// leaving the question to whoever wires the next one.
 const MaxActChain = 2
 
 // IssueForAgent mints a token for an agent client a person consented to: the
@@ -1476,7 +1457,7 @@ var ErrStepUp = errors.New("this session must confirm it is its person first: si
 // lock rather than deadlocking on a re-entrant call.
 func (ts *TokenStore) authenticate(secret string, now time.Time) (*Token, error) {
 	if !strings.HasPrefix(secret, TokenPrefix) {
-		return nil, fmt.Errorf("that is not a aertun token (they start with %s)%w", TokenPrefix, silent{errUnknown})
+		return nil, fmt.Errorf("that is not an Aertun token (they start with %s)%w", TokenPrefix, silent{errUnknown})
 	}
 	want := []byte(hashToken(secret))
 
@@ -1590,7 +1571,6 @@ func (ts *TokenStore) ClearStepUp(id string) error {
 	for i := range ts.Tokens {
 		if ts.Tokens[i].ID == id {
 			ts.Tokens[i].StepUp = ""
-			ts.Tokens[i].ConfirmedAt = time.Now().Unix()
 			return nil
 		}
 	}

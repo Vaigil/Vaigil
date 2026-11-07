@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -174,5 +175,38 @@ func TestAnAgentGetsTheEstateInNumbersOnly(t *testing.T) {
 	}
 	if got["people"] != float64(2) || got["leavers_with_live_devices"] != float64(1) {
 		t.Errorf("summary: %s", text)
+	}
+}
+
+// Looking at whether a sync is running takes the lock for an instant, so a
+// sync starting at that instant waits the look out rather than refusing
+// as though another sync held it; a lock held as long as a sync holds it
+// is still refused.
+func TestASyncWaitsOutSomebodyOnlyLooking(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(estateDir(root), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	look, err := atomicfile.TryLock(syncLockPath(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		look()
+	}()
+	unlock, err := lockSync(root)
+	if err != nil {
+		t.Fatalf("a sync refused because somebody was looking: %v", err)
+	}
+	unlock()
+
+	held, err := atomicfile.TryLock(syncLockPath(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held()
+	if _, err := lockSync(root); err == nil || !strings.Contains(err.Error(), "already running") {
+		t.Fatalf("a second sync ran beside the first: %v", err)
 	}
 }

@@ -494,11 +494,11 @@ func TestUnknownTellsAGuessFromALateCredential(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = ts.Authenticate("vg_"+strings.Repeat("a", 52), now)
+	_, err = ts.Authenticate("aet_"+strings.Repeat("a", 52), now)
 	if !Unknown(err) || err.Error() != "no such token" {
 		t.Fatalf("a guess: %v", err)
 	}
-	if _, err = ts.Authenticate("hunter2", now); !Unknown(err) || err.Error() != "that is not a aertun token (they start with vg_)" {
+	if _, err = ts.Authenticate("hunter2", now); !Unknown(err) || err.Error() != "that is not an Aertun token (they start with aet_)" {
 		t.Fatalf("not a token: %v", err)
 	}
 	if _, err = ts.Authenticate(secret, time.Now().Add(2*time.Hour)); err == nil || Unknown(err) {
@@ -672,5 +672,38 @@ func TestMergingTokenStoresNeverUndoesARevocation(t *testing.T) {
 	}
 	if _, ok := byID[session.ID]; !ok {
 		t.Error("the admin's new session was lost")
+	}
+}
+
+// ProvedWithin is a session signed in to by that method within the
+// window: not a long-lived token, not another method, not an old sign-in,
+// and not a step-up somebody else cleared.
+func TestProvedWithinIsARecentSignInByThatMethod(t *testing.T) {
+	ts := &TokenStore{}
+	now := time.Now()
+	_, pk, _ := ts.IssueSession("p", "dana", RoleAdmin, "/", time.Hour, RoleAdmin, MethodPasskey)
+	_, sso, _ := ts.IssueSession("s", "dana", RoleAdmin, "/", time.Hour, RoleAdmin, MethodSSO)
+	_, long, _ := ts.Issue("cli", "dana", RoleAdmin, "/", time.Hour, RoleAdmin)
+	if !pk.ProvedWithin(MethodPasskey, now, 5*time.Minute) {
+		t.Error("a passkey sign-in just now is not a proof")
+	}
+	if sso.ProvedWithin(MethodPasskey, now, 5*time.Minute) {
+		t.Error("a single sign-on counted as a passkey")
+	}
+	if long.ProvedWithin(MethodPasskey, now, 5*time.Minute) {
+		t.Error("a long-lived token counted as a passkey sign-in")
+	}
+	if pk.ProvedWithin(MethodPasskey, now.Add(6*time.Minute), 5*time.Minute) {
+		t.Error("a six-minute-old sign-in counted as fresh")
+	}
+	old := pk
+	old.AuthAt = now.Add(-time.Hour).Unix()
+	ts.Tokens = append(ts.Tokens, old)
+	_ = ts.RequireStepUp(old.ID, "test")
+	_ = ts.ClearStepUp(old.ID)
+	for _, tk := range ts.Tokens {
+		if tk.ID == old.ID && tk.AuthAt == old.AuthAt && tk.ProvedWithin(MethodPasskey, now, 5*time.Minute) {
+			t.Error("a step-up cleared by somebody else made an old sign-in fresh")
+		}
 	}
 }

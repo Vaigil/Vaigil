@@ -18,9 +18,9 @@ import (
 //
 // `aertun auth owner` names the Owner. `aertun auth owner transfer NAME`
 // asks for ownership to pass to NAME, who must already administer the whole
-// store. The request waits a day and is then confirmed by whoever asked,
-// with `aertun pending approve ID`; anybody with an administrator's session
-// can decline it until then. Asking is the Owner's alone — or, on a store
+// store. The request waits a day and is then confirmed by whoever asked, on
+// the console's People screen with a passkey sign-in (dual.OwnProof);
+// anybody with an administrator's session can decline it until then. Asking is the Owner's alone — or, on a store
 // made before there were owners, any administrator's, which is how such a
 // store gets one.
 func authOwner(root string, args []string) error {
@@ -85,8 +85,7 @@ func authOwner(root string, args []string) error {
 		return err
 	}
 	if err := recordE(root, c.auditRecord("dual.proposed", "/", audit.Success,
-		map[string]string{"request": r.ID, "kind": dual.Owner, "what": r.What,
-			"to": to, "not_before": r.NotBefore.UTC().Format(time.RFC3339)})); err != nil {
+		ownerDetail(r, to))); err != nil {
 		return err
 	}
 	if w.JSON(r) {
@@ -94,8 +93,8 @@ func authOwner(root string, args []string) error {
 	}
 	w.Human("%sownership passes to %s when you confirm it%s, from %s (request %s)\n",
 		yellow, to, reset, r.NotBefore.UTC().Format("15:04 MST on 2 Jan"), r.ID)
-	w.Human("  %sconfirm with aertun pending approve %s; any administrator can decline it until then%s\n",
-		dim, r.ID, reset)
+	w.Human("  %sconfirm it on the People screen of the console, which asks for your passkey; any administrator can decline it until then%s\n",
+		dim, reset)
 	return nil
 }
 
@@ -105,4 +104,15 @@ func authOwner(root string, args []string) error {
 func applyOwner(root string, r dual.Request, ch dual.OwnerChange) error {
 	_, err := updatePolicy(root, func(p *auth.Policy) error { return p.TransferOwner(r.By, ch.To) })
 	return err
+}
+
+// ownerDetail is what the log keeps of an ownership request: who it names,
+// when it may be approved, and the reason when one was given.
+func ownerDetail(r dual.Request, to string) map[string]string {
+	d := map[string]string{"request": r.ID, "kind": dual.Owner, "what": r.What,
+		"to": to, "not_before": r.NotBefore.UTC().Format(time.RFC3339)}
+	if r.Why != "" {
+		d["why"] = r.Why
+	}
+	return d
 }

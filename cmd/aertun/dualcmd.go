@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/aertun/aertun/internal/audit"
@@ -30,17 +30,24 @@ func dualStore(root string) *dual.Store {
 // its delay (dual.SoloDelay), and the person is told which and how it is
 // approved. The boolean stays so a caller's shape does not depend on who
 // else administers the store.
-func proposeSecond(root string, c *Caller, kind, what string, payload any, why string) (bool, error) {
+//
+// flag is the command's own option for the reason, named in the refusal a
+// request made alone with none gets: the next reader of the log has only
+// the reason to go on, with nobody else's approval beside it.
+func proposeSecond(root string, c *Caller, kind, what string, payload any, why, flag string) (bool, error) {
 	alone := onlyAdministrator(root, c.Name)
 	if alone && strings.TrimSpace(why) == "" {
-		return false, fmt.Errorf("you are the only administrator, and a " +
-			"change made alone needs a reason: --why")
+		return false, fmt.Errorf("you are the only administrator, so a "+
+			"change you make alone needs a reason: give one with %s", flag)
 	}
 	r, err := dualStore(root).Propose(kind, what, payload, why, c.Name, alone, time.Now())
 	if err != nil {
 		return false, err
 	}
 	detail := map[string]string{"request": r.ID, "kind": kind, "what": what}
+	if why != "" {
+		detail["why"] = why
+	}
 	if alone {
 		detail["alone"] = "true"
 		detail["not_before"] = r.NotBefore.UTC().Format(time.RFC3339)
@@ -54,8 +61,8 @@ func proposeSecond(root string, c *Caller, kind, what string, payload any, why s
 	if alone {
 		w.Human("%syou are the only administrator%s, so %s waits until %s (request %s)\n",
 			yellow, reset, what, r.NotBefore.UTC().Format("15:04 MST on 2 Jan"), r.ID)
-		w.Human("  %sthen approve it yourself with aertun pending approve %s; until then any administrator's session can decline it%s\n",
-			dim, r.ID, reset)
+		w.Human("  %sthen approve it yourself on the People screen of the console, which asks for your passkey; until then any administrator's session can decline it%s\n",
+			dim, reset)
 		return false, nil
 	}
 	w.Human("%swaiting for a second administrator%s: %s (request %s)\n", yellow, reset, what, r.ID)
@@ -162,6 +169,19 @@ func cmdPending(root string, args []string) error {
 		// Declining stays open to it: stopping a change is never the risk.
 		if approve && c.Kind == audit.KindAI {
 			return errors.New("a privileged change is approved by a person, never by an agent")
+		}
+		// A request approved by whoever made it has nobody else's
+		// approval beside it, so it needs the person: a passkey sign-in
+		// within dual.OwnProof. A command-line token is not one; the
+		// console asks for the passkey.
+		if approve {
+			if mine, gerr := store.Get(id); gerr == nil && strings.EqualFold(mine.By, c.Name) &&
+				!c.Proof.ProvedWithin(auth.MethodPasskey, now, dual.OwnProof) {
+				return fmt.Errorf("request %s is your own, so approving it needs a passkey "+
+					"sign-in from the last %d minutes, and a command-line token is not "+
+					"one: approve it on the People screen of the console (aertun serve), "+
+					"which asks for your passkey", id, int(dual.OwnProof/time.Minute))
+			}
 		}
 		r, err := store.Decide(id, c.Name, approve, onlyAdministrator(root, c.Name), now)
 		if err != nil {

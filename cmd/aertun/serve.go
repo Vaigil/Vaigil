@@ -78,6 +78,10 @@ func cmdServe(root string, args []string) error {
 	// its own.
 	srv.Consents = consentStore(root)
 	srv.RunKey = func() ([]byte, error) { return loadRunKey(root) }
+	// The one origin the console's links, feeds and token exchange name
+	// when the operator has set one (publicOrigin); read once, here, as the
+	// OAuth metadata is, so the two cannot drift apart while serving.
+	srv.Origin = cfg.Raw("admin.base_url")
 	srv.AuditAgent = func(action, resource, agent string, detail map[string]string) {
 		record(root, audit.Record{
 			Action: action, Resource: resource, Outcome: audit.Success,
@@ -558,6 +562,9 @@ func cmdServe(root string, args []string) error {
 		Handler: clientip.Middleware(proxies(root, "admin.trusted_proxy"), mux)}
 
 	fmt.Printf("console on http://%s\n", *addr)
+	if base := cfg.Raw("admin.base_url"); base != "" {
+		fmt.Printf("  %sreached as %s (admin.base_url): links, feeds and OAuth all name it%s\n", dim, base, reset)
+	}
 	// A passkey belongs to a name, and a browser refuses an address as one,
 	// so the loopback default is opened as localhost.
 	if host, port, err := net.SplitHostPort(*addr); err == nil && (host == "127.0.0.1" || host == "::1") {

@@ -1,4 +1,4 @@
-Installing aertun
+Installing Aertun
 *****************
 
 From source, or from a release: a signed binary or a container image.  No
@@ -81,7 +81,7 @@ Checking the build
 
      make check
 
-That runs the whole test suite: eighty-six packages, including several that
+That runs the whole test suite: eighty-two packages, including several that
 walk this program's own source and fail when a command has no screen or no
 machine interface without a written reason, or declares no privilege.
 

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -404,16 +403,6 @@ func Lookup(key string) (Setting, bool) {
 // All returns every setting.
 func All() []Setting { return append([]Setting(nil), settings...) }
 
-// reBrandColour mirrors the pattern internal/admin enforces on the same value.
-//
-// Duplicated deliberately: this package must not import the admin, and a shared
-// package holding one regular expression would be more machinery than the two
-// lines it saves. The point of checking here as well is that a bad colour is
-// refused when it is set rather than ignored when it is rendered — a setting
-// accepted and then silently doing nothing is worse than one refused, because
-// the operator believes the first.
-var reBrandColour = regexp.MustCompile(`^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$`)
-
 // hardBounds are the settings held between bounds no reason steps outside:
 // a count, or a duration in nanoseconds. The throttle's are internal/throttle's;
 // session.idle's are NIST SP 800-63B-4's AAL2 inactivity limit above and,
@@ -501,53 +490,6 @@ func (s Setting) Validate(v string) error {
 				return fmt.Errorf("%q is not an https address (http only to this machine)", v)
 			}
 		}
-		if s.Key == "admin.brand.colour" && v != "" {
-			// The same pattern the admin enforces, checked here as well so a
-			// bad value is refused when it is set rather than ignored when it
-			// is rendered. A setting that is accepted and then silently does
-			// nothing is worse than one that is refused: the operator believes
-			// the first.
-			if !reBrandColour.MatchString(v) {
-				return fmt.Errorf(
-					"%q is not a colour this accepts. Give three or six hex "+
-						"digits after a #, like #0b6fa4", v)
-			}
-		}
-		if s.Key == "admin.brand.mark" && len([]rune(v)) > 1 {
-			return fmt.Errorf(
-				"the mark is one character, or empty for the default; %q is %d",
-				v, len([]rune(v)))
-		}
-		if s.Key == "admin.brand.name" && len([]rune(v)) > 40 {
-			return fmt.Errorf("the brand name is %d characters and the limit is 40",
-				len([]rune(v)))
-		}
-		if s.Key == "licence.permits" || s.Key == "licence.prohibits" {
-			// The crawl-use vocabulary, checked where the value is written.
-			//
-			// It was checked only when the public server started, so
-			// `config set licence.permits ai-training-with-attribution`
-			// reported success and the site then refused to boot with a
-			// message about a vocabulary — a store that publishes and a server
-			// that will not start, from a command that said it worked.
-			//
-			// The server keeps its own check: it also has to catch a use named
-			// in both lists at once, which nothing looking at one key can see.
-			for _, use := range strings.Split(v, ",") {
-				use = strings.TrimSpace(use)
-				if use == "" {
-					continue
-				}
-				switch use {
-				case "search", "train", "ai-summarize", "none":
-				default:
-					return fmt.Errorf(
-						"%q is not an automated use this can express; the "+
-							"vocabulary is search, train, ai-summarize and "+
-							"none", use)
-				}
-			}
-		}
 		if s.Key == "security.contact" {
 			// URIs, as RFC 9116 requires. A bare address was accepted and
 			// published as a Contact line no scanner can use, and the
@@ -571,18 +513,6 @@ func (s Setting) Validate(v string) error {
 				}
 			}
 		}
-		if s.Key == "site.webmcp_trial" && v != "" {
-			// Sent as a response header: only a token's own characters, so
-			// nothing set here can end the header or start another.
-			if len(v) > 2048 {
-				return fmt.Errorf("the token is %d characters; an origin trial token is a few hundred", len(v))
-			}
-			for _, c := range v {
-				if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '+' || c == '/' || c == '=') {
-					return fmt.Errorf("an origin trial token is base64; %q is not", c)
-				}
-			}
-		}
 		if s.Key == "admin.base_url" && v != "" {
 			u, err := url.Parse(v)
 			local := err == nil && (u.Hostname() == "localhost" || u.Hostname() == "127.0.0.1" || u.Hostname() == "::1")
@@ -595,42 +525,6 @@ func (s Setting) Validate(v string) error {
 				return fmt.Errorf("%q is not https; OAuth needs https except on this machine", v)
 			case strings.ToLower(v) != v:
 				return fmt.Errorf("%q has capitals; give it in lower case, as apps compare it exactly", v)
-			}
-		}
-		if s.Key == "agents.openshell_listen" && v != "" {
-			ip := net.ParseIP(v)
-			if ip == nil || ip.IsUnspecified() {
-				return fmt.Errorf("%q is not one address of this machine; give one, like 172.17.0.1", v)
-			}
-		}
-		if s.Key == "agents.openshell_reach" && v != "" {
-			if len(v) > 253 || strings.Trim(v, "abcdefghijklmnopqrstuvwxyz0123456789.-:") != "" {
-				return fmt.Errorf("%q is not a host name or address in lower case", v)
-			}
-		}
-		if s.Key == "site.base_url" && v != "" {
-			// http or https, absolute, with a host. This is published in a
-			// sitemap and in robots.txt, so a value nobody can fetch is a
-			// site telling crawlers to look somewhere that does not exist.
-			u, err := url.Parse(v)
-			if err != nil || u.Host == "" ||
-				(u.Scheme != "http" && u.Scheme != "https") {
-				return fmt.Errorf(
-					"%q is not a base URL. Give a scheme and a host, like "+
-						"https://example.com — it goes into the sitemap and "+
-						"into robots.txt", v)
-			}
-			if strings.HasSuffix(v, "/") {
-				return fmt.Errorf(
-					"%q ends in a slash, and every path is appended to it, "+
-						"which would produce https://example.com//about", v)
-			}
-		}
-		if s.Key == "site.csp.mode" {
-			switch v {
-			case "enforce", "report-only", "off":
-			default:
-				return fmt.Errorf("%q is not enforce, report-only or off", v)
 			}
 		}
 	case List:

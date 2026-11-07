@@ -27,11 +27,10 @@
 // before it. Altering or removing an entry breaks the chain at that point, and
 // `Verify` says exactly where.
 //
-// A hash chain rather than a Merkle tree, deliberately. A Merkle log buys
-// inclusion proofs — proving one entry to somebody without handing over the
-// rest — and that is worth the complexity when a third party audits a log they
-// cannot read. This log is read whole by its own operator, so the chain is the
-// right size of tool and there is no reason to reach for the larger one.
+// The chain is what the operator verifies, reading the log whole. For
+// somebody who cannot read it whole, a Merkle tree over the same entry hashes
+// (merkle.go) proves one entry is in the log, and that the log only grew
+// between two signed heads, without handing over the rest.
 //
 // # Identity, and the three kinds of actor
 //
@@ -62,6 +61,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -185,28 +185,34 @@ type Log struct {
 	// torn says the file ends part way through a line.
 	torn bool
 
-	// file is the log, kept open across records: opening, syncing,
-	// stat-ing and closing per record is four of the five syscalls the
-	// write path makes, and none of them is the fsync that makes the
-	// record durable. syncMu serialises fsyncs separately from writes,
-	// so a writer that has already written its bytes does not wait for
-	// another writer's bytes — only for the next fsync, which covers
-	// both, because fsync flushes everything the file holds, not just
-	// what one caller wrote. A caller returns only after an fsync that
-	// started after its write completed.
-	file *os.File
-	// commit coordinates group-commit: writers that arrive while an
-	// fsync is in flight share it, because fsync flushes everything
-	// the file holds. A writer records its position in the write
-	// sequence, and returns when an fsync that started after its write
-	// has completed — which may be another writer's fsync, not its own.
-	commit struct {
-		mu       sync.Mutex
-		syncing  bool          // an fsync is in flight
-		gen      uint64        // how many fsyncs have completed
-		done     chan struct{} // closed when the in-flight fsync finishes
-	}
+	// queue holds the records waiting to be written, in the order they
+	// arrived. The writer at its head commits everything queued behind it
+	// at that moment — up to maxBatch — in one write and one fsync, while
+	// the next records gather behind; then the next head does the same.
+	// Every caller returns only once the batch its record went out in is
+	// on disk, so sharing an fsync never means returning before one.
+	qmu   sync.Mutex
+	qcond sync.Cond
+	queue []*pending
 }
+
+// pending is one record in the queue and, once its batch is committed,
+// what happened to it.
+type pending struct {
+	r    Record
+	e    *Event
+	err  error
+	done bool
+}
+
+// maxBatch bounds one commit, so a head that arrives under heavy load
+// writes a bounded line, holds the file lock for a bounded time, and the
+// writers behind it are not starved.
+const maxBatch = 256
+
+// syncFile is the fsync, named so a test can make it fail the way a disk
+// does; nothing else replaces it.
+var syncFile = (*os.File).Sync
 
 // Options configures a Log.
 type Options struct {
@@ -266,6 +272,7 @@ func New(opt Options) (*Log, error) {
 		mode = ModePrivate
 	}
 	l := &Log{path: opt.Path, key: opt.Key, src: opt.Source, mode: mode}
+	l.qcond.L = &l.qmu
 
 	// The source is pseudonymised too, when there is a key.
 	//
@@ -291,25 +298,6 @@ func New(opt Options) (*Log, error) {
 
 // resync picks the chain up from the file: the last complete entry's hash
 // and sequence, and the file's size.
-// Close releases the file handle the log kept open, and syncs what it
-// holds. A log that is not closed leaks a descriptor; a log that is
-// closed and written to again reopens transparently.
-func (l *Log) Close() error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.file == nil {
-		return nil
-	}
-	if err := l.file.Sync(); err != nil {
-		l.file.Close()
-		l.file = nil
-		return err
-	}
-	err := l.file.Close()
-	l.file = nil
-	return err
-}
-
 func (l *Log) resync() error {
 	last, size, torn, err := tail(l.path)
 	if err != nil {
@@ -517,33 +505,80 @@ func ForbiddenKey(k string) string {
 	return ""
 }
 
-// Append writes one event and returns it.
+// Append writes one event and returns it, once it is on disk.
+//
+// Records from concurrent callers share a commit: the caller at the head of
+// the queue writes every record queued at that moment in one write and one
+// fsync, and each caller returns when the commit holding its record has
+// finished. One caller alone pays one fsync, as before; many pay one
+// between them.
 func (l *Log) Append(r Record) (*Event, error) {
+	if err := r.validate(); err != nil {
+		return nil, err
+	}
+	p := &pending{r: r}
+	l.qmu.Lock()
+	l.queue = append(l.queue, p)
+	for !p.done && l.queue[0] != p {
+		l.qcond.Wait()
+	}
+	if p.done {
+		l.qmu.Unlock()
+		return p.e, p.err
+	}
+	// This caller heads the queue: it commits for everybody behind it.
+	n := min(len(l.queue), maxBatch)
+	batch := append([]*pending(nil), l.queue[:n]...)
+	l.qmu.Unlock()
+
+	defer func() {
+		l.qmu.Lock()
+		for _, b := range batch {
+			if b.e == nil && b.err == nil {
+				// Only a panic in the commit leaves a record with
+				// neither; it was not written, and its caller is told.
+				b.err = errors.New("the audit record was not written")
+			}
+			b.done = true
+		}
+		clear(l.queue[:n])
+		l.queue = l.queue[n:]
+		l.qcond.Broadcast()
+		l.qmu.Unlock()
+	}()
+	l.commit(batch)
+	return p.e, p.err
+}
+
+// validate is AU-3's list, checked before a record joins the queue, so a
+// record that could never be written is refused at once and never shares a
+// commit with records that can.
+func (r Record) validate() error {
 	if strings.TrimSpace(r.Action) == "" {
-		return nil, fmt.Errorf("an audit record needs an action (AU-3: what happened)")
+		return fmt.Errorf("an audit record needs an action (AU-3: what happened)")
 	}
 	if strings.TrimSpace(r.Resource) == "" {
-		return nil, fmt.Errorf("an audit record needs a resource (AU-3: where)")
+		return fmt.Errorf("an audit record needs a resource (AU-3: where)")
 	}
 	if !r.Outcome.Valid() {
-		return nil, fmt.Errorf("outcome must be success, failure or denied (AU-3)")
+		return fmt.Errorf("outcome must be success, failure or denied (AU-3)")
 	}
 	if strings.TrimSpace(r.Principal) == "" {
-		return nil, fmt.Errorf("an audit record needs a principal (AU-3: who)")
+		return fmt.Errorf("an audit record needs a principal (AU-3: who)")
 	}
 	if !r.Kind.Valid() {
-		return nil, fmt.Errorf(
+		return fmt.Errorf(
 			"kind must be human, service or ai; recording all three as one thing " +
 				"discards the distinction most needed when reading the log back")
 	}
 	if r.Kind == KindAI && strings.TrimSpace(r.Model) == "" {
-		return nil, fmt.Errorf("an AI principal must name its model")
+		return fmt.Errorf("an AI principal must name its model")
 	}
 	if r.Kind == KindUnknown && r.Verified {
 		// The inverse of the service rule below. An unknown actor that is
 		// somehow verified is a contradiction: verification is what makes an
 		// actor known.
-		return nil, fmt.Errorf(
+		return fmt.Errorf(
 			"an unknown principal cannot be verified: verification is what " +
 				"would make it known")
 	}
@@ -551,135 +586,124 @@ func (l *Log) Append(r Record) (*Event, error) {
 		// A service identity exists only because a credential was presented. An
 		// unverified one is a self-declared string wearing a service label,
 		// which is precisely the confusion this field exists to prevent.
-		return nil, fmt.Errorf(
+		return fmt.Errorf(
 			"a service principal cannot be unverified: it is only a service " +
 				"because a credential proved it")
 	}
 	for k := range r.Detail {
 		if why := ForbiddenKey(k); why != "" {
-			return nil, fmt.Errorf("%s", why)
+			return fmt.Errorf("%s", why)
+		}
+	}
+	return nil
+}
+
+// commit writes a batch of records as consecutive entries of the chain, in
+// the order they were queued, with one write and one fsync.
+//
+// If the write or the fsync fails, every record in the batch is refused and
+// the chain is picked up from the file at the next commit rather than from
+// memory: what reached the file — none of the batch, part of it, all of it —
+// cannot be known from here, and the next entry has to follow whatever is
+// actually there, or the chain forks.
+func (l *Log) commit(batch []*pending) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	refuse := func(err error) {
+		for _, p := range batch {
+			p.e, p.err = nil, err
 		}
 	}
 
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	// One writer at a time on the file, across every handle and process: the
 	// admin, the site and the command line all append to this log, each
-	// action through a handle of its own. Two writers that read the same
-	// last entry would both write the next sequence number after it, forking
-	// the chain, and a writer that read another's half-written line lost its
+	// through a handle of its own. Two writers that read the same last
+	// entry would both write the next sequence number after it, forking the
+	// chain, and a writer that read another's half-written line lost its
 	// own record.
 	unlock, err := atomicfile.Lock(l.path + ".lock")
 	if err != nil {
-		return nil, err
+		refuse(err)
+		return
 	}
 	defer unlock()
 	if fi, serr := os.Stat(l.path); serr == nil && fi.Size() != l.size {
 		if err := l.resync(); err != nil {
-			return nil, err
+			refuse(err)
+			return
 		}
 	}
-	// A line a writer died part way through is closed off, so this entry
-	// starts on a line of its own. The broken line stays, and Read and Verify
-	// report it: a crash leaves a visible mark rather than none, and the
-	// chain carries on from the last entry that was whole.
+
+	var buf []byte
+	// A line a writer died part way through is closed off, so these entries
+	// start on a line of their own. The broken line stays, and Read and
+	// Verify report it: a crash leaves a visible mark rather than none, and
+	// the chain carries on from the last entry that was whole.
 	if l.torn {
-		if err := l.write([]byte("\n")); err != nil {
-			return nil, err
+		buf = append(buf, '\n')
+	}
+	seq, last := l.seq, l.last
+	var written []*pending
+	for _, p := range batch {
+		e := &Event{
+			Seq: seq + 1, At: time.Now().UTC().Format(time.RFC3339Nano),
+			Prev: last, Action: p.r.Action, Resource: p.r.Resource, Source: l.src,
+			Outcome: p.r.Outcome, Principal: l.pseudonym(p.r.Principal),
+			Kind: p.r.Kind, Verified: p.r.Verified, Model: p.r.Model,
+			Detail: l.pseudonymDetail(p.r.Detail),
 		}
-		l.torn = false
+		h, err := e.computeHash()
+		if err != nil {
+			p.err = err
+			continue
+		}
+		e.Hash = h
+		line, err := json.Marshal(e)
+		if err != nil {
+			p.err = err
+			continue
+		}
+		buf = append(append(buf, line...), '\n')
+		seq, last, p.e = e.Seq, e.Hash, e
+		written = append(written, p)
 	}
-
-	l.seq++
-	e := &Event{
-		Seq: l.seq, At: time.Now().UTC().Format(time.RFC3339Nano),
-		Prev: l.last, Action: r.Action, Resource: r.Resource, Source: l.src,
-		Outcome: r.Outcome, Principal: l.pseudonym(r.Principal), Kind: r.Kind,
-		Verified: r.Verified, Model: r.Model, Detail: l.pseudonymDetail(r.Detail),
+	if len(written) == 0 {
+		return
 	}
-	h, err := e.computeHash()
-	if err != nil {
-		l.seq--
-		return nil, err
+	if err := l.write(buf); err != nil {
+		for _, p := range written {
+			p.e, p.err = nil, err
+		}
+		l.size = -1
+		return
 	}
-	e.Hash = h
-
-	line, err := json.Marshal(e)
-	if err != nil {
-		l.seq--
-		return nil, err
-	}
-
-	if err := l.write(append(line, '\n')); err != nil {
-		l.seq--
-		return nil, err
-	}
-	l.last = e.Hash
-	return e, nil
+	l.seq, l.last, l.torn = seq, last, false
 }
 
 // write appends bytes to the log file, fsynced: an audit record still in a
 // buffer when the process dies is a record of an event that is now
-// invisible. The file is kept open, and the write and the fsync are under
-// separate locks, so records arriving while an fsync is in flight share it:
-// fsync flushes everything the file holds, not what one caller wrote, and a
-// caller returns only after an fsync that started after its write. Called
-// with the file lock held.
+// invisible. The file is opened and closed per commit, so a handle holds no
+// descriptor between records, and the size it records is the file's own
+// after the fsync, never one computed ahead of it. Called with the file
+// lock held.
 func (l *Log) write(b []byte) error {
-	if l.file == nil {
-		f, err := os.OpenFile(l.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, l.mode)
-		if err != nil {
-			return err
-		}
-		l.file = f
-	}
-	if _, err := l.file.Write(b); err != nil {
+	f, err := os.OpenFile(l.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, l.mode)
+	if err != nil {
 		return err
 	}
-	// The size is what we wrote plus what was already there.
-	l.size += int64(len(b))
-	// Group-commit: the bytes are in the file; what remains is an fsync
-	// that started after the write. If another fsync is in flight and
-	// started after our write, waiting for it is enough — it flushes
-	// everything the file holds, our bytes included. If not, we start
-	// one, and every writer that arrives while it runs shares it.
-	l.commit.mu.Lock()
-	if l.commit.syncing {
-		// An fsync is in flight. It may or may not have started after
-		// our write — we cannot tell without more bookkeeping than the
-		// honesty of this design wants. We wait for it to finish, then
-		// check: if the generation advanced past what we saw, the fsync
-		// that finished started after our write (the generation only
-		// advances when a sync completes, and a sync that completes after
-		// we entered this branch started after our write syscall — the
-		// write happened before we acquired the commit mutex).
-		gen, done := l.commit.gen, l.commit.done
-		l.commit.mu.Unlock()
-		<-done
-		l.commit.mu.Lock()
-		if l.commit.gen > gen {
-			l.commit.mu.Unlock()
-			return nil // durable: a sync that started after our write completed
-		}
-		// That sync started before our write — we need one of our own,
-		// and we are the leader for it (we hold the mutex).
+	defer f.Close()
+	if _, err := f.Write(b); err != nil {
+		return err
 	}
-	// We are the leader: start an fsync that covers our write and every
-	// write that happened before it, then tell everyone waiting.
-	l.commit.syncing = true
-	done := make(chan struct{})
-	l.commit.done = done
-	l.commit.mu.Unlock()
-
-	serr := l.file.Sync()
-
-	l.commit.mu.Lock()
-	l.commit.syncing = false
-	l.commit.gen++
-	l.commit.mu.Unlock()
-	close(done)
-	return serr
+	if err := syncFile(f); err != nil {
+		return err
+	}
+	fi, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	l.size = fi.Size()
+	return nil
 }
 
 // Read loads every event.

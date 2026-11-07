@@ -229,6 +229,14 @@ type Server struct {
 	// carries an agent's kind and name rather than a person's. Nil records
 	// nothing, which is only right in a test.
 	AuditAgent func(action, resource, agent string, detail map[string]string)
+	// Origin is where people and programs reach this server: admin.base_url,
+	// as it was when the server started. It is the one address enrolment
+	// links, feeds, the token exchange's audience and the DPoP proofs it
+	// checks all name, so behind a proxy they agree with each other and
+	// with the OAuth metadata. Empty means it was not set, and each
+	// request's own address stands in — right on a laptop or a LAN, and
+	// the reason to set it behind anything that rewrites Host.
+	Origin string
 	// RunKey returns the store's caveat-minting key (the file beside the
 	// registry, cmd/aertun's agents.key), for the exchange to verify the run
 	// credential an agent presents and to mint the caveats of the token it
@@ -300,7 +308,7 @@ func New(p *auth.Policy, ts *auth.TokenStore) (*Server, error) {
 		// operator's colour and is served only to the signed in, so without
 		// this the browser asks for /favicon.ico and is told 401.
 		"signedOutIcon": func() template.URL {
-			return template.URL("data:image/svg+xml," + url.PathEscape(MarkSVG("#0842a0")))
+			return template.URL("data:image/svg+xml," + url.PathEscape(MarkSVG(MarkFirstColour)))
 		},
 		"pct": func(f float64) float64 { return f * 100 },
 		// sentence capitalises the first letter, for a word stored in
@@ -456,6 +464,9 @@ type principal struct {
 	Methods []string
 	Bearer  bool
 	Grace   string
+	// Proof is the token the request came with, kept for what only it can
+	// answer: when, and how, its person last proved themselves.
+	Proof auth.Token
 }
 
 // firstFactorOnly is what a session signed in with a token alone is told:
@@ -500,7 +511,8 @@ func (s *Server) authenticate(r *http.Request) (principal, error) {
 	p := principal{
 		Name: tok.Principal, Role: tok.Role, Scope: tok.Resource,
 		Limits: tok.Scope, TokenID: tok.ID, Session: tok.IsSession(), StepUp: tok.StepUp,
-		Bound: tok.Bound, Level: tok.Level(), Methods: tok.Methods, Bearer: bearer}
+		Bound: tok.Bound, Level: tok.Level(), Methods: tok.Methods, Bearer: bearer,
+		Proof: *tok}
 	// Two factors on every request a person makes (SP 800-63B-4 AAL2), not
 	// only at the sign-in form: a token pasted into the form, or sent in a
 	// header, is one, and the session it makes waits for a passkey as a
@@ -742,7 +754,6 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name string,
 	// which is how a relative link to a page that no longer exists survives a
 	// move and 404s quietly on every screen.
 	data["Brand"] = brandName
-	data["BrandMark"] = brandName[:1]
 	data["DocURL"] = DocURL(docFor(navKey))
 	data["DocsBase"] = DocsBase
 	// The mark, from the one place it is defined.
@@ -1099,7 +1110,7 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleIcon(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "image/svg+xml")
 	w.Header().Set("Cache-Control", "no-store")
-	_, _ = w.Write([]byte(MarkSVG("#0842a0")))
+	_, _ = w.Write([]byte(MarkSVG(MarkFirstColour)))
 }
 
 // handleSignIn exchanges a pasted token for a session cookie.
@@ -1279,7 +1290,7 @@ func (s *Server) handleSignIn(w http.ResponseWriter, r *http.Request) {
 // revoked, deliberately: the API answers both the same way, because telling
 // them apart is how an enumeration oracle gets built by accident.
 var signInReasons = map[string]string{
-	"format": "That is not a aertun token. They start with " +
+	"format": "That is not an Aertun token. They start with " +
 		auth.TokenPrefix + " — check the whole of it was pasted.",
 	"reported": "Thank you. That session is ended, and your security team " +
 		"will look at it. If your token or passkey may have been taken, tell " +

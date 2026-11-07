@@ -54,7 +54,7 @@ func (s *Server) handleFeeds(w http.ResponseWriter, r *http.Request) {
 	}
 	data := map[string]any{"Title": "Feeds", "Nav": "feeds", "Principal": p,
 		"Message": r.URL.Query().Get("m"), "Error": r.URL.Query().Get("e"),
-		"Base":      "https://" + r.Host,
+		"Base":      s.feedBase(r),
 		"SiteAdmin": s.Policy != nil && s.Policy.Evaluate(p.Name, auth.ActGrant, "/").Allowed}
 	if s.Feeds == nil || s.Feeds.List == nil {
 		data["Unavailable"] = "This build was started without feeds."
@@ -103,7 +103,7 @@ func (s *Server) handleFeedsAct(w http.ResponseWriter, r *http.Request) {
 	case "add":
 		kind := r.FormValue("kind")
 		shown, err := s.Feeds.Add(kind, name, r.FormValue("mapping"), strings.TrimSpace(r.FormValue("issuer")),
-			"https://"+r.Host, strings.TrimSpace(r.FormValue("alias")), p.Name)
+			s.feedBase(r), strings.TrimSpace(r.FormValue("alias")), p.Name)
 		if err != nil {
 			back("e", err.Error())
 			return
@@ -122,7 +122,7 @@ func (s *Server) handleFeedsAct(w http.ResponseWriter, r *http.Request) {
 			pairs = append(pairs, pair{strings.ToUpper(label[:1]) + label[1:], value})
 		}
 		s.render(w, r, "feeds.html", map[string]any{"Title": "Feeds", "Nav": "feeds", "Principal": p,
-			"Added": name, "Shown": pairs, "AddedURL": "https://" + r.Host + "/feeds/" + name, "AddedKind": kind})
+			"Added": name, "Shown": pairs, "AddedURL": s.feedBase(r) + "/feeds/" + name, "AddedKind": kind})
 		return
 	case "on", "off":
 		if err := s.Feeds.SetOff(name, r.FormValue("do") == "off", p.Name); err != nil {
@@ -141,4 +141,14 @@ func (s *Server) handleFeedsAct(w http.ResponseWriter, r *http.Request) {
 	default:
 		back("e", "Nothing to do.")
 	}
+}
+
+// feedBase is the address a feed tells the system pushing to it: the
+// configured Origin, or this request's host over https, which is what a
+// sender on the internet reaches.
+func (s *Server) feedBase(r *http.Request) string {
+	if s.Origin != "" {
+		return s.Origin
+	}
+	return "https://" + r.Host
 }

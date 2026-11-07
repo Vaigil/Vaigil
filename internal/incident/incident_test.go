@@ -107,35 +107,139 @@ func TestFourBusinessDaysSkipsTheWeekend(t *testing.T) {
 	}
 }
 
-// TestDORAIsTheShortestAndRunsFromClassification.
+// duty finds one obligation on an incident, failing when it is not there:
+// a test that looks for a duty by name must not pass because the name went.
+func duty(t *testing.T, i *Incident, regime string, now time.Time) Duty {
+	t.Helper()
+	for _, d := range i.Duties(now) {
+		if d.Regime == regime {
+			return d
+		}
+	}
+	t.Fatalf("%q is not among the incident's duties", regime)
+	return Duty{}
+}
+
+// TestDORAIsTheShortestAndRunsFromClassification: awareness alone starts
+// nothing; classification as major starts four hours, held to twenty-four
+// from awareness when it came within them.
 func TestDORAIsTheShortestAndRunsFromClassification(t *testing.T) {
 	i := declared(t, "dora")
 	if err := i.Decide(Aware, "ada", "it is plainly an incident",
 		t0); err != nil {
 		t.Fatal(err)
 	}
-	for _, d := range i.Duties(t0) {
-		if d.Regime == "DORA" && d.Started {
-			t.Fatal("awareness started the DORA clock; it runs from " +
-				"classification as major")
-		}
+	if duty(t, i, "DORA initial notification", t0).Started {
+		t.Fatal("awareness started the DORA clock; it runs from " +
+			"classification as major")
 	}
 	at := t0.Add(2 * time.Hour)
 	if err := i.Decide(Major, "ada", "it meets the thresholds",
 		at); err != nil {
 		t.Fatal(err)
 	}
-	for _, d := range i.Duties(at) {
-		if d.Regime != "DORA" {
-			continue
+	d := duty(t, i, "DORA initial notification", at)
+	if !d.Due.Equal(at.Add(4 * time.Hour)) {
+		t.Fatalf("due %s", d.Due)
+	}
+	if !strings.Contains(d.Note, "classification") {
+		t.Fatalf("the note does not say what catches people out: %q", d.Note)
+	}
+}
+
+// Classified twenty-two hours after awareness, the notification is due at
+// twenty-four, not at twenty-six; classified at thirty, it is due four
+// hours after that (Delegated Regulation (EU) 2025/301, Article 5).
+func TestDORAsInitialNotificationIsHeldToADayFromAwareness(t *testing.T) {
+	for _, tc := range []struct {
+		after, want time.Duration
+	}{
+		{22 * time.Hour, 24 * time.Hour},
+		{30 * time.Hour, 34 * time.Hour},
+		{1 * time.Hour, 5 * time.Hour},
+	} {
+		i := declared(t, "dora")
+		if err := i.Decide(Aware, "ada", "an outage", t0); err != nil {
+			t.Fatal(err)
 		}
-		if !d.Due.Equal(at.Add(4 * time.Hour)) {
-			t.Fatalf("due %s", d.Due)
+		if err := i.Decide(Major, "ada", "it meets the thresholds", t0.Add(tc.after)); err != nil {
+			t.Fatal(err)
 		}
-		if !strings.Contains(d.Note, "classification") {
-			t.Fatalf("the note does not say what catches people out: %q",
-				d.Note)
+		if got := duty(t, i, "DORA initial notification", t0).Due.Sub(t0); got != tc.want {
+			t.Errorf("classified %s after awareness: due %s after it, want %s", tc.after, got, tc.want)
 		}
+	}
+}
+
+// The reports timed from an earlier one start when that one is recorded
+// done: DORA's intermediate seventy-two hours after the initial
+// notification, its final a calendar month after the intermediate; NIS2's
+// final a month after its notification. A month from 31 January is the
+// last day of February.
+func TestReportsTimedFromAnEarlierOneStartWhenItIsDone(t *testing.T) {
+	jan31 := time.Date(2027, time.January, 31, 9, 0, 0, 0, time.UTC)
+	i := declared(t, "dora")
+	if err := i.Decide(Aware, "ada", "an outage", jan31); err != nil {
+		t.Fatal(err)
+	}
+	if err := i.Decide(Major, "ada", "it meets the thresholds", jan31); err != nil {
+		t.Fatal(err)
+	}
+	if d := duty(t, i, "DORA intermediate report", jan31); d.Started ||
+		!strings.Contains(d.Says(), "DORA initial notification") {
+		t.Fatalf("the intermediate clock ran before the notification: %+v %s", d, d.Says())
+	}
+	sent := jan31.Add(3 * time.Hour)
+	if err := i.Discharge("DORA initial notification", "ada", "filed", sent); err != nil {
+		t.Fatal(err)
+	}
+	if d := duty(t, i, "DORA intermediate report", sent); !d.Due.Equal(sent.Add(72 * time.Hour)) {
+		t.Fatalf("the intermediate report is due %s", d.Due)
+	}
+	if err := i.Discharge("DORA intermediate report", "ada", "filed", jan31); err != nil {
+		t.Fatal(err)
+	}
+	want := time.Date(2027, time.February, 28, 9, 0, 0, 0, time.UTC)
+	if d := duty(t, i, "DORA final report", jan31); !d.Due.Equal(want) {
+		t.Fatalf("a month from 31 January is %s here, want %s", d.Due, want)
+	}
+
+	n := declared(t, "nis2")
+	if err := n.Decide(Aware, "ada", "an intrusion", jan31); err != nil {
+		t.Fatal(err)
+	}
+	if duty(t, n, "NIS2 final report", jan31).Started {
+		t.Fatal("NIS2's final report ran from awareness; it runs from the notification")
+	}
+	// Ruled out, the earlier report starts nothing.
+	if err := n.Waive("NIS2 notification", "ada", "below the significance threshold", jan31); err != nil {
+		t.Fatal(err)
+	}
+	if duty(t, n, "NIS2 final report", jan31).Started {
+		t.Fatal("a notification ruled out started the final report's clock")
+	}
+}
+
+// The Cyber Resilience Act: twenty-four and seventy-two hours from the
+// manufacturer's awareness, and the vulnerability's final report fourteen
+// days after a fix or mitigation is available.
+func TestTheCyberResilienceActsClocks(t *testing.T) {
+	i := declared(t, "cra")
+	if err := i.Decide(Aware, "ada", "exploited in the wild", t0); err != nil {
+		t.Fatal(err)
+	}
+	if d := duty(t, i, "CRA early warning", t0); !d.Due.Equal(t0.Add(24 * time.Hour)) {
+		t.Fatalf("early warning due %s", d.Due)
+	}
+	if d := duty(t, i, "CRA notification", t0); !d.Due.Equal(t0.Add(72 * time.Hour)) {
+		t.Fatalf("notification due %s", d.Due)
+	}
+	fixed := t0.Add(5 * 24 * time.Hour)
+	if err := i.Decide(Mitigated, "ada", "4.2.1 is out", fixed); err != nil {
+		t.Fatal(err)
+	}
+	if d := duty(t, i, "CRA final report on a vulnerability", fixed); !d.Due.Equal(fixed.Add(14 * 24 * time.Hour)) {
+		t.Fatalf("the vulnerability's final report is due %s", d.Due)
 	}
 }
 

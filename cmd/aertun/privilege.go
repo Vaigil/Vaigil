@@ -323,8 +323,8 @@ var commandNeeds = map[string]need{
 	// is an administrator's — with the one deliberate exception: the kill
 	// switch is a responder's, because the person who has to stop an agent
 	// at 3am is the one holding the pager, and "wait for an admin" is how a
-	// misbehaving agent earns its keep (docs/research/02-access-control.md
-	// §8.1: registration is grant, suspension is respond).
+	// misbehaving agent earns its keep: registration is grant, suspension
+	// is respond.
 	"agent":         {action: auth.ActGrant},
 	"agent list":    {action: auth.ActView},
 	"agent disable": {action: auth.ActRespond},
@@ -357,11 +357,19 @@ var commandNeeds = map[string]need{
 	"config list":    {action: auth.ActGrant},
 	"config explain": {action: auth.ActView},
 
-	// Serving is starting a process that enforces its own authorisation per
-	// request, but deciding to expose the store at all is an operator act.
-	"serve": {action: auth.ActGrant},
-	"mcp":   {action: auth.ActView},
-	"init":  {why: "creates the store; there is no policy to consult until one exists"},
+	// Serving starts the process that authorises every request itself. Who
+	// may start it is decided where logd's authority is: by the operating
+	// system, which lets only the store's own account open its directory.
+	// Asking for an administrator's token here protected nothing — whoever
+	// can start the server can read the store — and it stopped every new
+	// store from serving, because init makes a passkey link, not a token,
+	// and stopped every service restart that had no token in its
+	// environment.
+	"serve": {why: "starts the process that authorises every request " +
+		"itself; who may start it is whoever the operating system lets open " +
+		"the store's directory, as with logd"},
+	"mcp":  {action: auth.ActView},
+	"init": {why: "creates the store; there is no policy to consult until one exists"},
 	"logd": {why: "runs as its own account and derives its authority from the " +
 		"socket peer's uid, not from a token in this store"},
 	"version":   {why: "prints a version"},

@@ -1,87 +1,69 @@
 // SPDX-FileCopyrightText: 2026 Rashik Adhikari
-// SPDX-FileCopyrightText: 2026 Rashik Adhikari
 // SPDX-License-Identifier: Apache-2.0
 
-// Package macaroon is the caveat half of a run credential: an HMAC-SHA256
-// chain over an ordered list of caveats, in the shape of a v2 macaroon and
-// first-party only.
+// Package macaroon is the caveat half of a run credential: the limits a
+// run's token carries — which tools, until when, how many calls, for what
+// purpose, at what autonomy — signed when the token is minted.
 //
 // # What a token here is
 //
 // A token is one string, in two halves:
 //
-//	<credential>.vgt1.<base64url(payload)>
+//	<credential>.aet1.<base64url(payload)>
 //
-// The credential half is an ordinary aertun token secret (internal/auth): it
+// The credential half is an ordinary Aertun token secret (internal/auth): it
 // is what the token store hashes, so revocation, expiry, the registry gate
-// and the kill switch reach a run token exactly as they reach any credential,
-// with no second store and no other issuer. The payload half names the run it
-// was minted for and the caveats bound to it, and ends in a tag: the last
-// link of a chain that started under the store's run key (agents.key, held
-// by whoever mints and whoever verifies, and by nobody else).
-//
-// The chain is the v2 macaroon construction. The first signature is
-// HMAC-SHA256(run key, "aertun/macaroon/root/v1" || id); each caveat is
-// signed with the signature before it, so appending one needs nothing but
-// the tag it follows — which is in the token — and forging or removing one
-// needs the run key, which is not. Verification recomputes the chain from
-// the run key and compares the last link in constant time (hmac.Equal, the
-// compare internal/audit already uses for pseudonyms).
-//
-// # Why first-party only
-//
-// A v2 macaroon can carry third-party caveats: ones a named discharger
-// answers with a proof the verifier checks. There is no third party here.
-// Every caveat this program mints — a tool set, a deadline, a call budget, a
-// purpose, an autonomy level — is a predicate the verifying process can
-// settle itself, because it already holds what settling needs: the registry,
-// the clock and the counter. Third-party caveats would add a discharge
-// protocol, caveat-key escrow at the discharger, and replay state on both
-// sides, and would buy this deployment nothing it does not already have. The
-// design keeps the door open (docs/research/02-access-control.md §8.4); the
-// honest position until a discharger exists is that the set of kinds is
-// closed and every one of them is first-party.
+// and the kill switch reach a run token exactly as they reach any
+// credential, with no second store and no other issuer. The payload names
+// the run the token was minted for and its caveats, and ends in an Ed25519
+// signature by the store's minting key over a domain string, the run and
+// every caveat, in order.
 //
 // # Who can do what to a token
 //
-//   - The minter (aertun agent token) holds the run key and the token store.
-//     It mints: a fresh secret, a run id, caveats, the chain.
-//   - The holder can attenuate (Attenuate): append a caveat, signed with the
-//     tag already in the token. They cannot widen — not by appending (every
-//     caveat must hold, so appending only intersects) and not by editing
-//     (any change to the payload breaks the chain, which only the run key
-//     can re-make). They cannot strip the caveats and present the bare
-//     credential either: the store entry's name carries the run, and the one
-//     gate that checks caveats refuses a run-bound credential that arrives
-//     without its payload (cmd/aertun, authoriseTool).
-//   - The verifier (the agent interface's tool gate) holds the run key and
-//     checks the chain, then hands each caveat to a discharge function that
-//     knows what the call is: which tool, what time, how many calls already
-//     made. The package decides the token's integrity; the caller's
-//     discharge decides its meaning.
+//   - The minter (aertun agent token, and the token exchange) holds the
+//     minting key (agents.key) and the token store. It mints: a fresh secret, a run id, the caveats, the signature.
+//   - The verifier (the agent interface's tool gate) holds only the public
+//     half (agents.pub). It checks the signature, then hands each caveat to
+//     a discharge function that knows what the call is: which tool, what
+//     time, how many calls already made. The package decides the token's
+//     integrity; the caller's discharge decides its meaning. Holding the
+//     public half lets a process check tokens and never make one.
+//   - The holder can do nothing to the caveats. Removing one, adding one,
+//     reordering them or changing a value changes the signed bytes, and the
+//     signature no longer verifies. They cannot present the bare credential
+//     in place of the token either: the store entry's name carries the run,
+//     and the gate that checks caveats refuses a run-bound credential that
+//     arrives without its payload (cmd/aertun, authoriseTool).
 //
-// # Honesty about the two things this does not do
+// A narrower token is minted, never derived. An earlier format let a holder
+// append caveats to an HMAC chain; with the chain's start computable from
+// the token itself, the same holder could also remove them, so narrowing a
+// token in hand bought nothing and its appearance of safety was worse than
+// its absence. The token exchange mints the narrower token instead, with
+// the minting key, and records that it did.
 //
-// The calls caveat is verified statelessly; the budget itself is counted by
-// the verifying process, per token, in memory. A restart of that process
-// resets every budget, and two processes each honour the full budget — the
-// deadline and the credential's own expiry are what bound that. A durable,
-// cross-process ledger is the design's later phase (§6.12), not something to
-// half-build inside a verifier.
+// # Why first-party only
 //
-// And the caveats bind the tool surface. On a surface that has no tools —
-// the command line — a run token is an ordinary scoped credential: its role,
-// its resource, its read-only scope, its expiry and its revocation all hold,
-// but there is no "tool" there for a tool caveat to speak about. The mint
-// narrows the credential's coarse bounds to match its caveats (viewer-grade,
-// read-only, when the caveats say no writing), so the fine binding and the
-// coarse one never disagree.
+// Every caveat this program mints is a predicate the verifying process can
+// settle itself, because it already holds what settling needs: the
+// registry, the clock and the counter. Third-party caveats would add a
+// discharge protocol and replay state on both sides and would buy this
+// deployment nothing; the set of kinds is closed and every one is
+// first-party.
+//
+// # What this does not do
+//
+// The calls caveat states a budget; the verifying process counts calls
+// against it in a ledger kept on disk under a lock (cmd/aertun), so a
+// restart does not reset it. And the caveats bind the tool surface: on the
+// command line, which has no tools, a run token is an ordinary scoped
+// credential, and the mint narrows the credential's role and read-only
+// scope to match its caveats so the two bindings never disagree.
 package macaroon
 
 import (
 	"crypto/ed25519"
-	"crypto/hmac"
-	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
 	"sort"
@@ -90,33 +72,22 @@ import (
 	"time"
 )
 
-// marker is what separates the credential half from the caveat payload, with
-// a version in it so a change to the grammar cannot be misread as the thing
-// it replaced. It never appears in a token secret (the store's alphabet has
-// no dots), so the first occurrence is the separator.
-// vgt1 is the HMAC-rooted format; vgt2 roots the chain in an Ed25519
-// signature so a verifier needs only the public key.
-const (
-	markerV1 = ".vgt1."
-	markerV2 = ".vgt2."
-	marker   = markerV2
-)
+// marker separates the credential half from the caveat payload, with the
+// format's version in it, so a change to the grammar cannot be misread as
+// the thing it replaced. It never appears in a token secret (the store's
+// alphabet has no dots), so the first occurrence is the separator.
+const marker = ".aet1."
 
-// Domain separation, the same discipline the audit head signatures use
-// (internal/audit/sign.go): a MAC made for one purpose must not be a MAC
-// made for another, and the version rides in the string so a change to what
-// is signed is not confused with the thing it replaced.
+// signDomain is signed ahead of every payload, so a signature made for a run
+// token can never be presented as one made for anything else this key could
+// sign; the version rides in the string for the same reason as the marker.
+const signDomain = "aertun/macaroon/run-token/v1"
+
 const (
-	rootDomainV1  = "aertun/macaroon/root/v1"
-	rootDomainV2  = "aertun/macaroon/root/v2"
-	rootDomain    = rootDomainV2
-	caveatDomain  = "aertun/macaroon/caveat/v1"
-	runKeyLength  = 32 // v1 HMAC root; v2 uses Ed25519 instead
-	sigLength     = 64 // Ed25519 signature in the v2 root
+	sigLength     = ed25519.SignatureSize
 	maxSecret     = 200
 	maxID         = 128
-	maxCaveats    = 16 // at mint; attenuation may take it to maxTotal
-	maxTotal      = 32
+	maxCaveats    = 16
 	maxTools      = 16
 	maxToolName   = 40
 	maxToolValue  = 300
@@ -162,7 +133,7 @@ const (
 	// KindPurpose is why the run exists, as one word of a closed vocabulary,
 	// so a run minted to watch the queue cannot be spent proposing verdicts.
 	KindPurpose Kind = "purpose"
-	// KindLevel is an autonomy bound (research §6.9). L0 reads, L1 proposes;
+	// KindLevel is an autonomy bound. L0 reads, L1 proposes;
 	// a tool that needs more autonomy than the token allows is refused.
 	KindLevel Kind = "level"
 )
@@ -188,25 +159,9 @@ func ValidPurpose(p string) bool {
 	return p == PurposeObserve || p == PurposeTriage
 }
 
-// PurposeNarrowsTo says whether candidate reaches no more than older —
-// observe narrows triage, nothing narrows observe but itself, and a word
-// outside the vocabulary narrows nothing.
-func PurposeNarrowsTo(candidate, older string) bool {
-	switch candidate {
-	case PurposeObserve:
-		return ValidPurpose(older)
-	case PurposeTriage:
-		return older == PurposeTriage
-	}
-	return false
-}
-
-// LevelMax is the highest autonomy a caveat may bound: L3. L4 — narrow
-// autonomous containment — is the interpreter's to grant when that phase
-// exists, behind the calibrated gates and the global kill switch the design
-// requires first (§6.9); a caveat minted at a command line is not the place
-// L4 is born, and "never" is not a level at all but the backstops that
-// already refuse it.
+// LevelMax is the highest autonomy a caveat may bound: L3. Narrow
+// autonomous containment above it is not minted at a command line; "never"
+// is not a level at all but the backstops that already refuse it.
 const LevelMax = 3
 
 // Caveat is one restriction: a kind from the closed set and a value whose
@@ -249,8 +204,8 @@ func ToolCaveat(tools ...string) (Caveat, error) {
 }
 
 // ExpCaveat is a deadline. An expiry in the past is allowed on purpose: it
-// is how a token is minted dead for a test, and how attenuation retires one
-// early — the verifier refuses it either way.
+// is how a token is minted dead for a test, and how the minter retires a
+// run early — the verifier refuses it either way.
 func ExpCaveat(at time.Time) Caveat {
 	return Caveat{Kind: KindExp, Value: strconv.FormatInt(at.Unix(), 10)}
 }
@@ -302,32 +257,23 @@ func (c Caveat) Int() (int64, error) {
 	return n, nil
 }
 
-// Token is a parsed caveat payload. The credential half is carried but not
-// exposed: the package's job is the caveats, and a caller wanting the
-// credential a run token wraps has Split, which says what it is for.
+// Token is a parsed run token. Parsing checks its shape; only Verify says
+// whether it was minted by a key this store trusts.
 type Token struct {
 	secret  string
 	id      string
 	caveats []Caveat
-	rootSig []byte // the Ed25519 root signature (v2)
-	tag     []byte // the last HMAC in the caveat chain
+	sig     []byte
 }
 
-// ID is the minter's name for the run — agent name and run id — which is
-// what an audit record cites when a caveat refuses a call.
+// ID is the run the token was minted for.
 func (t Token) ID() string { return t.id }
 
-// Caveats lists what the token binds, in chain order. A copy: the chain is
-// append-only and a caller must not be able to rearrange what it will be
-// verified against.
+// Caveats is a copy of the token's caveats, in minted order.
 func (t Token) Caveats() []Caveat { return append([]Caveat(nil), t.caveats...) }
 
-// Mint builds a run token: the given credential half, the run's id, and
-// caveats signed into a chain under rootSecret.
-//
-// The id names its minter — agent name and run id — because the audit trail
-// has to answer "which run was this minted for" from the token alone, with
-// no store lookup that revocation could break.
+// Mint makes a run token: the credential secret, the run id and the caveats,
+// signed with the minting key. At least one caveat, each kind at most once.
 func Mint(secret string, mint MintKey, id string, caveats ...Caveat) (string, error) {
 	if secret == "" || len(secret) > maxSecret || strings.ContainsAny(secret, ".") {
 		return "", fmt.Errorf("a run token wraps a credential secret: short, " +
@@ -335,8 +281,7 @@ func Mint(secret string, mint MintKey, id string, caveats ...Caveat) (string, er
 	}
 	if len(mint) != ed25519.PrivateKeySize {
 		return "", fmt.Errorf("the minting key is an Ed25519 private key "+
-			"(%d bytes), not the %d-byte run key the v1 format used",
-			ed25519.PrivateKeySize, len(mint))
+			"(%d bytes), not %d bytes", ed25519.PrivateKeySize, len(mint))
 	}
 	if !runID(id) {
 		return "", fmt.Errorf("%q is not a run id: 1 to 128 letters, digits, "+
@@ -356,37 +301,25 @@ func Mint(secret string, mint MintKey, id string, caveats ...Caveat) (string, er
 				c.Kind, c.Value)
 		}
 		if seen[c.Kind] {
-			return "", fmt.Errorf("caveat %s appears twice; a minted token "+
-				"states each kind once and attenuation narrows it after", c.Kind)
+			return "", fmt.Errorf("caveat %s appears twice; a token states each "+
+				"kind once, and a narrower token is minted, not appended to", c.Kind)
 		}
 		seen[c.Kind] = true
 	}
-	rootSigBytes := ed25519.Sign(mint, []byte(rootDomainV2+id))
-	sig := chainKey(rootSigBytes)
-	for _, c := range caveats {
-		sig = bindSig(sig, c)
-	}
-	return envelopeV2(secret, payloadV2(id, caveats, rootSigBytes, sig)), nil
+	b := body(id, caveats)
+	sig := ed25519.Sign(mint, signed(b))
+	return secret + marker + base64.RawURLEncoding.EncodeToString(append(b, sig...)), nil
 }
 
-// Split is the credential half of a presented run token, and whether the
-// string is shaped like one at all.
-//
-// Deliberately loose: it checks the marker, the sizes and that the payload
-// decodes, and nothing else. The token store authenticates the credential
-// half without knowing the payload exists, and it must keep doing so even
-// when the payload is garbage a tampered string carries — the bearer is
-// still the bearer, and the caveat gate, not the store, is where a payload
-// that does not verify is refused. Parsing the payload is Parse's job.
+// Split returns the credential half of a presented token, for the paths
+// that authenticate the credential and leave the caveats to the tool gate.
 func Split(presented string) (string, bool) {
 	secret, _, ok := halves(presented)
 	return secret, ok
 }
 
-// Parse is a strict read: the halves, the framing, the closed set of kinds,
-// every value's grammar, no trailing bytes. A token that does not parse is
-// not one this program minted, and the caller treats that as a refusal
-// rather than a puzzle.
+// Parse reads a token's shape: the halves, the run id, each caveat's kind
+// and value, and the signature's length. It does not check the signature.
 func Parse(token string) (Token, bool) {
 	secret, enc, ok := halves(token)
 	if !ok {
@@ -396,30 +329,8 @@ func Parse(token string) (Token, bool) {
 	if err != nil || len(raw) > maxPayload {
 		return Token{}, false
 	}
-	// v2 carries the Ed25519 root signature beside the tag; v1 has only
-	// the tag. A v2 token is what this program mints now; v1 is read for
-	// the cut-over and verified by the v1 Verify, not this package's.
-	if strings.Contains(token, markerV2) {
-		id, caveats, rootSig, tag, err := frameV2(raw)
-		if err != nil {
-			return Token{}, false
-		}
-		if !runID(id) {
-			return Token{}, false
-		}
-		for _, c := range caveats {
-			if !validCaveat(c) {
-				return Token{}, false
-			}
-		}
-		return Token{secret: secret, id: id, caveats: caveats,
-			rootSig: rootSig, tag: tag}, true
-	}
-	id, caveats, tag, err := frame(raw)
-	if err != nil {
-		return Token{}, false
-	}
-	if !runID(id) {
+	id, caveats, sig, err := frame(raw)
+	if err != nil || !runID(id) {
 		return Token{}, false
 	}
 	for _, c := range caveats {
@@ -427,64 +338,11 @@ func Parse(token string) (Token, bool) {
 			return Token{}, false
 		}
 	}
-	return Token{secret: secret, id: id, caveats: caveats, tag: tag}, true
+	return Token{secret: secret, id: id, caveats: caveats, sig: sig}, true
 }
 
-// Attenuate appends caveats to a token, returning the narrowed token.
-//
-// Only narrows, and says so when asked to do anything else: a wider tool
-// set, a later deadline, a larger budget, a higher level or a purpose that
-// reaches further are each refused rather than clamped, because a caller
-// told "done" with a silently narrower token believes it holds what it asked
-// for, and the refusal is the only honest answer.
-//
-// No run key is needed and none is taken: appending signs with the tag the
-// token already carries, which is the property that makes attenuation
-// cheap — the holder can narrow what they hold without a round trip to
-// anybody. The result still verifies only if the token it came from did,
-// because the head of the chain is the run key either way.
-func Attenuate(token string, more ...Caveat) (string, error) {
-	t, ok := Parse(token)
-	if !ok {
-		return "", fmt.Errorf("only a token that parses can be attenuated; " +
-			"this one is not shaped like something this program minted")
-	}
-	if len(more) == 0 {
-		return "", fmt.Errorf("attenuation needs a caveat to add")
-	}
-	if len(t.caveats)+len(more) > maxTotal {
-		return "", fmt.Errorf("a run token carries at most %d caveats, counted "+
-			"through attenuation", maxTotal)
-	}
-	for _, c := range more {
-		if !validCaveat(c) {
-			return "", fmt.Errorf("caveat %s=%s is not one this program mints",
-				c.Kind, c.Value)
-		}
-		why, ok := narrows(c, t.caveats)
-		if !ok {
-			return "", fmt.Errorf("refusing to attenuate: caveat %s=%s does not "+
-				"narrow this token (%s); attenuation only ever narrows, and a "+
-				"wider token is minted, not attenuated", c.Kind, c.Value, why)
-		}
-	}
-	cs := append(t.Caveats(), more...)
-	sig := append([]byte(nil), t.tag...)
-	for _, c := range more {
-		sig = bindSig(sig, c)
-	}
-	if t.rootSig != nil {
-		return envelopeV2(t.secret, payloadV2(t.id, cs, t.rootSig, sig)), nil
-	}
-	return envelope(t.secret, payload(t.id, cs, sig)), nil
-}
-
-// Verify checks a run token end to end: parse, recompute the chain under
-// rootSecret, compare the tag in constant time, then hand every caveat to
-// discharge, which answers for the call being made — which tool, what time,
-// how many calls so far. A discharge refusal names its caveat; the chain
-// failure names nobody, because a token that does not verify is not a
-// decision about the call but a string.
+// Verify checks a token's signature against the store's public key, then
+// asks discharge about each caveat in order. Every caveat must hold.
 func Verify(token string, verifyKey VerifyKey, discharge func(Caveat) error) error {
 	t, ok := Parse(token)
 	if !ok {
@@ -495,18 +353,9 @@ func Verify(token string, verifyKey VerifyKey, discharge func(Caveat) error) err
 		return fmt.Errorf("the verification key is an Ed25519 public key "+
 			"(%d bytes)", ed25519.PublicKeySize)
 	}
-	if !ed25519.Verify(verifyKey, []byte(rootDomainV2+t.id), t.rootSig) {
-		return fmt.Errorf("the root signature does not verify under this " +
-			"public key, so the token was not minted by the key pair this " +
-			"store trusts")
-	}
-	sig := chainKey(t.rootSig)
-	for _, c := range t.caveats {
-		sig = bindSig(sig, c)
-	}
-	if !hmac.Equal(sig, t.tag) {
-		return fmt.Errorf("the caveat chain does not verify, so the token " +
-			"is not as it was minted")
+	if !ed25519.Verify(verifyKey, signed(body(t.id, t.caveats)), t.sig) {
+		return fmt.Errorf("the signature does not verify under this store's " +
+			"key, so the token is not as it was minted, or was not minted here")
 	}
 	for _, c := range t.caveats {
 		if err := discharge(c); err != nil {
@@ -516,47 +365,17 @@ func Verify(token string, verifyKey VerifyKey, discharge func(Caveat) error) err
 	return nil
 }
 
-// -- the chain ------------------------------------------------------------
+// -- the frame -------------------------------------------------------------
 
-// rootSig is the v1 format's HMAC root, kept for reading tokens minted
-// before the asymmetric root replaced it. Not used for minting.
-func rootSig(rootSecret []byte, id string) []byte {
-	m := hmac.New(sha256.New, rootSecret)
-	m.Write([]byte(rootDomainV1))
-	m.Write([]byte(id))
-	return m.Sum(nil)
-}
-
-// chainKey derives the HMAC chain's starting key from the Ed25519 root
-// signature: the signature is public (it is in the token), and what it
-// proves is that the minting key signed this id — the chain that follows
-// proves the caveats were not changed since.
-func chainKey(rootSig []byte) []byte {
-	h := sha256.Sum256(rootSig)
-	return h[:]
-}
-
-func bindSig(prev []byte, c Caveat) []byte {
-	m := hmac.New(sha256.New, prev)
-	m.Write([]byte(caveatDomain))
-	m.Write([]byte(c.Kind))
-	m.Write([]byte{0})
-	m.Write([]byte(c.Value))
-	return m.Sum(nil)
-}
-
-// -- serialization ---------------------------------------------------------
-
-// payload frames id, the caveats and the tag with explicit lengths, so a
-// reader never guesses where anything ends:
+// body frames the run id and the caveats with explicit lengths, so no two
+// different tokens frame to the same bytes:
 //
 //	u16 id length | id | u8 count | (u8 kind length | kind | u16 value
-//	length | value)* | 32-byte tag
+//	length | value)*
 //
-// Lengths, not separators, because every other field of a caveat is a
-// string that could contain any separator a simpler grammar might choose.
-func payload(id string, caveats []Caveat, tag []byte) []byte {
-	b := make([]byte, 0, len(id)+len(caveats)*12+64)
+// The payload is the body followed by the 64-byte signature.
+func body(id string, caveats []Caveat) []byte {
+	b := make([]byte, 0, len(id)+len(caveats)*16)
 	b = append(b, byte(len(id)>>8), byte(len(id)))
 	b = append(b, id...)
 	b = append(b, byte(len(caveats)))
@@ -566,24 +385,31 @@ func payload(id string, caveats []Caveat, tag []byte) []byte {
 		b = append(b, byte(len(c.Value)>>8), byte(len(c.Value)))
 		b = append(b, c.Value...)
 	}
-	return append(b, tag...)
+	return b
 }
 
-func frame(raw []byte) (id string, caveats []Caveat, tag []byte, err error) {
-	if len(raw) < 2+1+1+1+32 {
+// signed is what the signature covers: the domain, a NUL, then the body.
+func signed(b []byte) []byte {
+	return append(append([]byte(signDomain), 0), b...)
+}
+
+// frame reads a payload back into its parts, refusing anything that does
+// not end exactly in a signature.
+func frame(raw []byte) (id string, caveats []Caveat, sig []byte, err error) {
+	if len(raw) < 2+1+1+1+sigLength {
 		return "", nil, nil, fmt.Errorf("shorter than a token can be")
 	}
 	n := 0
 	idLen := int(raw[0])<<8 | int(raw[1])
 	n = 2
-	if idLen == 0 || n+idLen > len(raw) {
+	if idLen == 0 || idLen > maxID || n+idLen > len(raw) {
 		return "", nil, nil, fmt.Errorf("the id does not fit")
 	}
 	id = string(raw[n : n+idLen])
 	n += idLen
 	count := int(raw[n])
 	n++
-	if count == 0 || count > maxTotal {
+	if count == 0 || count > maxCaveats {
 		return "", nil, nil, fmt.Errorf("%d caveats is not a count this program writes", count)
 	}
 	caveats = make([]Caveat, 0, count)
@@ -606,123 +432,32 @@ func frame(raw []byte) (id string, caveats []Caveat, tag []byte, err error) {
 		caveats = append(caveats, Caveat{Kind: kind, Value: string(raw[n : n+valLen])})
 		n += valLen
 	}
-	if len(raw)-n != 32 {
-		return "", nil, nil, fmt.Errorf("the tag is not the 32 bytes a chain ends in")
+	if len(raw)-n != sigLength {
+		return "", nil, nil, fmt.Errorf("the payload does not end in a signature")
 	}
 	return id, caveats, raw[n:], nil
 }
 
-// frameV2 reads the v2 payload: the caveats, then the 64-byte Ed25519
-// root signature, then the 32-byte HMAC tag.
-func frameV2(raw []byte) (id string, caveats []Caveat, rootSig, tag []byte, err error) {
-	if len(raw) < 2+1+1+1+sigLength+32 {
-		return "", nil, nil, nil, fmt.Errorf("the payload is shorter than the " +
-			"v2 format can hold")
-	}
-	n := 0
-	idLen := int(raw[n])<<8 | int(raw[n+1])
-	n += 2
-	if idLen == 0 || n+idLen > len(raw) {
-		return "", nil, nil, nil, fmt.Errorf("the id length is wrong")
-	}
-	id = string(raw[n : n+idLen])
-	n += idLen
-	if n >= len(raw) {
-		return "", nil, nil, nil, fmt.Errorf("the payload ends before the caveats")
-	}
-	count := int(raw[n])
-	n++
-	caveats = make([]Caveat, 0, count)
-	for i := 0; i < count; i++ {
-		if n >= len(raw) {
-			return "", nil, nil, nil, fmt.Errorf("the payload ends mid-caveat")
-		}
-		kindLen := int(raw[n])
-		n++
-		if n+kindLen > len(raw) {
-			return "", nil, nil, nil, fmt.Errorf("the caveat kind is truncated")
-		}
-		kind := Kind(raw[n : n+kindLen])
-		n += kindLen
-		if n+2 > len(raw) {
-			return "", nil, nil, nil, fmt.Errorf("the caveat value length is truncated")
-		}
-		valLen := int(raw[n])<<8 | int(raw[n+1])
-		n += 2
-		if n+valLen > len(raw) {
-			return "", nil, nil, nil, fmt.Errorf("the caveat value is truncated")
-		}
-		caveats = append(caveats, Caveat{Kind: kind, Value: string(raw[n : n+valLen])})
-		n += valLen
-	}
-	if n+sigLength+32 != len(raw) {
-		return "", nil, nil, nil, fmt.Errorf("the payload has %d bytes where the "+
-			"root signature and tag should end it", len(raw)-n)
-	}
-	rootSig = raw[n : n+sigLength]
-	n += sigLength
-	tag = raw[n:]
-	return id, caveats, rootSig, tag, nil
-}
-
 // halves splits a presented string at the marker and checks only what the
 // loosest reader — the credential path — needs: both halves present, both
-// within their caps, the payload decodable. Shared by Split and Parse so
-// the two can never disagree about where the halves are.
+// within their caps, the payload decodable. Shared by Split and Parse so the
+// two can never disagree about where the halves are.
 func halves(presented string) (secret, enc string, ok bool) {
 	if len(presented) == 0 || len(presented) > maxToken {
 		return "", "", false
 	}
-	// v2 first (it is what this program mints), v1 for the cut-over.
-	i := strings.Index(presented, markerV2)
+	i := strings.Index(presented, marker)
 	if i <= 0 || i > maxSecret {
-		i = strings.Index(presented, markerV1)
-		if i <= 0 || i > maxSecret {
-			return "", "", false
-		}
-	}
-	secret = presented[:i]
-	for _, m := range []string{markerV1, markerV2} {
-		if strings.HasPrefix(presented[i:], m) {
-			enc = presented[i+len(m):]
-			break
-		}
-	}
-	if enc == "" || len(enc) > maxToken {
 		return "", "", false
 	}
-	if raw, err := base64.RawURLEncoding.DecodeString(enc); err != nil || len(raw) > maxPayload || len(raw) == 0 {
+	secret, enc = presented[:i], presented[i+len(marker):]
+	if enc == "" {
+		return "", "", false
+	}
+	if raw, err := base64.RawURLEncoding.DecodeString(enc); err != nil || len(raw) == 0 || len(raw) > maxPayload {
 		return "", "", false
 	}
 	return secret, enc, true
-}
-
-func envelope(secret string, p []byte) string {
-	return secret + marker + base64.RawURLEncoding.EncodeToString(p)
-}
-
-// payloadV2 frames id, the caveats, the Ed25519 root signature and the
-// HMAC tag with explicit lengths:
-//
-//	u16 id length | id | u8 count | (u8 kind length | kind | u16 value
-//	length | value)* | 64-byte rootSig | 32-byte tag
-func payloadV2(id string, caveats []Caveat, rootSig, tag []byte) []byte {
-	b := make([]byte, 0, len(id)+len(caveats)*12+sigLength+32)
-	b = append(b, byte(len(id)>>8), byte(len(id)))
-	b = append(b, id...)
-	b = append(b, byte(len(caveats)))
-	for _, c := range caveats {
-		b = append(b, byte(len(c.Kind)))
-		b = append(b, c.Kind...)
-		b = append(b, byte(len(c.Value)>>8), byte(len(c.Value)))
-		b = append(b, c.Value...)
-	}
-	b = append(b, rootSig...)
-	return append(b, tag...)
-}
-
-func envelopeV2(secret string, p []byte) string {
-	return secret + markerV2 + base64.RawURLEncoding.EncodeToString(p)
 }
 
 // -- validation ------------------------------------------------------------
@@ -764,39 +499,6 @@ func validCaveat(c Caveat) bool {
 		return ValidPurpose(c.Value)
 	}
 	return false
-}
-
-// narrows says whether c is within every existing caveat of its kind, and
-// fills in why not when it is not — the refusal a caller reads has to name
-// the bound that was exceeded, or it is a shrug.
-func narrows(c Caveat, existing []Caveat) (string, bool) {
-	for _, x := range existing {
-		if x.Kind != c.Kind {
-			continue
-		}
-		switch c.Kind {
-		case KindTool:
-			have := set(x.Tools())
-			for _, t := range c.Tools() {
-				if !have[t] {
-					return fmt.Sprintf("%s is not in the allowed %s", t, x.Value), false
-				}
-			}
-		case KindExp, KindCalls, KindLevel:
-			cn, err1 := c.Int()
-			xn, err2 := x.Int()
-			if err1 != nil || err2 != nil || cn > xn {
-				return fmt.Sprintf("this token bound it at %s", x.Value), false
-			}
-		case KindPurpose:
-			if !PurposeNarrowsTo(c.Value, x.Value) {
-				return fmt.Sprintf("this token's purpose is %s", x.Value), false
-			}
-		default:
-			return fmt.Sprintf("%s is not a kind this program knows", c.Kind), false
-		}
-	}
-	return "", true
 }
 
 func toolName(s string) bool {
@@ -843,12 +545,4 @@ func contains(list []string, v string) bool {
 		}
 	}
 	return false
-}
-
-func set(list []string) map[string]bool {
-	out := make(map[string]bool, len(list))
-	for _, s := range list {
-		out[s] = true
-	}
-	return out
 }

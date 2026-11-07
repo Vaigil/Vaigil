@@ -120,6 +120,10 @@ type Counts struct {
 	// Batches sealed, and attempts that had to be retried.
 	Batches int64 `json:"batches"`
 	Retries int64 `json:"retries"`
+	// Quarantined is spool files the drain could not send — a name that is
+	// not a batch's, or a file it cannot read — set aside, or left where
+	// they are when even that failed, and passed over from then on.
+	Quarantined int64 `json:"quarantined"`
 }
 
 // Shipper batches records, spools them, and sends them.
@@ -156,6 +160,10 @@ type Shipper struct {
 	// out on age as well as on count.
 	sealedAt time.Time
 	counts   Counts
+	// stuck is spool files the drain could neither send nor move aside,
+	// passed over for the rest of the process's life so one bad file does
+	// not hold every newer batch behind it.
+	stuck    map[string]bool
 	failures int
 	seq      uint64
 }
@@ -327,28 +335,53 @@ func (s *Shipper) spoolFiles() []string {
 	return out
 }
 
-// quarantine moves a file the drain cannot process out of the spool's
-// listing, so the loop that reads it does not see it again and spin. The
-// file is renamed with a leading dot and a .quarantine suffix inside the
-// same directory: the evidence is never deleted, only set aside where
-// nothing will list it, and the count tells the operator it happened.
+// quarantine moves a file the drain cannot send out of the spool's
+// listing, so the drain does not read it again. The file is renamed with a
+// leading dot and a .quarantine suffix inside the same directory: the
+// evidence is never deleted, only set aside where nothing lists it. When
+// even the rename fails — a read-only directory — the file is remembered
+// and passed over instead, so the batches behind it still leave. Either
+// way it is counted once and said once. Called without the lock.
 func (s *Shipper) quarantine(name, why string) {
 	aside := "." + name + ".quarantine"
-	if err := os.Rename(filepath.Join(s.Dir, name), filepath.Join(s.Dir, aside)); err != nil {
-		// The rename can fail on a read-only directory, in which case
-		// the loop would spin on the same file next pass. Back off, so
-		// the recorder breathes between attempts even here, and say so.
-		s.mu.Lock()
-		s.counts.Dropped++
-		s.mu.Unlock()
-		s.logf("cannot quarantine %s (%s): %v; backing off", name, why, err)
-		s.sleep(context.Background(), s.backoff())
+	err := os.Rename(filepath.Join(s.Dir, name), filepath.Join(s.Dir, aside))
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err != nil {
+		if s.stuck[name] {
+			return
+		}
+		if s.stuck == nil {
+			s.stuck = map[string]bool{}
+		}
+		s.stuck[name] = true
+		s.counts.Quarantined++
+		s.logf("cannot send %s (%s) or set it aside (%v); passing over it", name, why, err)
 		return
 	}
-	s.mu.Lock()
-	s.counts.Dropped++
-	s.mu.Unlock()
-	s.logf("quarantined %s: %s (kept as %s)", name, why, aside)
+	s.counts.Quarantined++
+	s.logf("set %s aside: %s (kept as %s)", name, why, aside)
+}
+
+// batchName reports whether name is what Seal writes — sixteen hex
+// digits, a dash, a 32-hex-digit batch id, ".json" — and returns the id.
+// Anything else cannot carry an id to answer the server with, and slicing
+// into it would read part of the prefix as the id.
+func batchName(name string) (string, bool) {
+	const prefix, idLen = 16, 32
+	if len(name) != prefix+1+idLen+len(".json") || name[prefix] != '-' ||
+		!strings.HasSuffix(name, ".json") {
+		return "", false
+	}
+	id := name[prefix+1 : prefix+1+idLen]
+	for _, part := range []string{name[:prefix], id} {
+		for i := 0; i < len(part); i++ {
+			if c := part[i]; !('0' <= c && c <= '9' || 'a' <= c && c <= 'f') {
+				return "", false
+			}
+		}
+	}
+	return id, true
 }
 
 // Resume starts the batch sequence past whatever the spool already holds,
@@ -400,31 +433,23 @@ func (s *Shipper) drain(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
-		files := s.spoolFiles()
-		if len(files) == 0 {
+		name, ok := s.nextToSend()
+		if !ok {
 			return
 		}
-		name := files[0]
-		// The name is %016x-<32 hex>.json: sixteen hex digits, a dash,
-		// the batch id, the extension. Anything shorter cannot carry an
-		// id to answer the server with, and slicing into it would read
-		// a piece of the prefix as though it were the id — so a name
-		// that is not that shape is quarantined beside the evidence,
-		// not interpreted.
-		if len(name) < 17+len(".json") || name[16] != '-' {
+		id, ok := batchName(name)
+		if !ok {
 			s.quarantine(name, "the name does not carry a batch id")
 			continue
 		}
 		body, err := os.ReadFile(filepath.Join(s.Dir, name))
+		if os.IsNotExist(err) {
+			continue // gone — a previous process or an operator; not ours to send
+		}
 		if err != nil {
-			// Unreadable but still listed: without acting, the loop
-			// would see it again next pass and never sleep — the spin
-			// the old code had. Quarantine it aside so the directory
-			// no longer lists it, and let the operator find it there.
 			s.quarantine(name, fmt.Sprintf("cannot read it: %v", err))
 			continue
 		}
-		id := strings.TrimSuffix(name[17:], ".json")
 		retry, err := s.send(ctx, id, body)
 		if err != nil || retry {
 			s.mu.Lock()
@@ -447,6 +472,19 @@ func (s *Shipper) drain(ctx context.Context) {
 			return
 		}
 	}
+}
+
+// nextToSend is the oldest spool file the drain has not passed over.
+func (s *Shipper) nextToSend() (string, bool) {
+	files := s.spoolFiles()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, f := range files {
+		if !s.stuck[f] {
+			return f, true
+		}
+	}
+	return "", false
 }
 
 // backoff is the wait after consecutive failures: one second doubling to a

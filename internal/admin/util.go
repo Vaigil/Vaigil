@@ -37,7 +37,7 @@ func humanBytes(n int64) string {
 // which is the same as not having one.
 // brandName is what this console is called: on every page, and to a
 // passkey's authenticator as the party it is for.
-const brandName = "aertun"
+const brandName = "Aertun"
 
 func nonce() (string, error) {
 	b := make([]byte, 16)
@@ -115,8 +115,12 @@ func (s *Server) auditPub(p principal, action, resource string, detail map[strin
 	s.Audit(action, resource, detail)
 }
 
-// ownOrigin is the scheme and host this request reached.
+// ownOrigin is this server's address: the configured Origin when there is
+// one, otherwise the scheme and host this request reached.
 func (s *Server) ownOrigin(r *http.Request) string {
+	if s.Origin != "" {
+		return s.Origin
+	}
 	scheme := "http"
 	if r.TLS != nil || s.behindTLSProxy() {
 		scheme = "https"

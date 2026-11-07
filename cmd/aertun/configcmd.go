@@ -265,7 +265,7 @@ func configSet(root string, args []string) error {
 	// it on approving.
 	if second, why := dual.SettingNeedsSecond(mustConfig(root), key, value); second {
 		apply, err := proposeSecond(root, caller, dual.Setting, fmt.Sprintf("set %s to %s: %s", key, value, why),
-			dual.SettingChange{Key: key, Value: value, Reason: reason}, reason)
+			dual.SettingChange{Key: key, Value: value, Reason: reason}, reason, "--accept-risk")
 		if err != nil || !apply {
 			return err
 		}
@@ -308,7 +308,7 @@ func configUnset(root string, args []string) error {
 	if st, ok := config.Lookup(args[0]); ok {
 		if second, why := dual.SettingNeedsSecond(c, args[0], st.Default); second {
 			apply, err := proposeSecond(root, caller, dual.Setting, fmt.Sprintf("set %s to %s: %s", args[0], st.Default, why),
-				dual.SettingChange{Key: args[0], Value: st.Default}, "")
+				dual.SettingChange{Key: args[0], Value: st.Default}, "", "a reason")
 			if err != nil || !apply {
 				return err
 			}

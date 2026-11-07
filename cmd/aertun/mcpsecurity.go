@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/aertun/aertun/internal/agentreg"
@@ -145,8 +144,8 @@ func authoriseTool(root string, c *Caller, action auth.Action, resource, tool st
 	return nil
 }
 
-// toolLevels is the autonomy each tool's operations need — the L0–L4 of
-// the design (research §6.9) mapped onto the rungs this surface serves
+// toolLevels is the autonomy each tool's operations need — the L0–L4
+// autonomy ladder mapped onto the rungs this surface serves
 // today: reading is L0, proposing is L1. Nothing here needs more, and the
 // levels above arrive with the operations that need them, not before.
 var toolLevels = map[string]int64{
@@ -163,30 +162,21 @@ func toolNeedsLevel(tool string) (int64, bool) {
 	return n, ok
 }
 
-// runCalls counts the calls made under each run token, durably: the
-// count lives in a file beside the registry, written atomically after
-// every spend, so a restart of the process that answers the agent does
-// not give every run a fresh budget. What is still honest about the
-// shape: two processes answering the same agent each hold the file's
-// lock while they spend, so a budget cannot be outrun by parallelism,
-// and the lock is the kernel's — a process that died released it.
+// The calls made under each run token are counted durably: the count
+// lives in a file beside the registry, changed under the kernel's lock on
+// it, so a restart of the process that answers the agent does not give
+// every run a fresh budget, and two processes answering the same agent
+// cannot spend the same slot twice by racing.
 //
 // Keyed by run id and budget value: the key names the exact caveat, and
 // two tokens minted for one run with different bounds count separately
 // — which they should, because they are different grants.
 //
-// Entries are bounded by the run's deadline: the exp caveat and the
-// credential's own expiry both end the run, and the file is cleaned of
-// expired entries on load, so a store does not grow forever on dead
-// runs. The budget file is written 0600 (it names what agents did) and
-// refused when wider.
-var runCalls = newCallStore()
-
-type callStore struct {
-	mu sync.Mutex
-}
-
-func newCallStore() *callStore { return &callStore{} }
+// Each entry keeps the run's deadline, and entries past it are dropped at
+// the next spend, so the file does not grow forever on dead runs. The file
+// is written 0600 (it names what agents did); a file that cannot be read
+// as a budget, or that others can read, refuses the call rather than
+// starting every count again from zero.
 
 // callsPath is the durable budget file, beside the registry and the run
 // key it serves.
@@ -196,38 +186,43 @@ func callsPath(root string) string {
 
 // callsFile is the JSON shape of the durable budget file.
 type callsFile struct {
-	Used map[string]int `json:"used"`
+	Used map[string]callsEntry `json:"used"`
 }
 
-// spend increments the budget for key under the store's lock, writes the
-// file, and returns the new count. The whole operation is under the
-// kernel lock on the file, so two processes cannot spend the same slot
-// twice by racing.
-func (c *callStore) spend(root, key string) (int, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	unlock, err := atomicfile.Lock(callsPath(root) + ".lock")
+// callsEntry is one budget's count, and when the run it belongs to ends.
+type callsEntry struct {
+	N     int   `json:"n"`
+	Until int64 `json:"until,omitempty"`
+}
+
+// spendCall spends one call of the budget named key, whose run ends at
+// until (Unix seconds; zero when the token carries no deadline), and
+// returns how many have been spent including this one.
+func spendCall(root, key string, until int64, now time.Time) (int, error) {
+	path := callsPath(root)
+	if fi, err := os.Stat(path); err == nil && fi.Mode().Perm()&0o077 != 0 {
+		return 0, fmt.Errorf("%s is readable by others (%v); it names what "+
+			"agents did. chmod 600 it", path, fi.Mode().Perm())
+	}
+	var used int
+	err := atomicfile.Update(path, func(cf *callsFile) error {
+		if cf.Used == nil {
+			cf.Used = map[string]callsEntry{}
+		}
+		for k, e := range cf.Used {
+			if e.Until != 0 && e.Until <= now.Unix() {
+				delete(cf.Used, k)
+			}
+		}
+		e := cf.Used[key]
+		e.N++
+		e.Until = until
+		cf.Used[key] = e
+		used = e.N
+		return nil
+	})
 	if err != nil {
-		return 0, fmt.Errorf("cannot take the budget lock: %w", err)
-	}
-	defer unlock()
-	var cf callsFile
-	if b, err := os.ReadFile(callsPath(root)); err == nil {
-		_ = json.Unmarshal(b, &cf)
-	} else if !os.IsNotExist(err) {
-		return 0, err
-	}
-	if cf.Used == nil {
-		cf.Used = map[string]int{}
-	}
-	cf.Used[key]++
-	used := cf.Used[key]
-	body, err := json.Marshal(cf)
-	if err != nil {
-		return used, err
-	}
-	if err := atomicfile.Write(callsPath(root), body, 0o600); err != nil {
-		return used, err
+		return 0, fmt.Errorf("the budget file cannot be used: %w", err)
 	}
 	return used, nil
 }
@@ -261,13 +256,12 @@ func checkRunCaveats(root string, c *Caller, tool string) error {
 				"is refused without the caveats it was minted with: the "+
 				"caveats are the credential, not a decoration on it", c.Run, c.Agent))
 	}
-	// The verifier uses only the public half of the run key: the private
+	// The verifier reads only the public half of the run key: the private
 	// half can mint, and the tool gate has no business minting.
-	privKey, err := loadRunKey(root)
+	key, err := loadVerifyKey(root)
 	if err != nil {
 		return recordCaveatRefusal(root, c, tool, "chain", err.Error())
 	}
-	key := macaroon.VerifyKey(privKey[32:])
 	// The chain's id must name this credential's own agent and run: a
 	// chain minted for another run — however it came to ride this
 	// credential's secret half — is a grant this credential was never
@@ -280,7 +274,7 @@ func checkRunCaveats(root string, c *Caller, tool string) error {
 	}
 	if want := agentreg.TokenPrefix + c.Agent + "/" + c.Run; parsed.ID() != want {
 		return recordCaveatRefusal(root, c, tool, "run",
-			fmt.Sprintf("the caveat chain names run %s, and this credential "+
+			fmt.Sprintf("the run token names run %s, and this credential "+
 				"is run %s of agent %q", parsed.ID(), c.Run, c.Agent))
 	}
 	if err := macaroon.Verify(c.RunToken, key, func(cv macaroon.Caveat) error {
@@ -335,7 +329,8 @@ func checkRunCaveats(root string, c *Caller, tool string) error {
 			if err != nil {
 				return fail(string(macaroon.KindCalls), err.Error())
 			}
-			used, serr := runCalls.spend(root, caveatCallsKey(parsed, cv))
+			used, serr := spendCall(root, caveatCallsKey(parsed, cv),
+				runDeadline(parsed), time.Now())
 			if serr != nil {
 				return fail(string(macaroon.KindCalls), fmt.Sprintf(
 					"the budget could not be spent: %v", serr))
@@ -359,10 +354,26 @@ func checkRunCaveats(root string, c *Caller, tool string) error {
 	return nil
 }
 
+// runDeadline is when a run token's exp caveat ends it, or zero when it
+// carries none (Mint always adds one; zero keeps an entry rather than
+// guessing when to drop it).
+func runDeadline(t macaroon.Token) int64 {
+	var until int64
+	for _, cv := range t.Caveats() {
+		if cv.Kind == macaroon.KindExp {
+			if n, err := cv.Int(); err == nil && (until == 0 || n < until) {
+				until = n
+			}
+		}
+	}
+	return until
+}
+
 // caveatCallsKey names one calls caveat of one token: the tag identifies
-// the exact grant (the chain's last link covers id and caveats alike), and
-// the caveat's own value separates two calls caveats in one token — an
-// attenuated run carries both budgets, and the narrower one runs out first.
+// the exact grant (the signature covers id and caveats alike), and the
+// caveat's own value separates two calls caveats in one token — a run
+// minted with both budgets carries both, and the narrower one runs out
+// first.
 func caveatCallsKey(t macaroon.Token, cv macaroon.Caveat) string {
 	return t.ID() + "|" + cv.Value
 }

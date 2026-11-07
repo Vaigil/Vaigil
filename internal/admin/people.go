@@ -234,6 +234,17 @@ func (s *Server) handlePeopleGrant(w http.ResponseWriter, r *http.Request) {
 		Expires:   expires,
 	}
 	bindings := []auth.Binding{base}
+	// An invitation is a grant and a passkey enrolment link in one step;
+	// a deny invites nobody.
+	invite := r.FormValue("invite") == "on"
+	if invite && base.Deny {
+		s.peopleBack(w, r, "A deny invites nobody: untick one of them.")
+		return
+	}
+	if invite && s.Enrol == nil {
+		s.peopleBack(w, r, "this server was started without enrolment links")
+		return
+	}
 	// A permission, granted alone.
 	if name, isPerm := strings.CutPrefix(string(role), "permission:"); isPerm {
 		perm, ok := auth.PermissionNamed(name)
@@ -273,6 +284,10 @@ func (s *Server) handlePeopleGrant(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !apply {
+			if invite {
+				s.enrolLinkPage(w, r, p, who, msg+" "+who+" holds nothing until it is approved: this link adds their passkey now, and signing in with it reaches nothing until then.")
+				return
+			}
 			s.peopleBack(w, r, msg)
 			return
 		}
@@ -291,6 +306,10 @@ func (s *Server) handlePeopleGrant(w http.ResponseWriter, r *http.Request) {
 	s.audit("access.grant", "/"+who, map[string]string{
 		"role": string(role), "resource": on, "by": p.Name,
 	})
+	if invite {
+		s.enrolLinkPage(w, r, p, who, fmt.Sprintf("%s is now %s on %s.", who, role, on))
+		return
+	}
 	s.peopleBack(w, r, fmt.Sprintf("%s is now %s on %s", who, role, on))
 }
 
@@ -319,6 +338,15 @@ func (s *Server) handlePeopleEnrol(w http.ResponseWriter, r *http.Request) {
 		s.peopleBack(w, r, "a passkey would sign "+who+" in to nothing: grant them something first")
 		return
 	}
+	s.enrolLinkPage(w, r, p, who, "")
+}
+
+// enrolLinkPage issues who a one-time passkey enrolment link and shows it,
+// once, on a page of its own — never in an address, where it would be kept
+// in a history or a log — after lead, which says what else just happened.
+// The link names the server's own origin (ownOrigin), never a Host header
+// somebody else chose.
+func (s *Server) enrolLinkPage(w http.ResponseWriter, r *http.Request, p principal, who, lead string) {
 	secret, l, err := s.Enrol.Issue(who, p.Name, enrol.MaxLife, time.Now())
 	if err != nil {
 		s.peopleBack(w, r, err.Error())
@@ -326,16 +354,15 @@ func (s *Server) handlePeopleEnrol(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit("enrol.issued", "/", map[string]string{"by": p.Name, "for": who,
 		"expires": l.Expires.Format(time.RFC3339)})
-	scheme := "http://"
-	if r.TLS != nil || s.behindTLSProxy() {
-		scheme = "https://"
+	if lead != "" {
+		lead += " "
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	s.render(w, r, "message.html", map[string]any{"Title": "Enrolment link", "Principal": p, "Nav": "people",
 		"Heading": "A passkey enrolment link for " + who,
-		"Body": "Give " + who + " this, the way you would give a key; it is shown once. Opened before " +
+		"Body": lead + "Give " + who + " this, the way you would give a key; it is shown once. Opened before " +
 			l.Expires.UTC().Format("15:04 UTC on 2 January") + ", it adds their passkey and does nothing else: " +
-			scheme + r.Host + enrolStart + secret})
+			s.ownOrigin(r) + enrolStart + secret})
 }
 
 // handlePeopleEnrolRevoke ends the link waiting for somebody, before

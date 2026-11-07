@@ -248,6 +248,11 @@ func TestNoEventsIsNotAQuietEstate(t *testing.T) {
 	if err := cmdInit(root); err != nil {
 		t.Fatal(err)
 	}
+	// init records installing the rules; a site whose own log is empty
+	// too is the one with nothing at all to run over.
+	if err := os.Remove(auditPath(root)); err != nil {
+		t.Fatal(err)
+	}
 	rules := t.TempDir()
 	if err := os.WriteFile(filepath.Join(rules, "r.json"),
 		[]byte(privilegedFailRule), 0o600); err != nil {
