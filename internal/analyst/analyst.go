@@ -36,7 +36,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aertun/aertun/internal/calib"
 	"github.com/aertun/aertun/internal/decide"
 	"github.com/aertun/aertun/internal/finding"
 	"github.com/aertun/aertun/internal/telemetry"
@@ -277,6 +276,10 @@ func neutraliseUntrusted(s State) State {
 	return out
 }
 
+// CounterfactualUnconfirmed is why a closing verdict is withheld: it did
+// not hold when the attacker-writable text was taken out of the prompt.
+const CounterfactualUnconfirmed = "the verdict did not hold without the text whoever is detected wrote"
+
 // The three things a triage can suggest.
 const (
 	Real          = "real"
@@ -286,26 +289,6 @@ const (
 
 // Decider is the question a triage asks: one word from a closed set, with
 // a confidence, sampled and gated.
-// calibratedThreshold is the threshold a calibration certificate fitted,
-// overriding the fixed 0.8 when one is loaded. It is set by the command
-// that reads the certificate; the package default stays 0.8 because a
-// threshold nobody certified is a threshold nobody measured.
-var calibratedThreshold float64
-
-// SetCalibratedThreshold sets the decision threshold from a calibration
-// certificate. Zero resets to the default.
-func SetCalibratedThreshold(t float64) { calibratedThreshold = t }
-
-// Threshold reports the threshold the analyst uses now: the calibrated one
-// when set, the fixed 0.8 when not.
-func Threshold() float64 {
-	_ = calib.Certificate{} // the certificate type: what SetCalibratedThreshold reads
-	if calibratedThreshold > 0 && calibratedThreshold <= 1 {
-		return calibratedThreshold
-	}
-	return 0.8
-}
-
 func Decider() decide.Decider {
 	return decide.Decider{
 		Name:  "triage",
@@ -317,7 +300,7 @@ func Decider() decide.Decider {
 				"happened), a false-positive (the rule was wrong about what " +
 				"happened), or benign (it happened and is expected)?",
 		}},
-		MinConfidence: Threshold(),
+		MinConfidence: 0.8,
 		Samples:       3,
 		Context: "You are giving a first-pass suggestion on a security " +
 			"finding. A person makes the decision. counted_by_the_program " +
@@ -346,9 +329,13 @@ func Decider() decide.Decider {
 type Suggestion struct {
 	// To is the state suggested. Empty when the agent was not confident:
 	// it looked, and a person decides without a suggestion.
-	To         finding.State `json:"to,omitempty"`
-	Confidence float64       `json:"confidence"`
-	Agreement  float64       `json:"agreement"`
+	To finding.State `json:"to,omitempty"`
+	// Verdict is the model's own closed-set word, kept even when no
+	// suggestion is offered: what an evaluation measures the model by,
+	// apart from what the guards around it let through.
+	Verdict    string  `json:"verdict,omitempty"`
+	Confidence float64 `json:"confidence"`
+	Agreement  float64 `json:"agreement"`
 	// Reason is assembled from the counts.
 	Reason string `json:"reason"`
 	// Abstained says why there is no suggestion.
@@ -357,9 +344,9 @@ type Suggestion struct {
 	// attacker-writable field was replaced by the program's rendering
 	// of what it parsed. A person sees this beside the suggestion; the
 	// analyst never auto-closes on a changed verdict.
-	CounterfactualChanged bool           `json:"counterfactual_changed,omitempty"`
-	CounterfactualVerdict finding.State  `json:"counterfactual_verdict,omitempty"`
-	Trace                 []Trace        `json:"trace"`
+	CounterfactualChanged bool          `json:"counterfactual_changed,omitempty"`
+	CounterfactualVerdict finding.State `json:"counterfactual_verdict,omitempty"`
+	Trace                 []Trace       `json:"trace"`
 }
 
 // Triage gathers, asks, and turns the answer into a suggestion.
@@ -385,6 +372,7 @@ func Ask(ctx context.Context, m decide.Model, state State,
 		return out, nil
 	}
 	out.Confidence, out.Agreement = a.Confidence, a.Agreement
+	out.Verdict = a.Value
 	if a.Escalate {
 		out.Abstained = a.Why
 		return out, nil
@@ -397,16 +385,28 @@ func Ask(ctx context.Context, m decide.Model, state State,
 	// the prompt is a verdict those words chose, and the person
 	// reading the suggestion needs to know that more than they need
 	// the suggestion.
+	//
+	// It fails closed. A re-ask that errors, abstains or escalates has not
+	// confirmed the verdict, and an unconfirmed verdict is treated as one
+	// that changed: an attacker who can make the re-ask fail would
+	// otherwise switch the check off.
 	cfState := neutraliseUntrusted(state)
+	out.CounterfactualChanged = true
 	if cfRes, cfErr := decide.Decide(ctx, Decider(), m, cfState); cfErr == nil {
 		if cfa, ok := cfRes.Get("verdict"); ok && !cfa.Escalate {
 			out.CounterfactualVerdict = finding.State(cfa.Value)
-			out.CounterfactualChanged = finding.State(a.Value) != finding.State(cfa.Value)
+			out.CounterfactualChanged = a.Value != cfa.Value
 		}
 	}
-	// A counterfactual that could not run (the endpoint refused, timed
-	// out) does not flag the finding: the absence of a check is not a
-	// failure.
+	// A verdict that would close the finding and did not survive the
+	// attacker's words leaving the prompt is not offered at all: closing
+	// is the direction an attacker wants a finding to go. One that
+	// escalates is kept, flagged, because more scrutiny is never what an
+	// attacker steers towards.
+	if out.CounterfactualChanged && (a.Value == FalsePositive || a.Value == Benign) {
+		out.Abstained = CounterfactualUnconfirmed
+		return out, nil
+	}
 	switch a.Value {
 	case Real:
 		out.To = finding.Triaged
@@ -421,6 +421,11 @@ func Ask(ctx context.Context, m decide.Model, state State,
 		return out, nil
 	}
 	out.Reason = Reason(state.Facts, a.Value, a.Confidence, a.Agreement)
+	if out.CounterfactualChanged {
+		out.Reason += " The verdict did not hold when the text whoever is " +
+			"detected wrote was taken out of the question, so check it " +
+			"against the evidence before agreeing."
+	}
 	return out, nil
 }
 

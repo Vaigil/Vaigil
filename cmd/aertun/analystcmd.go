@@ -20,10 +20,8 @@ import (
 	"github.com/aertun/aertun/internal/analyst"
 	"github.com/aertun/aertun/internal/audit"
 	"github.com/aertun/aertun/internal/auth"
-	"github.com/aertun/aertun/internal/bakeoff"
 	"github.com/aertun/aertun/internal/decide"
 	"github.com/aertun/aertun/internal/finding"
-	"github.com/aertun/aertun/internal/forge"
 	"github.com/aertun/aertun/internal/model"
 	"github.com/aertun/aertun/internal/pii"
 )
@@ -406,6 +404,9 @@ func runTriage(ctx context.Context, root string, caller *Caller, limit int,
 			rec.Action = finding.ProposalAction
 			rec.Detail["to"] = string(s.To)
 			rec.Detail["because"] = s.Reason
+			if s.CounterfactualChanged {
+				rec.Detail["counterfactual"] = "changed"
+			}
 		} else {
 			// A closed set of reasons, not the model's words.
 			rec.Detail["why"] = abstainWord(s.Abstained)
@@ -425,6 +426,8 @@ func abstainWord(why string) string {
 		return "not confident enough"
 	case strings.Contains(why, "no model"), strings.Contains(why, "could not be used"):
 		return modelUnusable
+	case why == analyst.CounterfactualUnconfirmed:
+		return "did not hold without the attacker's text"
 	}
 	return "no usable answer"
 }
@@ -441,17 +444,10 @@ func humanCount(n int) string {
 	return strconv.Itoa(n)
 }
 
-// The forge exports what the analyst saw and decided, for training.
-var _ = forge.SanitizeFacts
-var _ = bakeoff.PredicateURI
-
 func analystTriage(root string, args []string) error {
 	fs := flag.NewFlagSet("triage", flag.ContinueOnError)
 	limit := fs.Int("limit", 20, "how many findings to look at")
-	calibrationPath := fs.String("calibration", "",
-		"a calibration certificate FILE: its fitted threshold replaces the fixed 0.8")
 	dry := fs.Bool("dry-run", false, "look, and record nothing")
-	_ = calibrationPath // the certificate loading lands with the key-management pass
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

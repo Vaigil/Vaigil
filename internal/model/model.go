@@ -15,7 +15,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -200,11 +199,6 @@ type Tuned interface {
 // Usage is what one completion used, as the provider reported it.
 type Usage struct {
 	In, Out int
-	// Probability is the model's own token probability for the first
-	// token of its reply, when the endpoint returns logprobs — the
-	// channel that tracks correctness, unlike the stated confidence in
-	// the reply text. Zero when the endpoint does not return them.
-	Probability float64
 	// Reported is false when the provider said nothing, and the counts are
 	// estimated from the length of the text.
 	Reported bool
@@ -253,11 +247,6 @@ func (h *HTTPModel) complete(ctx context.Context, system, user string,
 			{"role": "user", "content": user},
 		},
 		"stream": false,
-		// Token probabilities are what calibration reads: verbal
-		// confidence tracks commitment, not correctness. Endpoints that
-		// do not support the flag ignore it; the caller falls back to
-		// the stated confidence, which is the honest fallback.
-		"logprobs": true,
 	}
 	if p.Temperature != nil {
 		payload["temperature"] = *p.Temperature
@@ -308,12 +297,6 @@ func (h *HTTPModel) complete(ctx context.Context, system, user string,
 			Message struct {
 				Content string `json:"content"`
 			} `json:"message"`
-			Logprobs *struct {
-				Content []struct {
-					Token   string  `json:"token"`
-					Logprob float64 `json:"logprob"`
-				} `json:"content"`
-			} `json:"logprobs"`
 		} `json:"choices"`
 		Usage *struct {
 			Prompt     int `json:"prompt_tokens"`
@@ -331,12 +314,6 @@ func (h *HTTPModel) complete(ctx context.Context, system, user string,
 	if out.Usage != nil && out.Usage.Prompt >= 0 && out.Usage.Completion >= 0 &&
 		(out.Usage.Prompt > 0 || out.Usage.Completion > 0) {
 		u = Usage{In: out.Usage.Prompt, Out: out.Usage.Completion, Reported: true}
-	}
-	// The first token's probability, when the endpoint returns logprobs,
-	// is the number calibration reads: it is the model's own bet on the
-	// word it chose first, which for a closed-set answer is the verdict.
-	if lp := out.Choices[0].Logprobs; lp != nil && len(lp.Content) > 0 {
-		u.Probability = math.Exp(lp.Content[0].Logprob)
 	}
 	if h.OnUsage != nil {
 		h.OnUsage(u)

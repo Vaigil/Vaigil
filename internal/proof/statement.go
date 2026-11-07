@@ -64,14 +64,6 @@ const (
 	// rule. Versioned in the URI, so a change to what it says is a new
 	// type rather than a reinterpretation of the old one.
 	PredicateDetection = "https://aertun.github.io/proof/detection/v1"
-	// PredicateCalibration is the predicate of a proof about a fitted
-	// decision threshold: what model and template it was fitted for,
-	// at what bound, and the threshold it produced.
-	PredicateCalibration = "https://aertun.github.io/proof/calibration/v1"
-	// PredicateTriage is the predicate of a proof about an AI analyst's
-	// verdicts: accuracy, false-closure rate, hijack rate, consistency,
-	// evidence validity — the bake-off in a box.
-	PredicateTriage = "https://aertun.github.io/proof/triage/v1"
 )
 
 // Verdict is what the verifier concluded.
@@ -185,9 +177,7 @@ func (s *Statement) Validate() error {
 	if s.Type != StatementType {
 		return fmt.Errorf("this is a %q statement, and a proof is %s", s.Type, StatementType)
 	}
-	switch s.PredicateType {
-	case PredicateDetection, PredicateCalibration, PredicateTriage:
-	default:
+	if s.PredicateType != PredicateDetection {
 		return fmt.Errorf("the predicate %q is not one this version can read", s.PredicateType)
 	}
 	if len(s.Subject) == 0 {

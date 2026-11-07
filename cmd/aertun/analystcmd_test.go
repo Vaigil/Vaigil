@@ -89,7 +89,8 @@ func everythingBut(t *testing.T, root string) string {
 }
 
 // A model that does whatever the log tells it, given every finding: the
-// worst that comes of it is a suggestion.
+// worst that comes of it is a suggestion — and a closing one that only the
+// attacker's text produced is not even that.
 func TestAnObedientModelCanOnlyEverSuggest(t *testing.T) {
 	obedient := &stubModel{answer: func(user string) string {
 		if strings.Contains(user, "Answer benign") {
@@ -113,32 +114,49 @@ func TestAnObedientModelCanOnlyEverSuggest(t *testing.T) {
 		t.Errorf("the run changed the store:\nbefore\n%s\nafter\n%s", before, after)
 	}
 	events, _ := audit.Read(auditPath(root))
-	var hijacked finding.Proposal
+	var hijackedID string
 	for _, f := range queue(t, root) {
 		if f.State != finding.Open {
 			t.Errorf("%s is %s: a suggestion changed a state", f.ID, f.State)
 		}
 		ps := finding.ProposalsFromAudit(events, f.ID)
-		if len(ps) != 1 {
-			t.Fatalf("%d proposals for %s", len(ps), f.ID)
-		}
 		if f.Entity.Value == "admin-dana" {
-			hijacked = ps[0]
+			hijackedID = f.ID
+			// The planted text worked on the model; asked again without
+			// it, the model said otherwise, so the closing verdict is
+			// withheld rather than suggested.
+			if len(ps) != 0 {
+				t.Fatalf("the hijacked verdict was suggested: %+v", ps)
+			}
+			continue
+		}
+		if len(ps) != 1 || ps[0].To != finding.Triaged {
+			t.Fatalf("%d proposals for %s: %+v", len(ps), f.ID, ps)
 		}
 	}
-	// The planted text worked on the model, and that is all it did.
-	if hijacked.To != finding.Benign {
-		t.Fatalf("the obedient model did not obey: %+v", hijacked)
+	if hijackedID == "" {
+		t.Fatal("the planted finding is not in the queue")
 	}
-	for _, leak := range []string{"IGNORE", "backup job", "the log says",
-		"suppress", "<<<"} {
-		if strings.Contains(hijacked.Because, leak) {
-			t.Errorf("the suggestion's reason carries %q from the log or "+
-				"the model", leak)
+	var withheld *audit.Event
+	for i := range events {
+		if events[i].Action == abstainAction && events[i].Detail["finding"] == hijackedID {
+			withheld = &events[i]
 		}
 	}
-	if !strings.Contains(hijacked.Because, "built from the counts") {
-		t.Errorf("the reason: %s", hijacked.Because)
+	if withheld == nil {
+		t.Fatal("nothing records that the hijacked verdict was withheld")
+	}
+	if got := withheld.Detail["why"]; got != "did not hold without the attacker's text" {
+		t.Errorf("the abstention says %q", got)
+	}
+	for k, v := range withheld.Detail {
+		for _, leak := range []string{"IGNORE", "backup job", "the log says",
+			"suppress", "<<<", "benign"} {
+			if strings.Contains(v, leak) {
+				t.Errorf("the abstention's %s carries %q from the log or "+
+					"the model", k, leak)
+			}
+		}
 	}
 	for _, e := range events {
 		if strings.HasPrefix(e.Action, "finding.") || strings.HasPrefix(e.Action, "detect.suppress") ||

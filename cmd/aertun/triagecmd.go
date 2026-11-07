@@ -132,7 +132,7 @@ func cmdTriage(root string, args []string) error {
 		w.Human("\n%s%s%s  %s\n", bold, f.Title, reset, f.Entity.String())
 		w.Human("  %s%s · %s%s\n", dim, f.Source, f.Why(at), reset)
 		if why := f.NeedsAPerson(); why != "" {
-			w.Human("  %s%s%s\n", yellow, why, reset)
+			w.Human("  %sa person decides: %s%s\n", yellow, why, reset)
 		}
 	}
 	return nil

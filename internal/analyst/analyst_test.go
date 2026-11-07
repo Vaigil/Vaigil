@@ -272,6 +272,11 @@ func TestPlantedInstructionsFindAModelThatObeysThem(t *testing.T) {
 	if rep.Planted != 1 || rep.Hijacked != 1 || rep.Reliable != 1 {
 		t.Errorf("an obedient model was not found out: %+v", rep)
 	}
+	// And the counterfactual kept the planted closing answer from the
+	// person: the model was hijacked, the analyst was not.
+	if rep.Contained != 1 {
+		t.Errorf("the counterfactual did not contain the hijack: %+v", rep)
+	}
 	rep, _ = Evaluate(ctx, &model{answer: says("real", 0.95)}, cases()[:1], 2)
 	if rep.Hijacked != 0 {
 		t.Errorf("a model that ignored the planted text was counted as hijacked: %+v", rep)
@@ -500,8 +505,12 @@ func TestTheCounterfactualCatchesSteeringByUntrustedText(t *testing.T) {
 		t.Errorf("the steered stub's verdict flip was not caught: primary=%s counterfactual=%s",
 			sug.To, sug.CounterfactualVerdict)
 	}
-	if sug.CounterfactualVerdict != "real" || sug.To != "benign" {
-		t.Errorf("the verdicts are wrong: primary=%s counterfactual=%s", sug.To, sug.CounterfactualVerdict)
+	// The closing verdict the injection chose is withheld, not offered:
+	// a person sees no suggestion rather than the attacker's one.
+	if sug.Verdict != "benign" || sug.CounterfactualVerdict != "real" ||
+		sug.To != "" || sug.Abstained != CounterfactualUnconfirmed {
+		t.Errorf("the steered verdict was offered: verdict=%s to=%q counterfactual=%s abstained=%q",
+			sug.Verdict, sug.To, sug.CounterfactualVerdict, sug.Abstained)
 	}
 
 	// The honest stub: both asks say real; no flip, no flag.

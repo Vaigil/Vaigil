@@ -303,9 +303,9 @@ func (f Finding) NeedsAPerson() string {
 	}
 	sort.Strings(from)
 	return fmt.Sprintf(
-		"evidence for %s came from %s, which is written by whoever can reach "+
-			"it — including whoever is being detected. A person decides.",
-		f.ID, strings.Join(dedupe(from), ", "))
+		"Its evidence came from %s, which is written by whoever can reach "+
+			"it — including whoever is being detected.",
+		strings.Join(dedupe(from), ", "))
 }
 
 func dedupe(in []string) []string {
