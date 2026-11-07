@@ -16,7 +16,7 @@
   console that polls while pretending to be live is lying in the one
   place a security console must not.
 */}}
-<div>
+<div class="livebar">
   <span class="hint" data-live-badge role="status" aria-live="polite">{{if .Poll}}○ every 60s{{end}}</span>
   <form method="get" action="/today">
     <button type="submit" class="btn-text">Refresh</button>

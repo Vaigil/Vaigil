@@ -614,11 +614,11 @@ func records(t *testing.T, body string) []map[string]any {
 // write of a named operation, by an app acting for a person.
 func TestAgentInterfaceCallsExportAsReadsAndWrites(t *testing.T) {
 	events := log(t, nil,
-		audit.Record{Action: "mcp.call", Resource: "/mcp", Outcome: audit.Success, Principal: "app:vgc_1",
-			Kind: audit.KindAI, Model: "vgc_1", Verified: true,
+		audit.Record{Action: "mcp.call", Resource: "/mcp", Outcome: audit.Success, Principal: "app:aetc_1",
+			Kind: audit.KindAI, Model: "aetc_1", Verified: true,
 			Detail: map[string]string{"tool": "aertun_read", "operation": "list_pages", "on_behalf_of": "dana"}},
-		audit.Record{Action: "mcp.call", Resource: "/mcp", Outcome: audit.Denied, Principal: "app:vgc_1",
-			Kind: audit.KindAI, Model: "vgc_1", Verified: true,
+		audit.Record{Action: "mcp.call", Resource: "/mcp", Outcome: audit.Denied, Principal: "app:aetc_1",
+			Kind: audit.KindAI, Model: "aetc_1", Verified: true,
 			Detail: map[string]string{"tool": "aertun_write", "operation": "write_page", "on_behalf_of": "dana"}},
 		audit.Record{Action: "oauth.disconnected", Resource: "/mcp", Outcome: audit.Success, Principal: "dana",
 			Kind: audit.KindHuman, Verified: true},
@@ -650,7 +650,7 @@ func TestAgentInterfaceCallsExportAsReadsAndWrites(t *testing.T) {
 		}
 	}
 	actor := recs[0]["actor"].(map[string]any)
-	if actor["app_name"] != "vgc_1" {
+	if actor["app_name"] != "aetc_1" {
 		t.Errorf("the app is not the actor's application: %v", actor)
 	}
 	if _, ok := recs[2]["actor"].(map[string]any)["app_name"]; ok {

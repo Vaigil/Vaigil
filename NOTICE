@@ -1,4 +1,4 @@
-aertun
+Aertun
 Copyright 2026 Rashik Adhikari
 
 Licensed under the Apache License, Version 2.0 (SPDX-License-Identifier:
@@ -11,7 +11,7 @@ Third-party material
 aertun's source and its binaries carry the following material by others,
 each under its own licence.
 
-* The Go standard library and runtime, compiled into every aertun binary,
+* The Go standard library and runtime, compiled into every Aertun binary,
   are by the Go Authors (https://go.dev), under the BSD 3-Clause licence:
 
     Copyright 2009 The Go Authors.

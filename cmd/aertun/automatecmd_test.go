@@ -107,7 +107,7 @@ func TestNotifyPersonIsResolvedFromRecordsNotFromTheLog(t *testing.T) {
 	}
 	if to, err = personAddress(root, automate.Event{Kind: "signin",
 		Subject: "dana@corp.example"}); err != nil || to != "dana@corp.example" {
-		t.Errorf("a aertun principal resolved to %q (%v)", to, err)
+		t.Errorf("an Aertun principal resolved to %q (%v)", to, err)
 	}
 
 	// Nobody on record: the refusal is recorded in the run's history and

@@ -194,7 +194,7 @@ func personAddress(root string, ev automate.Event) (string, error) {
 	}
 	switch ev.Kind {
 	case "signin", "person", "signal":
-		// A aertun principal, or the subject of a feed's verified event:
+		// An Aertun principal, or the subject of a feed's verified event:
 		// named by this program, not by a log.
 		if strings.Contains(ev.Subject, "@") {
 			return ev.Subject, nil

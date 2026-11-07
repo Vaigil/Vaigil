@@ -708,7 +708,7 @@
     // and re-marking it here would reload every few seconds forever, which
     // is a page that cannot be read rather than one that is not live.
     function fallback() {
-      if (polled) { badge.textContent = "○ every 60s"; return; }
+      if (polled) { badge.textContent = "○ every 60s"; badge.removeAttribute("data-state"); return; }
       es.close();
       document.cookie = "aertun_poll=1; path=/; Max-Age=3600; SameSite=Strict";
       location.reload();
@@ -719,6 +719,7 @@
       es.onopen = function () {
         fails = 0;
         badge.textContent = "● live";
+        badge.setAttribute("data-state", "live");
         // Holding the stream again ends poll mode on the next load: the
         // cookie goes now, the reload that follows renders live.
         if (polled) {
@@ -737,6 +738,7 @@
           setTimeout(connect, 3000 + fails * 2000);
         } else {
           badge.textContent = "○ reconnecting…";
+          badge.removeAttribute("data-state");
         }
       };
       es.addEventListener("waiting", function (e) {

@@ -8,7 +8,7 @@
 # by root alone.
 
 [Unit]
-Description=aertun security operations console
+Description=Aertun, the proving ground for AI security work
 Documentation=https://aertun.github.io/
 After=network-online.target
 Wants=network-online.target

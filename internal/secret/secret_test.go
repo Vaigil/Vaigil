@@ -11,7 +11,7 @@ import (
 func TestItFindsCredentials(t *testing.T) {
 	for _, body := range []string{
 		"-----BEGIN RSA PRIVATE KEY-----",
-		"token: vg_6zukocv7ecidrejjyojgsdn7ekl3w2v3qph3ef6ylsm6usaqbtdq",
+		"token: aet_6zukocv7ecidrejjyojgsdn7ekl3w2v3qph3ef6ylsm6usaqbtdq",
 		"aws: AKIAIOSFODNN7EXAMPLE",
 		"gh: ghp_16CharsAndThenSomeMoreCharacters1234",
 		"openai: sk-proj-Ab3_kL9-mN2pQ7rS1tU4vW8xY0zA5bC6dE",

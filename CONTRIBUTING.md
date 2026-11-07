@@ -1,4 +1,4 @@
-# Contributing to aertun
+# Contributing to Aertun
 
 This project is looking for maintainers, not just patches. If you want commit
 access, the path is written down in [GOVERNANCE.md](GOVERNANCE.md) and it is
@@ -18,7 +18,7 @@ mkdir /tmp/try && cd /tmp/try
 ../aertun serve                          # the console, on http://localhost:8080
 ```
 
-aertun has no default password and creates no default account. Nothing is
+Aertun has no default password and creates no default account. Nothing is
 `admin` until you say so, and there is no state where an unconfigured install
 is reachable with a known credential.
 
@@ -26,7 +26,7 @@ For the command line, issue yourself a token. It is shown once:
 
 ```bash
 ../aertun token issue laptop --principal you@example.com --role admin
-mkdir -p ~/.aertun && umask 077 && printf '%s\n' 'vg_…' > ~/.aertun/token
+mkdir -p ~/.aertun && umask 077 && printf '%s\n' 'aet_…' > ~/.aertun/token
 ```
 
 `AERTUN_TOKEN` in the environment works too, and is looked at after the file.

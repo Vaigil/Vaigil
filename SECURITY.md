@@ -30,7 +30,7 @@ credited.
 
 ## What counts
 
-aertun makes specific structural claims, and a demonstration that any of them
+Aertun makes specific structural claims, and a demonstration that any of them
 is false is a vulnerability even without a working exploit:
 
 - **Authorisation is enforced at the action, not the screen.** Any request

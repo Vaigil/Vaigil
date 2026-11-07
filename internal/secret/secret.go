@@ -27,7 +27,7 @@ type kind struct {
 
 var kinds = []kind{
 	{name: "private-key", pattern: regexp.MustCompile(`-----BEGIN (RSA |EC |OPENSSH |PGP |DSA )?PRIVATE KEY-----`)},
-	{name: "token", pattern: regexp.MustCompile(`\bvg_[a-z0-9]{40,}\b`)},
+	{name: "token", pattern: regexp.MustCompile(`\baet_[a-z0-9]{40,}\b`)},
 	{name: "cloud-key", pattern: regexp.MustCompile(`\b(AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{36,}|xox[baprs]-[A-Za-z0-9-]{10,}|sk-(?:proj|svcacct|admin|ant-api\d\d|ant-admin\d\d)-[A-Za-z0-9_-]{32,}|sk-[A-Za-z0-9]{32,}|glpat-[A-Za-z0-9_-]{20,}|AIza[0-9A-Za-z_-]{35})\b`)},
 	{name: "connection-string", pattern: regexp.MustCompile(`(?i)\b(postgres|postgresql|mysql|mongodb(\+srv)?|redis|amqp)://[^\s:@/]+:[^\s@/]+@`)},
 	{name: "assignment", pattern: regexp.MustCompile(`(?i)\b(api[_-]?key|secret|token|passwd|password|credential|auth[_-]?token|private[_-]?key)\b\s*[:=]\s*["'` + "`" + `]?[A-Za-z0-9+/_=-]{16,}`), confirm: looksSecret},

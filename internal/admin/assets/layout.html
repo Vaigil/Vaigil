@@ -32,7 +32,7 @@
       {{template "menuicon"}}
     </button>
     {{template "navtoggle" .}}
-    <a class="brand" href="/" title="{{.Brand}}">{{if .BrandMark}}<span class="mark mark-initial" aria-hidden="true">{{.BrandMark}}</span><span class="brand-name">{{.Brand}}</span>{{else if eq .Brand "aertun"}}{{template "lockup" .}}{{else}}<svg class="mark" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path class="mark-first" d="{{.MarkFirst}}"/><path class="mark-second" d="{{.MarkSecond}}"/></svg><span class="brand-name">{{.Brand}}</span>{{end}}</a>
+    <a class="brand" href="/" title="{{.Brand}}">{{template "lockup" .}}</a>
     </div>
 
     {{/*
@@ -52,7 +52,7 @@
         <span class="visually-hidden">Find</span>
         {{icon "search"}}
       </button>
-      <input type="search" id="findq" name="q" placeholder="Search aertun"
+      <input type="search" id="findq" name="q" placeholder="Search Aertun"
              value="{{if eq .Nav "find"}}{{.Query}}{{end}}">
       <button type="button" class="palette-open" data-palette hidden
               title="Go to any screen"><kbd>Ctrl K</kbd><span class="visually-hidden">Go to any screen</span></button>
@@ -173,7 +173,7 @@
   neither gets both.
 */}}
 {{/* The logotype: the mark, then the name. Read out as the name. */}}
-{{define "lockup"}}<span class="lockup" role="img" aria-label="aertun"><svg class="mark lockup-mark" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path class="mark-first" d="{{.MarkFirst}}"/><path class="mark-second" d="{{.MarkSecond}}"/></svg><span aria-hidden="true">aertun</span></span>{{end}}
+{{define "lockup"}}<span class="lockup" role="img" aria-label="Aertun"><svg class="mark lockup-mark" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path class="mark-first" d="{{.MarkFirst}}"/><path class="mark-second" d="{{.MarkSecond}}"/></svg><span aria-hidden="true">Aertun</span></span>{{end}}
 {{define "req"}}<span class="req" aria-hidden="true">*</span><span class="visually-hidden"> (required)</span>{{end}}
 
 {{/*

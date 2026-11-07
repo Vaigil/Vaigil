@@ -61,7 +61,7 @@ func TestTheServersOwnMessagesStillShow(t *testing.T) {
 		t.Fatal("a signed message did not show")
 	}
 	// And the middleware signs a redirect as it goes out.
-	w := signInPost(srv, "vg_wrong")
+	w := signInPost(srv, "aet_wrong")
 	loc := w.Header().Get("Location")
 	if !strings.Contains(loc, flashSig+"=") {
 		t.Fatalf("a redirect with a message went out unsigned: %q", loc)

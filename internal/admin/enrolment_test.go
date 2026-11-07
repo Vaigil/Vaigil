@@ -87,11 +87,11 @@ func TestALinkAddsOnePasskeyForThePersonItNames(t *testing.T) {
 // while the admin is locked down.
 func TestALinkThatNamesNothingOpensNothing(t *testing.T) {
 	srv := enrolling(t)
-	w := get(t, srv, "/enrol/vgenrol_made-up", "")
+	w := get(t, srv, "/enrol/aetenrol_made-up", "")
 	if w.Code != http.StatusNotFound || strings.Contains(w.Body.String(), "dana") {
 		t.Errorf("a made-up link: %d", w.Code)
 	}
-	if w := postJSON(t, srv, "/enrol/challenge", "", map[string]any{"secret": "vgenrol_made-up"}); w.Code != http.StatusNotFound {
+	if w := postJSON(t, srv, "/enrol/challenge", "", map[string]any{"secret": "aetenrol_made-up"}); w.Code != http.StatusNotFound {
 		t.Errorf("a made-up link was given a challenge: %d", w.Code)
 	}
 }

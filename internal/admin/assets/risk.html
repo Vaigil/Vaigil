@@ -12,7 +12,8 @@
   benign, and what a rule on trial raised, is not counted. Several rules
   agreeing count for more than one rule firing several times.</p>
 
-{{if .Rows}}<div class="table-wrap"><table class="risk-table">
+{{if .Rows}}<h2 class="visually-hidden">Everything open, by person or thing</h2>
+<div class="table-wrap"><table class="risk-table">
   <caption class="visually-hidden">Who or what has the most open, highest first</caption>
   <thead><tr><th scope="col">Who or what</th><th scope="col">Score</th><th scope="col">Level</th><th scope="col">What is open</th></tr></thead>
   <tbody>{{range .Rows}}<tr>

@@ -70,7 +70,7 @@ func newSCIMToken(root string, days int) (string, scimToken, error) {
 	if _, err := rand.Read(b); err != nil {
 		return "", scimToken{}, err
 	}
-	token := "vgscim_" + base64.RawURLEncoding.EncodeToString(b)
+	token := "aetscim_" + base64.RawURLEncoding.EncodeToString(b)
 	sum := sha256.Sum256([]byte(token))
 	now := time.Now().UTC()
 	kept := scimToken{Hash: hex.EncodeToString(sum[:]), Created: now, Expires: now.AddDate(0, 0, days)}

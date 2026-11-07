@@ -292,25 +292,6 @@
 :root[data-theme="light"] { color-scheme: light; }
 :root[data-theme="dark"]  { color-scheme: dark; }
 
-/* The operator's accent, when one is configured.
- *
- * A single custom property set on the root element, and every role that should
- * follow it reads through this. Applied with a fallback rather than by
- * overwriting --primary, so a deployment that sets nothing is byte-identical to
- * one that never heard of branding — and the AAA contrast the palette was built
- * for is the default rather than something a brand can silently drop below.
- *
- * The colour reaching this variable is validated in brand.go against a hex
- * pattern before it is written into the style attribute. Nothing else may land
- * here, which is why this is one property and not a stylesheet. */
-.brand .mark, .brand span { color: var(--brand, inherit); }
-.mark-initial {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 22px; height: 22px; border-radius: var(--shape-sm);
-  background: var(--brand, var(--primary)); color: var(--on-primary);
-  font: var(--label-md); font-weight: 800; flex: none;
-}
-
 /* -- base ------------------------------------------------------------------ */
 
 * { box-sizing: border-box; }
@@ -690,6 +671,12 @@ fieldset label { display: inline; font-weight: 600; }
   padding: 1rem 1.2rem; margin: 1.25rem 0;
   background: var(--surface-container);
 }
+/* The live badge and its Refresh form, on one line. The badge is green
+   only while the stream is held — a colour that said "live" while the page
+   was polling would be the lie the badge exists to avoid. */
+.livebar { display: flex; align-items: center; gap: 12px; margin: 4px 0 8px; }
+.livebar form { margin: 0; }
+[data-live-badge][data-state="live"] { color: var(--ok); font-weight: 600; }
 .notice.ok   { background: var(--ok-container); color: var(--on-ok-container);
                border-color: var(--ok); }
 .notice.bad  { background: var(--error-container); color: var(--on-error-container);
@@ -2184,8 +2171,8 @@ ol.thread .who { display: block; font: var(--label-md); font-weight: 700; margin
   font-display: swap;
 }
 :root {
-  --mark-first: light-dark(#0b57d0, #a8c7fa);
-  --mark-second: light-dark(#7b4dff, #c8b6ff);
+  --mark-first: light-dark(#0A1F44, #E8EEF8);
+  --mark-second: light-dark(#0096B4, #1DE9B6);
 }
 .mark .mark-first { fill: var(--mark-first); }
 .mark .mark-second { fill: var(--mark-second); }

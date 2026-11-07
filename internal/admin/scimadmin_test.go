@@ -24,7 +24,7 @@ func wireSCIM(t *testing.T, srv *Server) (*scimCalls, *scim.Store) {
 	calls := &scimCalls{}
 	st := &scim.Store{Path: filepath.Join(t.TempDir(), "scim.json")}
 	srv.SCIM = &SCIMAdmin{
-		Handler: &scim.Handler{Store: st, Authenticate: func(tok string) bool { return tok == "vgscim_right" }},
+		Handler: &scim.Handler{Store: st, Authenticate: func(tok string) bool { return tok == "aetscim_right" }},
 		Status: func() (bool, *scim.State, error) {
 			s, err := st.Load()
 			return calls.tokens > calls.revoked, s, err
@@ -34,7 +34,7 @@ func wireSCIM(t *testing.T, srv *Server) (*scimCalls, *scim.Store) {
 			return st.Update(func(s *scim.State) error { s.Mapping[group] = to; return nil })
 		},
 		Unmap:       func(group, by string) error { calls.unmapped, calls.by = group, by; return nil },
-		NewToken:    func(by string) (string, error) { calls.tokens++; return "vgscim_shown-once", nil },
+		NewToken:    func(by string) (string, error) { calls.tokens++; return "aetscim_shown-once", nil },
 		RevokeToken: func(by string) error { calls.revoked++; return nil },
 	}
 	return calls, st
@@ -55,10 +55,10 @@ func TestTheProvisioningScreenMapsGroupsAndShowsTheTokenOnce(t *testing.T) {
 	}
 
 	w := postForm(t, srv, "/provisioning/act", token, "do=token")
-	if !strings.Contains(w.Body.String(), "vgscim_shown-once") {
+	if !strings.Contains(w.Body.String(), "aetscim_shown-once") {
 		t.Fatal("a new token is not shown")
 	}
-	if strings.Contains(get(t, srv, "/provisioning", token).Body.String(), "vgscim_shown-once") {
+	if strings.Contains(get(t, srv, "/provisioning", token).Body.String(), "aetscim_shown-once") {
 		t.Error("the token is shown again")
 	}
 
@@ -107,7 +107,7 @@ func TestTheIdentityProviderReachesTheEndpointThroughTheAdmin(t *testing.T) {
 		srv.Handler().ServeHTTP(w, req)
 		return w.Code
 	}
-	if code := call("vgscim_right", http.MethodPost, `{"userName":"ada@example.com"}`); code != http.StatusCreated {
+	if code := call("aetscim_right", http.MethodPost, `{"userName":"ada@example.com"}`); code != http.StatusCreated {
 		t.Errorf("the provider could not create a user: %d", code)
 	}
 	if code := call(token, http.MethodGet, ""); code != http.StatusUnauthorized {

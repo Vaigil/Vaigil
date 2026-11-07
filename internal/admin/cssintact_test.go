@@ -140,10 +140,7 @@ func TestEveryTokenUsedIsDefined(t *testing.T) {
 	}
 	// Comments describe old approaches by name; only rules count.
 	css := regexp.MustCompile(`(?s)/\*.*?\*/`).ReplaceAllString(string(b), "")
-	defined := map[string]bool{
-		// Set on the root element's style attribute by the brand colour.
-		"--brand": true,
-	}
+	defined := map[string]bool{}
 	for _, m := range regexp.MustCompile(`(--[\w-]+)\s*:`).FindAllStringSubmatch(css, -1) {
 		defined[m[1]] = true
 	}

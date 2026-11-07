@@ -5,7 +5,7 @@ reporting channel: this repository's private "Report a vulnerability" form,
 with "Conduct report" as its title. Only the maintainers and the reporter can
 read it.
 
-While aertun has only one maintainer, a report about that maintainer has
+While Aertun has only one maintainer, a report about that maintainer has
 nowhere independent to go. That gap is named in GOVERNANCE.md rather than
 papered over, and anybody uncomfortable reporting privately is invited to
 raise it publicly instead.

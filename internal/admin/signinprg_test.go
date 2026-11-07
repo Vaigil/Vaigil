@@ -26,7 +26,7 @@ func TestAThrottledSignInLeavesNothingToResubmit(t *testing.T) {
 	srv.Throttle = throttle.New(throttle.Default())
 
 	for i := 0; i < 30; i++ {
-		signInPost(srv, "vg_wrong")
+		signInPost(srv, "aet_wrong")
 	}
 	w := signInPost(srv, token)
 	if w.Code != http.StatusSeeOther {
@@ -49,9 +49,9 @@ func TestAThrottledSignInLeavesNothingToResubmit(t *testing.T) {
 func TestEveryRefusalIsARedirect(t *testing.T) {
 	srv, _ := setup(t)
 	for token, want := range map[string]string{
-		"not-a-token": "/signin?e=format",
-		"vg_nonsense": "/signin?e=refused",
-		"":            "/signin?e=format",
+		"not-a-token":  "/signin?e=format",
+		"aet_nonsense": "/signin?e=refused",
+		"":             "/signin?e=format",
 	} {
 		w := signInPost(srv, token)
 		if w.Code != http.StatusSeeOther || unsigned(w.Header().Get("Location")) != want {

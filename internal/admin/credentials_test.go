@@ -36,7 +36,7 @@ func TestTheSignInFormIsThrottled(t *testing.T) {
 	codes := map[string]int{}
 	for i := 0; i < 25; i++ {
 		req := httptest.NewRequest(http.MethodPost, "/signin",
-			strings.NewReader("token=vg_definitelynotarealtoken"))
+			strings.NewReader("token=aet_definitelynotarealtoken"))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Header.Set("Sec-Fetch-Site", "same-origin")
 		req.RemoteAddr = "198.51.100.7:4444"
@@ -150,7 +150,7 @@ func TestArrivingWithNothingIsNotAFailure(t *testing.T) {
 	refused := false
 	for i := 0; i < 25 && !refused; i++ {
 		req := httptest.NewRequest(http.MethodGet, "/today", nil)
-		req.AddCookie(&http.Cookie{Name: "aertun_token", Value: "vg_definitelynotarealtoken"})
+		req.AddCookie(&http.Cookie{Name: "aertun_token", Value: "aet_definitelynotarealtoken"})
 		req.RemoteAddr = from
 		w := httptest.NewRecorder()
 		srv.Handler().ServeHTTP(w, req)

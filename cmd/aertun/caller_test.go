@@ -21,10 +21,10 @@ func TestARejectedTokenSaysWhereItCameFrom(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(home, ".aertun", "token"),
-		[]byte("vg_"+strings.Repeat("a", 52)), 0o600); err != nil {
+		[]byte("aet_"+strings.Repeat("a", 52)), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("AERTUN_TOKEN", "vg_"+strings.Repeat("b", 52))
+	t.Setenv("AERTUN_TOKEN", "aet_"+strings.Repeat("b", 52))
 	root := t.TempDir()
 	if err := cmdInit(root); err != nil {
 		t.Fatal(err)
@@ -36,7 +36,7 @@ func TestARejectedTokenSaysWhereItCameFrom(t *testing.T) {
 	if !strings.Contains(c.Why, filepath.Join(home, ".aertun", "token")) || !strings.Contains(c.Why, "AERTUN_TOKEN is set too") {
 		t.Fatalf("the refusal does not say which token was tried: %q", c.Why)
 	}
-	if c := resolveCaller(root, "vg_"+strings.Repeat("c", 52)); !strings.Contains(c.Why, "from --token") {
+	if c := resolveCaller(root, "aet_"+strings.Repeat("c", 52)); !strings.Contains(c.Why, "from --token") {
 		t.Fatalf("an explicit token is not named as one: %q", c.Why)
 	}
 }

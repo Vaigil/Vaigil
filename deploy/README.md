@@ -1,4 +1,4 @@
-# Running aertun on a server
+# Running Aertun on a server
 
 This directory has a hardened systemd unit and a Caddyfile that puts the
 console behind https with a certificate it renews itself. Anything with 512 MB
@@ -18,14 +18,26 @@ make build
 sudo install -m 0755 bin/aertun /usr/local/bin/aertun
 ```
 
-## 3. The store and the first administrator
+## 3. The store, its Owner, and a token for the command line
 
 ```bash
 sudo -u aertun aertun --root /srv/aertun/store init --owner you@example.com
+sudo -u aertun aertun --root /srv/aertun/store token issue cli \
+    --principal you@example.com --role admin
 ```
 
-It prints a one-time link that adds your passkey. Open it once the console is
-reachable.
+`init` prints a one-time link that adds your passkey; open it once the console
+is reachable. `token issue` prints a token once — the first token a store
+issues needs none, and it is the one that lets the commands below change
+settings. Keep it where only the `aertun` account reads it:
+
+```bash
+sudo -u aertun sh -c 'umask 077; mkdir -p ~/.aertun; cat > ~/.aertun/token'
+```
+
+(paste the token, then Ctrl-D). Issue it before signing in: once any token
+exists, an administrator's token waits for a second administrator, or an hour
+for an only one.
 
 ## 4. The service and the proxy
 
@@ -35,7 +47,7 @@ sudo systemctl enable --now aertun
 caddy run --config deploy/Caddyfile
 ```
 
-Then, as the Caddyfile says, tell aertun it is behind TLS and where it is
+Then, as the Caddyfile says, tell Aertun it is behind TLS and where it is
 reached, so cookies are marked Secure and passkeys name the right host:
 
 ```bash
