@@ -17,7 +17,7 @@
 // phase, and it is small on purpose: a name, an owner who is a person, the
 // tools it may call, a status, and who decided each of those things and
 // when. Delegation chains, caveat tokens and per-operation scopes are later
-// phases of the same design (docs/research/02-access-control.md §8); none of
+// phases of the same design; none of
 // them can be built on top of a registry that does not exist.
 //
 // # Binding to credentials

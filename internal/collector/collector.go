@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package collector is the endpoint half of the collector: the read-only,
-// user-space recorder that watches what the agentless estate cannot see
-// (docs/research/12-xdr-ndr-tip-iam.md §8).
+// user-space recorder that watches what the agentless estate cannot see.
 //
 // # It records; it never judges; it never blocks
 //

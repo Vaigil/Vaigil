@@ -6,8 +6,8 @@ package ssf
 // The transmitter half: this deployment as the sender, not the receiver.
 //
 // Everything above this file in the package is about reading what other
-// platforms say. The other direction is the agent kill switch's outward half
-// (docs/research/02-access-control.md §8.5): a session-revoked event about an
+// platforms say. The other direction is the agent kill switch's outward
+// half: a session-revoked event about an
 // agent, pushed to every platform configured to hear it, so a kill here is a
 // kill everywhere that trusted the agent — AC-2(3), the flagship gap in the
 // NIST map.

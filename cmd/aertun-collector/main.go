@@ -5,8 +5,7 @@
 // Command aertun-collector is aertun's read-only endpoint recorder: the
 // small user-space agent that watches what the agentless estate cannot see
 // — the auditd tail, key and agent-configuration files, and its own
-// heartbeat — and ships the evidence to a aertun server in signed batches
-// (docs/research/12-xdr-ndr-tip-iam.md §8).
+// heartbeat — and ships the evidence to an Aertun server in signed batches.
 //
 // It records; it never judges; it never blocks. There is no kernel driver,
 // no on-endpoint detection and no prevention in this program, on any OS,

@@ -44,10 +44,6 @@ func TestQuilzoIsNamedOnlyWhereItIsMeant(t *testing.T) {
 	retired := regexp.MustCompile(`(?i)aigil`)
 	// And the second retired name, aeroprove, the same way.
 	eroprove := regexp.MustCompile(`(?i)eroprove`)
-	// The research record is history: it was written under the old name,
-	// says so at the top of its master report, and rewriting it would be
-	// the one edit an append-only discipline cannot allow.
-	historical := regexp.MustCompile(`^docs/research/`)
 	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -85,7 +81,7 @@ func TestQuilzoIsNamedOnlyWhereItIsMeant(t *testing.T) {
 			if any.MatchString(rest) {
 				t.Errorf("%s:%d names Quilzo: %s", path, n+1, strings.TrimSpace(line))
 			}
-			if !historical.MatchString(path) && (retired.MatchString(rest) || eroprove.MatchString(rest)) {
+			if retired.MatchString(rest) || eroprove.MatchString(rest) {
 				t.Errorf("%s:%d names a retired name: %s", path, n+1,
 					strings.TrimSpace(line))
 			}

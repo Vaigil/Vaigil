@@ -20,8 +20,7 @@ import (
 // decides whether that agent is anybody, and the kill switch reaches the
 // credential and not just the register.
 //
-// The matrix the design asks to hold (docs/research/02-access-control.md
-// §8.1, §8.3, §8.5), each row through the real operation path — buildMCP's
+// The matrix the agent design asks to hold, each row through the real operation path — buildMCP's
 // hook and the handlers, the same lines a stdio or HTTP caller reaches:
 //
 //	allowed + allowlisted                 succeeds

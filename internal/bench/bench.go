@@ -4,7 +4,7 @@
 
 // Package bench is aertunbench v0: the open benchmark of agentic-SOC
 // accuracy, beginning with the number no vendor publishes — how often the
-// analyst would have closed a real attack (docs/research white space 11).
+// analyst would have closed a real attack.
 //
 // # What v0 honestly is
 //
@@ -32,8 +32,7 @@
 //
 // # What is measured
 //
-// The metrics follow the eval methodology (docs/research/07 §5.2): FNR on
-// real with a Wilson interval is primary, because the cost asymmetry is the
+// The metrics: FNR on real with a Wilson interval is primary, because the cost asymmetry is the
 // whole argument for measuring false closures at all. Precision, recall and
 // F1 treat real as the positive class over pooled runs, with abstentions
 // counted apart rather than as errors: an analyst that says "a person

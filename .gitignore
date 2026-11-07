@@ -5,9 +5,6 @@ bin/
 # git would silently refuse to add the source beside it.
 /aertun
 /aertun-collector
-# The binary this tree was built as before it was renamed, so a stale build
-# left in a working copy is never committed again.
-/vaigil
 *.exe
 
 # A store, which is data and not source. `aertun init` makes one in the

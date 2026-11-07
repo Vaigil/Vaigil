@@ -18,8 +18,7 @@ import (
 )
 
 // Where the machines that run agents talk to, from what the recorder already
-// ships — the flow-log NDR of docs/research/12-xdr-ndr-tip-iam.md §3.2 at
-// startup scale, built on the connect half of the auditd tail rather than on
+// ships — flow-log NDR at startup scale, built on the connect half of the auditd tail rather than on
 // a sensor.
 //
 // # What this reads, and nothing else

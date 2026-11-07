@@ -51,8 +51,7 @@
 //
 // The registry decides who the client is: an unknown, unregistered or
 // disabled agent is refused at /authorize, at /token, and again at the
-// exchange, because the kill switch (docs/research/02-access-control.md
-// §8.5) must reach a half-finished flow as surely as a finished one. No
+// exchange, because the kill switch must reach a half-finished flow as surely as a finished one. No
 // identity, no policy hook, no token store: each is refused rather than
 // assumed empty.
 package oauthas

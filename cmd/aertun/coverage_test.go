@@ -417,7 +417,7 @@ var coverage = map[string]surfaces{
 	// A pack is a document an operator hands to an assessor: generated at a
 	// terminal, verified from its file, and never a live surface. The screen
 	// that would earn one is the CSF 2.0 / AI RMF roll-up computed from the
-	// mapping and these same queries (docs/research/16-nist-mapping.md §5.3),
+	// mapping and these same queries,
 	// which is the next slice rather than this one.
 	"compliance": {
 		Why: "the pack is a document an assessor takes away, generated from " +
