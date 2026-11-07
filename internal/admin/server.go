@@ -293,7 +293,7 @@ func (s *Server) refresh() {
 
 // New builds the server and parses the admin templates once.
 //
-// html/template rather than aertun's own engine, and the distinction matters.
+// html/template rather than Aertun's own engine, and the distinction matters.
 // aertun's language is deliberately powerless because *users* write in it and
 // user templates are an injection surface. These templates are ours, shipped in
 // the binary, and never author-supplied — so the stdlib's contextual escaping is

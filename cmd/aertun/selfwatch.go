@@ -34,7 +34,7 @@ import (
 // its outcome and resource, the kind of actor, and the few details a rule
 // needs. The principal is the pseudonym the log already stores.
 
-// SelfSource is the source aertun's own audit records are stored under.
+// SelfSource is the source Aertun's own audit records are stored under.
 const SelfSource = "aertun/audit"
 
 // AgentSource is the source records of what a model did are stored under:

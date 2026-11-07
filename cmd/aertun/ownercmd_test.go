@@ -163,3 +163,25 @@ func TestInitIntoAnEmptyDirectoryInstallsTheRules(t *testing.T) {
 		t.Fatal("init into an empty directory installed no rules")
 	}
 }
+
+// A store made in an empty directory — the container image ships one — is
+// new: two factors from its first day, not the grace an older installation
+// gets. A directory that already holds a store keeps whatever it had.
+func TestInitIntoAnEmptyDirectoryHasTwoFactorsFromTheStart(t *testing.T) {
+	windtunnelOutput(t)
+	root := t.TempDir() // exists, and is empty
+	if err := runInit(root, []string{"--owner", "you@example.com"}); err != nil {
+		t.Fatal(err)
+	}
+	from, ok := mfaFromIfSet(root)
+	if !ok || time.Since(from) > time.Minute || time.Until(from) > time.Minute {
+		t.Fatalf("two factors start at %s (set %v), not now", from, ok)
+	}
+	// Run again on the store it made: nothing about the date moves.
+	if err := runInit(root, nil); err != nil {
+		t.Fatal(err)
+	}
+	if again, _ := mfaFromIfSet(root); !again.Equal(from) {
+		t.Errorf("a second init moved two factors from %s to %s", from, again)
+	}
+}

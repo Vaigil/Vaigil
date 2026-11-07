@@ -73,7 +73,7 @@ func TestAnEngineerCannotAutomatePeoplesAccess(t *testing.T) {
 	}
 }
 
-// An administrator of all of aertun may do all of it.
+// An administrator of all of Aertun may do all of it.
 func TestASiteAdministratorAutomatesAccess(t *testing.T) {
 	srv, token := setup(t)
 	e := wireAutomations(t, srv)

@@ -282,10 +282,7 @@ func main() {
 	var err error
 	switch cmd {
 	case "init":
-		_, existed := os.Stat(root)
-		if err = cmdInit(root); err == nil {
-			err = initAdmin(root, cmdArgs, existed != nil)
-		}
+		err = runInit(root, cmdArgs)
 	case "auditlog":
 		err = cmdAuditLog(root, cmdArgs)
 	case "network":
@@ -494,6 +491,21 @@ func splitFlags(args []string, valued map[string]bool) (flags, positional []stri
 
 // cmdInit makes the store: a directory private to this account, with the
 // detection rules that ship.
+// runInit is `aertun init`: the store, its rules, and — when the store is
+// new — two factors from its first day. New means the directory did not
+// exist or was empty, decided before init writes anything: the container
+// image ships the store's directory empty, and a store made there is as
+// new as one made anywhere else, so it gets no grace meant for people
+// already signing in to an older installation with a token.
+func runInit(root string, args []string) error {
+	entries, err := os.ReadDir(root)
+	fresh := os.IsNotExist(err) || (err == nil && len(entries) == 0)
+	if err := cmdInit(root); err != nil {
+		return err
+	}
+	return initAdmin(root, args, fresh)
+}
+
 func cmdInit(root string) error {
 	// main builds the writer; a test calling this first has not.
 	if w == nil {

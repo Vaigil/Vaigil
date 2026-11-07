@@ -295,7 +295,7 @@ func detectPass(root, rulesAt string, since time.Duration, caller *Caller, sp *s
 			}
 		}
 	}
-	// aertun's own records first, as they are copied: they are read here,
+	// Aertun's own records first, as they are copied: they are read here,
 	// once, and never by the pass below, so that their arrival time — now —
 	// does not move the cursor outside platforms' events are read by.
 	for _, e := range selfEvents {

@@ -107,7 +107,7 @@ var commandNeeds = map[string]need{
 	"inbound status": {action: auth.ActView},
 	"inbound help":   {action: auth.ActView},
 	// Where sign-ins come from decides which of them are stepped up, so
-	// naming a network is a decision for all of aertun; reading is a view.
+	// naming a network is a decision for all of Aertun; reading is a view.
 	"geo":        {action: auth.ActGrant},
 	"geo status": {action: auth.ActView},
 	"geo help":   {action: auth.ActView},

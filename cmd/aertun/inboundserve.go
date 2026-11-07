@@ -96,7 +96,7 @@ func detectAs(root string, sp *spool.Spool, name string) (int, error) {
 	return len(sum.New), nil
 }
 
-// detectJob runs the rules over aertun's own log on the server's timer.
+// detectJob runs the rules over Aertun's own log on the server's timer.
 //
 // The rules about aertun itself, what agents did and the correlations
 // across them ran when somebody typed `aertun detect run`, when a feed

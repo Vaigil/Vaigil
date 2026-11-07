@@ -514,7 +514,7 @@ func cmdAutomate(root string, args []string) error {
 	// lock out everybody above them.
 	siteAdmin := func(what string) error {
 		if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
-			return fmt.Errorf("%s acts on people's access, which takes an administrator of all of aertun: %w", what, err)
+			return fmt.Errorf("%s acts on people's access, which takes an administrator of all of Aertun: %w", what, err)
 		}
 		return nil
 	}

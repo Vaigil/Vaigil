@@ -57,7 +57,7 @@ func cmdInbound(root string, args []string) error {
 	// as rules that change access are.
 	siteAdmin := func() error {
 		if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
-			return fmt.Errorf("changing a feed is for an administrator of all of aertun: %w", err)
+			return fmt.Errorf("changing a feed is for an administrator of all of Aertun: %w", err)
 		}
 		return nil
 	}

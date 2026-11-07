@@ -428,11 +428,11 @@ func (s *Server) handleSignInsAct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Vouching for somebody takes at least their standing: an analyst
-	// cannot let an administrator of all of aertun past a step-up.
+	// cannot let an administrator of all of Aertun past a step-up.
 	if r.FormValue("do") == "letin" && s.Policy != nil &&
 		s.Policy.Evaluate(who, auth.ActGrant, "/").Allowed &&
 		!s.Policy.Evaluate(p.Name, auth.ActGrant, "/").Allowed {
-		back("e", who+" administers all of aertun; only somebody who does too can let them in.")
+		back("e", who+" administers all of Aertun; only somebody who does too can let them in.")
 		return
 	}
 	var err error
@@ -725,7 +725,7 @@ func (s *Server) handleAutomationsAct(w http.ResponseWriter, r *http.Request) {
 	// the administrators" could lock out everybody above them.
 	siteAdmin := s.Policy != nil && s.Policy.Evaluate(p.Name, auth.ActGrant, "/").Allowed
 	accessRefused := func(what string) {
-		back("e", what+" acts on people's access, which takes an administrator of all of aertun.")
+		back("e", what+" acts on people's access, which takes an administrator of all of Aertun.")
 	}
 	find := func(id string) (automate.Rule, bool) {
 		rules, _ := e.Rules()

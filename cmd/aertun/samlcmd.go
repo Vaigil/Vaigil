@@ -149,7 +149,7 @@ func cmdSAML(root string, args []string) error {
 	case "add":
 		if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
 			return fmt.Errorf("setting up single sign-on decides who can become an administrator, "+
-				"so it is for an administrator of all of aertun: %w", err)
+				"so it is for an administrator of all of Aertun: %w", err)
 		}
 		c, err := samlAdd(root, args[1:])
 		if err != nil {
@@ -163,7 +163,7 @@ func cmdSAML(root string, args []string) error {
 			return samlUsage()
 		}
 		if err := authorise(root, caller, auth.ActGrant, "/"); err != nil {
-			return fmt.Errorf("removing single sign-on is for an administrator of all of aertun: %w", err)
+			return fmt.Errorf("removing single sign-on is for an administrator of all of Aertun: %w", err)
 		}
 		if err := removeSAML(root, args[1]); err != nil {
 			return err

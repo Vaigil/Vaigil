@@ -126,7 +126,7 @@ func oktaOn(who, person, eventType string, failed bool,
 			"country": "US"}}}
 }
 
-// agentOn is one of aertun's own records of what a model did, as
+// agentOn is one of Aertun's own records of what a model did, as
 // storeAgentEvents stores it: the action in the message and in raw, the
 // outcome as the disposition, the agent as the actor.
 func agentOn(principal, action string, d telemetry.Disposition,

@@ -29,7 +29,7 @@ type oidcConfig struct {
 	Issuer      string `json:"issuer"`
 	ClientID    string `json:"client_id"`
 	RedirectURI string `json:"redirect_uri"`
-	// Claim is which claim becomes the aertun principal. Defaults to email,
+	// Claim is which claim becomes the Aertun principal. Defaults to email,
 	// because that is what an access policy is written in terms of — but sub is
 	// the stable one, and an operator whose provider recycles addresses should
 	// say so.
